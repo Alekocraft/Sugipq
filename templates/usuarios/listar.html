@@ -1,0 +1,129 @@
+<!-- templates/usuarios/listar.html -->
+{% extends "base.html" %}
+
+{% block title %}Gestión de Usuarios{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0 text-gray-800">
+            <i class="fas fa-users mr-2"></i>Gestión de Usuarios
+        </h1>
+        <a href="{{ url_for('usuarios.crear_usuario') }}" class="btn btn-primary">
+            <i class="fas fa-plus mr-2"></i>Nuevo Usuario
+        </a>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">Lista de Usuarios</h6>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Usuario</th>
+                            <th>Email</th>
+                            <th>Rol</th>
+                            <th>Oficina</th>
+                            <th>Aprobador</th>
+                            <th>Estado</th>
+                            <th>Fecha Creación</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for usuario in usuarios %}
+                        <tr>
+                            <td>{{ usuario.id }}</td>
+                            <td>{{ usuario.usuario }}</td>
+                            <td>{{ usuario.email }}</td>
+                            <td>
+                                <span class="badge badge-{{ 
+                                    'primary' if usuario.rol == 'admin' 
+                                    else 'success' if usuario.rol == 'tesoreria' 
+                                    else 'info' if 'oficina' in usuario.rol 
+                                    else 'warning' if usuario.rol == 'aprobador'
+                                    else 'secondary'
+                                }}">
+                                    {{ usuario.rol }}
+                                </span>
+                            </td>
+                            <td>{{ usuario.oficina_nombre }}</td>
+                            <td>{{ usuario.aprobador_nombre or 'No asignado' }}</td>
+                            <td>
+                                {% if usuario.activo %}
+                                    <span class="badge badge-success">Activo</span>
+                                {% else %}
+                                    <span class="badge badge-danger">Inactivo</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ usuario.fecha_creacion.strftime('%Y-%m-%d') if usuario.fecha_creacion }}</td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    <a href="{{ url_for('usuarios.editar_usuario', usuario_id=usuario.id) }}" 
+                                       class="btn btn-sm btn-warning" title="Editar">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    
+                                    {% if usuario.activo %}
+                                    <form action="{{ url_for('usuarios.eliminar_usuario', usuario_id=usuario.id) }}" 
+                                          method="POST" class="d-inline" 
+                                          onsubmit="return confirm('¿Está seguro de desactivar este usuario?');">
+                                        <button type="submit" class="btn btn-sm btn-danger" title="Desactivar">
+                                            <i class="fas fa-user-slash"></i>
+                                        </button>
+                                    </form>
+                                    {% else %}
+                                    <form action="{{ url_for('usuarios.reactivar_usuario', usuario_id=usuario.id) }}" 
+                                          method="POST" class="d-inline" 
+                                          onsubmit="return confirm('¿Está seguro de reactivar este usuario?');">
+                                        <button type="submit" class="btn btn-sm btn-success" title="Reactivar">
+                                            <i class="fas fa-user-check"></i>
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Page level plugins -->
+<script src="{{ url_for('static', filename='vendor/datatables/jquery.dataTables.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/datatables/dataTables.bootstrap4.min.js') }}"></script>
+
+<!-- Page level custom scripts -->
+<script>
+$(document).ready(function() {
+    $('#dataTable').DataTable({
+        "language": {
+            "url": "//cdn.datatables.net/plug-ins/1.10.20/i18n/Spanish.json"
+        },
+        "order": [[0, "desc"]]
+    });
+});
+</script>
+{% endblock %}

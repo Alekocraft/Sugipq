@@ -1,0 +1,14 @@
+# Ignorar archivos de Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Archivos de Visual Studio
+.vs/
+*.vsidx
+*.user
+*.suo
+
+# Otros archivos temporales
+*.log
+*.tmp

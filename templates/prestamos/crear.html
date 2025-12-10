@@ -1,0 +1,312 @@
+{% extends "base.html" %}
+{% block title %}Nuevo Préstamo{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1 class="fw-bold">
+            <i class="fas fa-plus"></i> Nuevo Préstamo de Elemento Publicitario
+        </h1>
+        <div class="d-flex gap-2">
+            {% if can_access('materiales', 'create') %}
+            <a href="/prestamos/elementos/crearmaterial" class="btn btn-outline-primary">
+                <i class="fas fa-plus-square"></i> Crear Elemento
+            </a>
+            {% endif %}
+            <a href="/prestamos" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> Volver
+            </a>
+        </div>
+    </div>
+
+    <div id="message-container"></div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    {% for category, message in messages %}
+    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+    </div>
+    {% endfor %}
+    {% endif %}
+    {% endwith %}
+
+    <form id="prestamoForm" method="post">
+        <input type="hidden" name="solicitante_id" value="{{ solicitante_id }}">
+        <input type="hidden" name="oficina_id" value="{{ oficina_id }}">
+
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label">Solicitante</label>
+                <input class="form-control" value="{{ solicitante_nombre }}" readonly>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Oficina</label>
+                <input class="form-control" value="{{ oficina_nombre }}" readonly>
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label">Elemento*</label>
+                <select name="elemento_id" id="elemento_id" class="form-select" required>
+                    <option value="">— selecciona —</option>
+                    {% for e in elementos %}
+                    <option value="{{ e.id }}"
+                            data-valor="{{ e.valor }}"
+                            data-disponible="{{ e.disponible }}"
+                            data-imagen="{{ e.imagen or '' }}">
+                        {{ e.nombre }} (Disponible: {{ e.disponible }})
+                    </option>
+                    {% endfor %}
+                </select>
+                <div class="small text-muted mt-1" id="disp_hint"></div>
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">Cantidad*</label>
+                <input type="number" name="cantidad" id="cantidad" class="form-control" min="1" value="1" required>
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label">Fecha devolución prevista*</label>
+                <input type="date" name="fecha_prevista" id="fecha_prevista" class="form-control" required
+                       min="{{ fecha_minima }}">
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label">Evento/Motivo del Préstamo*</label>
+                <input type="text" name="evento" class="form-control" required
+                       placeholder="Ej: Campaña publicitaria, Evento corporativo, etc.">
+            </div>
+
+            <div class="col-12">
+                <label class="form-label">Observaciones*</label>
+                <textarea name="observaciones" class="form-control" rows="2" required
+                          placeholder="Detalles adicionales sobre el préstamo..."></textarea>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body text-center">
+                        <div class="mb-3" style="min-height: 200px; display: flex; align-items: center; justify-content: center; background: #f8f9fa; border-radius: 8px;">
+                            <img id="img_elemento" src="" alt="Imagen elemento"
+                                 class="img-fluid rounded"
+                                 style="max-height: 180px; display: none;">
+                            <div id="img_placeholder" class="text-muted">
+                                <i class="fas fa-image fa-3x mb-2"></i>
+                                <div>Selecciona un elemento</div>
+                            </div>
+                        </div>
+                        <div class="small text-start">
+                            <div><strong>Valor unitario:</strong> $<span id="vu">0.00</span></div>
+                            <div><strong>Subtotal:</strong> $<span id="subt">0.00</span></div>
+                            <div><strong>Disponible:</strong> <span id="disp">0</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-3 d-flex gap-2">
+            <button type="submit" class="btn btn-primary" id="submitBtn">
+                <i class="fas fa-save"></i> Registrar Préstamo
+            </button>
+            <a href="/prestamos" class="btn btn-outline-secondary">Cancelar</a>
+        </div>
+    </form>
+</div>
+
+{% block scripts %}
+<script>
+    (function () {
+        const elementoSelect = document.getElementById('elemento_id');
+        const cantidadInput = document.getElementById('cantidad');
+        const dispHint = document.getElementById('disp_hint');
+        const imagenElemento = document.getElementById('img_elemento');
+        const imagenPlaceholder = document.getElementById('img_placeholder');
+        const valorUnitarioSpan = document.getElementById('vu');
+        const subtotalSpan = document.getElementById('subt');
+        const disponibleSpan = document.getElementById('disp');
+        const fechaInput = document.getElementById('fecha_prevista');
+        const prestamoForm = document.getElementById('prestamoForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const messageContainer = document.getElementById('message-container');
+
+        let valorUnitario = 0;
+        let disponible = 0;
+
+        if (fechaInput) {
+            const today = new Date().toISOString().split('T')[0];
+            fechaInput.min = today;
+            
+            if (!fechaInput.value) {
+                const nextWeek = new Date();
+                nextWeek.setDate(nextWeek.getDate() + 7);
+                fechaInput.value = nextWeek.toISOString().split('T')[0];
+            }
+        }
+
+        function formatearNumero(n) {
+            return (Math.round(n * 100) / 100).toFixed(2);
+        }
+
+        function cargarInformacionElemento() {
+            const opcionSeleccionada = elementoSelect.options[elementoSelect.selectedIndex];
+            
+            if (!opcionSeleccionada || !opcionSeleccionada.value) {
+                resetearInformacionElemento();
+                return;
+            }
+
+            valorUnitario = parseFloat(opcionSeleccionada.getAttribute('data-valor')) || 0;
+            disponible = parseInt(opcionSeleccionada.getAttribute('data-disponible')) || 0;
+            const imagenUrl = opcionSeleccionada.getAttribute('data-imagen');
+
+            actualizarInterfaz(imagenUrl);
+            calcularSubtotal();
+        }
+
+        function resetearInformacionElemento() {
+            dispHint.textContent = '';
+            imagenElemento.style.display = 'none';
+            imagenPlaceholder.style.display = 'flex';
+            valorUnitarioSpan.textContent = '0.00';
+            subtotalSpan.textContent = '0.00';
+            disponibleSpan.textContent = '0';
+            valorUnitario = 0;
+            disponible = 0;
+        }
+
+        function actualizarInterfaz(imagenUrl) {
+            valorUnitarioSpan.textContent = formatearNumero(valorUnitario);
+            disponibleSpan.textContent = disponible;
+            dispHint.textContent = `Disponible: ${disponible}`;
+
+            if (disponible > 0) {
+                dispHint.className = 'small text-success';
+            } else {
+                dispHint.className = 'small text-danger';
+            }
+
+            if (imagenUrl && imagenUrl.trim() !== '') {
+                imagenElemento.src = imagenUrl;
+                imagenElemento.style.display = 'block';
+                imagenPlaceholder.style.display = 'none';
+
+                imagenElemento.onerror = function () {
+                    imagenElemento.style.display = 'none';
+                    imagenPlaceholder.style.display = 'flex';
+                };
+            } else {
+                imagenElemento.style.display = 'none';
+                imagenPlaceholder.style.display = 'flex';
+            }
+        }
+
+        function calcularSubtotal() {
+            const cantidad = parseInt(cantidadInput.value || '0', 10);
+            const subtotal = (valorUnitario || 0) * (cantidad || 0);
+            subtotalSpan.textContent = formatearNumero(subtotal);
+
+            if (cantidad > disponible) {
+                cantidadInput.classList.add('is-invalid');
+                cantidadInput.setCustomValidity('La cantidad supera el stock disponible');
+                dispHint.classList.add('text-danger');
+            } else if (cantidad <= 0) {
+                cantidadInput.classList.add('is-invalid');
+                cantidadInput.setCustomValidity('La cantidad debe ser mayor a 0');
+            } else {
+                cantidadInput.classList.remove('is-invalid');
+                cantidadInput.setCustomValidity('');
+                if (disponible > 0) {
+                    dispHint.classList.remove('text-danger');
+                    dispHint.classList.add('text-success');
+                }
+            }
+        }
+
+        function mostrarMensaje(tipo, mensaje) {
+            messageContainer.innerHTML = '';
+            
+            const alertaDiv = document.createElement('div');
+            alertaDiv.className = `alert alert-${tipo} alert-dismissible fade show`;
+            alertaDiv.role = 'alert';
+            alertaDiv.innerHTML = `
+                ${mensaje}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+            `;
+            messageContainer.appendChild(alertaDiv);
+            
+            if (tipo !== 'danger') {
+                setTimeout(() => {
+                    if (alertaDiv.parentNode) {
+                        alertaDiv.remove();
+                    }
+                }, 5000);
+            }
+        }
+
+        prestamoForm.addEventListener('submit', async function (e) {
+            e.preventDefault();
+            
+            if (!prestamoForm.checkValidity()) {
+                prestamoForm.classList.add('was-validated');
+                return;
+            }
+
+            const textoOriginal = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
+
+            try {
+                const formData = new FormData(prestamoForm);
+                
+                const headers = {
+                    'X-Requested-With': 'XMLHttpRequest'
+                };
+                
+                const respuesta = await fetch('/prestamos/crear', {
+                    method: 'POST',
+                    headers: headers,
+                    body: formData
+                });
+
+                const resultado = await respuesta.json();
+                
+                if (resultado.success) {
+                    mostrarMensaje('success', resultado.message);
+                    
+                    prestamoForm.reset();
+                    resetearInformacionElemento();
+                    
+                    const nextWeek = new Date();
+                    nextWeek.setDate(nextWeek.getDate() + 7);
+                    fechaInput.value = nextWeek.toISOString().split('T')[0];
+                    
+                    elementoSelect.selectedIndex = 0;
+                    cargarInformacionElemento();
+                    
+                    if (resultado.redirect) {
+                        setTimeout(() => {
+                            window.location.href = resultado.redirect;
+                        }, 3000);
+                    }
+                } else {
+                    mostrarMensaje('danger', resultado.message || 'Error al registrar el préstamo');
+                }
+            } catch (error) {
+                mostrarMensaje('danger', 'Error de conexión. Por favor, intente nuevamente.');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = textoOriginal;
+            }
+        });
+
+        elementoSelect?.addEventListener('change', cargarInformacionElemento);
+        cantidadInput?.addEventListener('input', calcularSubtotal);
+
+        cargarInformacionElemento();
+    })();
+</script>
+{% endblock %}
+{% endblock %}

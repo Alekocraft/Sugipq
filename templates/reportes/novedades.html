@@ -1,0 +1,511 @@
+{% extends "base.html" %}
+{% block title %}Reporte de Novedades{% endblock %}
+{% block styles %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.1/css/buttons.bootstrap5.min.css">
+<style>
+    .badge-tipo-novedad {
+        font-size: 0.85em;
+        padding: 5px 10px;
+    }
+    .prioridad-alta { background-color: #dc3545; color: white; }
+    .prioridad-media { background-color: #ffc107; color: black; }
+    .prioridad-baja { background-color: #28a745; color: white; }
+    .card-novedad {
+        border-left: 4px solid;
+        margin-bottom: 10px;
+    }
+    .novedad-alta { border-left-color: #dc3545; }
+    .novedad-media { border-left-color: #ffc107; }
+    .novedad-baja { border-left-color: #28a745; }
+    .comentario-box {
+        background-color: #f8f9fa;
+        border-radius: 5px;
+        padding: 10px;
+        margin-top: 10px;
+        font-size: 0.9em;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid fade-in">
+    <!-- Encabezado -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 fw-bold mb-1" style="color: #6f42c1;">
+                Reporte de Novedades
+            </h1>
+            <p class="text-muted small">Registro de incidentes y reportes del sistema</p>
+        </div>
+        <div>
+            {% if can_access('novedades', 'create') %}
+            <a href="/novedades/crear" class="btn btn-sm me-2" style="background-color: #6f42c1; color: white;">
+                Nueva Novedad
+            </a>
+            {% endif %}
+            <a href="/reportes" class="btn btn-outline-secondary btn-sm">
+                Volver a Reportes
+            </a>
+        </div>
+    </div>
+
+    <!-- Estadísticas de novedades -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <h6 class="text-muted mb-2">Total Novedades</h6>
+                    <h2 class="fw-bold">{{ total_novedades }}</h2>
+                    <small class="text-muted">Registradas en sistema</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <h6 class="text-muted mb-2">Pendientes</h6>
+                    <h2 class="fw-bold text-warning">{{ pendientes }}</h2>
+                    <small class="text-muted">Por atender</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <h6 class="text-muted mb-2">En Proceso</h6>
+                    <h2 class="fw-bold text-primary">{{ en_proceso }}</h2>
+                    <small class="text-muted">En atención</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body text-center">
+                    <h6 class="text-muted mb-2">Resueltas</h6>
+                    <h2 class="fw-bold text-success">{{ resueltas }}</h2>
+                    <small class="text-muted">Finalizadas</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtros rápidos -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h6 class="fw-semibold mb-3">Filtrar por estado:</h6>
+                    <div class="d-flex flex-wrap gap-2 mb-3">
+                        <span class="badge bg-warning filtro-rapido" data-estado="pendiente">
+                            Pendientes ({{ pendientes }})
+                        </span>
+                        <span class="badge bg-primary filtro-rapido" data-estado="en_proceso">
+                            En Proceso ({{ en_proceso }})
+                        </span>
+                        <span class="badge bg-success filtro-rapido" data-estado="resuelto">
+                            Resueltas ({{ resueltas }})
+                        </span>
+                        <span class="badge bg-secondary filtro-rapido" data-estado="">
+                            Todas ({{ total_novedades }})
+                        </span>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <h6 class="fw-semibold mb-3">Filtrar por prioridad:</h6>
+                    <div class="d-flex flex-wrap gap-2">
+                        <span class="badge prioridad-alta filtro-prioridad" data-prioridad="alta">
+                            Alta ({{ prioridad_alta }})
+                        </span>
+                        <span class="badge prioridad-media filtro-prioridad" data-prioridad="media">
+                            Media ({{ prioridad_media }})
+                        </span>
+                        <span class="badge prioridad-baja filtro-prioridad" data-prioridad="baja">
+                            Baja ({{ prioridad_baja }})
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtros avanzados -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label small fw-semibold">Fecha desde</label>
+                    <input type="date" id="fecha-desde" class="form-control form-control-sm">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-semibold">Fecha hasta</label>
+                    <input type="date" id="fecha-hasta" class="form-control form-control-sm">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-semibold">Tipo de Novedad</label>
+                    <select id="filtro-tipo" class="form-select form-select-sm">
+                        <option value="">Todos los tipos</option>
+                        {% for tipo in tipos_novedad %}
+                        <option value="{{ tipo }}">{{ tipo }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-semibold">Reportado por</label>
+                    <select id="filtro-reportante" class="form-select form-select-sm">
+                        <option value="">Todos</option>
+                        {% for reportante in reportantes %}
+                        <option value="{{ reportante }}">{{ reportante }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-12">
+                    <div class="d-flex justify-content-end gap-2">
+                        <button id="btn-aplicar-filtros" class="btn btn-primary btn-sm">
+                            Aplicar Filtros
+                        </button>
+                        <div class="btn-group">
+                            <button onclick="exportarExcel()" class="btn btn-success btn-sm">
+                                <i class="fas fa-file-excel me-1"></i>Excel
+                            </button>
+                            <button onclick="exportarPDF()" class="btn btn-danger btn-sm">
+                                <i class="fas fa-file-pdf me-1"></i>PDF
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabla de novedades -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-primary text-white py-3">
+            <div class="d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-semibold">
+                    <i class="fas fa-list me-1"></i>Lista de Novedades
+                    <span class="badge bg-light text-dark ms-2">{{ total_novedades }}</span>
+                </h6>
+                <div class="text-white-50 small">
+                    <i class="fas fa-mouse-pointer me-1"></i>Click en botones para acciones
+                </div>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table id="tabla-novedades" class="table table-hover table-sm align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-3">ID</th>
+                            <th>Fecha Reporte</th>
+                            <th>Tipo</th>
+                            <th>Descripción</th>
+                            <th>Prioridad</th>
+                            <th>Estado</th>
+                            <th>Reportado por</th>
+                            <th>Asignado a</th>
+                            <th class="text-center pe-3">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for novedad in novedades %}
+                        <tr class="{% if novedad.prioridad == 'alta' %}table-danger{% elif novedad.prioridad == 'media' %}table-warning{% endif %}">
+                            <td class="ps-3 fw-semibold small">#{{ novedad.id }}</td>
+                            <td class="small">{{ novedad.fecha_reporte.strftime('%d/%m/%Y') }}</td>
+                            <td>
+                                <span class="badge badge-tipo-novedad" style="background-color: {{ novedad.color_tipo }}; color: white;">
+                                    {{ novedad.tipo }}
+                                </span>
+                            </td>
+                            <td class="small">
+                                <small>{{ novedad.descripcion|truncate(100) }}</small>
+                                {% if novedad.comentarios %}
+                                <div class="comentario-box">
+                                    <strong>Comentarios:</strong> {{ novedad.comentarios|truncate(50) }}
+                                </div>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if novedad.prioridad == 'alta' %}
+                                <span class="badge prioridad-alta small py-1 px-2">Alta</span>
+                                {% elif novedad.prioridad == 'media' %}
+                                <span class="badge prioridad-media small py-1 px-2">Media</span>
+                                {% elif novedad.prioridad == 'baja' %}
+                                <span class="badge prioridad-baja small py-1 px-2">Baja</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if novedad.estado == 'pendiente' %}
+                                <span class="badge bg-warning small py-1 px-2">Pendiente</span>
+                                {% elif novedad.estado == 'en_proceso' %}
+                                <span class="badge bg-primary small py-1 px-2">En Proceso</span>
+                                {% elif novedad.estado == 'resuelto' %}
+                                <span class="badge bg-success small py-1 px-2">Resuelto</span>
+                                {% elif novedad.estado == 'cancelado' %}
+                                <span class="badge bg-secondary small py-1 px-2">Cancelado</span>
+                                {% endif %}
+                            </td>
+                            <td class="small">{{ novedad.reportante_nombre }}</td>
+                            <td class="small">{{ novedad.asignado_a_nombre or 'Sin asignar' }}</td>
+                            <td class="text-center pe-3">
+                                <div class="btn-group btn-group-sm">
+                                    <a href="/novedades/{{ novedad.id }}" class="btn btn-outline-primary">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    {% if can_access('novedades', 'approve') and novedad.estado == 'pendiente' %}
+                                    <button class="btn btn-outline-success" onclick="cambiarEstadoNovedad({{ novedad.id }}, 'en_proceso')">
+                                        <i class="fas fa-play"></i>
+                                    </button>
+                                    {% endif %}
+                                    {% if can_access('novedades', 'reject') and novedad.estado != 'cancelado' %}
+                                    <button class="btn btn-outline-danger" onclick="cambiarEstadoNovedad({{ novedad.id }}, 'cancelado')">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Novedades recientes -->
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-light">
+                    <h6 class="fw-semibold mb-0">Novedades Recientes</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% for novedad in novedades_recientes %}
+                        <div class="col-md-4 mb-3">
+                            <div class="card card-novedad {% if novedad.prioridad == 'alta' %}novedad-alta{% elif novedad.prioridad == 'media' %}novedad-media{% else %}novedad-baja{% endif %}">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <h6 class="fw-semibold mb-0">{{ novedad.tipo }}</h6>
+                                        <span class="badge {% if novedad.estado == 'pendiente' %}bg-warning{% elif novedad.estado == 'en_proceso' %}bg-primary{% else %}bg-success{% endif %}">
+                                            {{ novedad.estado|replace('_', ' ')|title }}
+                                        </span>
+                                    </div>
+                                    <p class="small mb-2">{{ novedad.descripcion|truncate(80) }}</p>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <small class="text-muted">{{ novedad.fecha_reporte.strftime('%d/%m') }}</small>
+                                        <small class="fw-semibold">{{ novedad.reportante_nombre }}</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Incluir las librerías para exportación -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+
+<script>
+function exportarExcel() {
+    try {
+        const tabla = document.getElementById('tabla-novedades');
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.table_to_sheet(tabla);
+        XLSX.utils.book_append_sheet(wb, ws, 'Novedades');
+        
+        XLSX.writeFile(wb, `Reporte_Novedades_${new Date().toISOString().split('T')[0]}.xlsx`);
+        mostrarNotificacion('✅ Excel exportado correctamente', 'success');
+    } catch (error) {
+        console.error('Error en exportación Excel:', error);
+        mostrarNotificacion('❌ Error al exportar a Excel', 'error');
+    }
+}
+
+function exportarPDF() {
+    try {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF('landscape');
+
+        // Título
+        doc.setFontSize(16);
+        doc.setTextColor(40, 40, 40);
+        doc.text('Reporte de Novedades - Sistema de Gestión', 14, 15);
+        
+        // Subtítulo
+        doc.setFontSize(10);
+        doc.setTextColor(100, 100, 100);
+        doc.text(`Generado: ${new Date().toLocaleDateString('es-ES', { 
+            day: '2-digit', 
+            month: '2-digit', 
+            year: 'numeric' 
+        })}`, 14, 22);
+        doc.text(`Total novedades: {{ total_novedades }}`, 14, 28);
+
+        // Tabla
+        doc.autoTable({
+            html: '#tabla-novedades',
+            startY: 35,
+            theme: 'grid',
+            headStyles: { 
+                fillColor: [111, 66, 193], // Color púrpura
+                textColor: [255, 255, 255],
+                fontSize: 9,
+                fontStyle: 'bold'
+            },
+            bodyStyles: { 
+                fontSize: 8,
+                cellPadding: 3
+            },
+            columnStyles: {
+                0: { cellWidth: 20 }, // ID
+                1: { cellWidth: 25 }, // Fecha
+                2: { cellWidth: 30 }, // Tipo
+                3: { cellWidth: 60 }, // Descripción
+                4: { cellWidth: 20 }, // Prioridad
+                5: { cellWidth: 25 }, // Estado
+                6: { cellWidth: 35 }, // Reportado por
+                7: { cellWidth: 35 }, // Asignado a
+                8: { cellWidth: 25 }  // Acciones
+            },
+            styles: { 
+                overflow: 'linebreak',
+                cellWidth: 'wrap'
+            },
+            margin: { left: 10, right: 10 }
+        });
+
+        doc.save(`Reporte_Novedades_${new Date().toISOString().split('T')[0]}.pdf`);
+        mostrarNotificacion('✅ PDF exportado correctamente', 'success');
+    } catch (error) {
+        console.error('Error en exportación PDF:', error);
+        mostrarNotificacion('❌ Error al exportar a PDF', 'error');
+    }
+}
+
+function mostrarNotificacion(mensaje, tipo) {
+    // Crear toast simple
+    const toastHTML = `
+        <div class="position-fixed top-0 end-0 p-3" style="z-index: 1060">
+            <div class="toast align-items-center text-white bg-${tipo === 'success' ? 'success' : 'danger'} border-0 show" role="alert">
+                <div class="d-flex">
+                    <div class="toast-body">
+                        <i class="fas fa-${tipo === 'success' ? 'check-circle' : 'exclamation-triangle'} me-2"></i>
+                        ${mensaje}
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Insertar en el DOM
+    const div = document.createElement('div');
+    div.innerHTML = toastHTML;
+    document.body.appendChild(div.firstElementChild);
+    
+    // Auto-eliminar después de 3 segundos
+    setTimeout(() => {
+        const toastElement = document.querySelector('.toast');
+        if (toastElement) {
+            toastElement.classList.remove('show');
+            setTimeout(() => toastElement.remove(), 300);
+        }
+    }, 3000);
+}
+
+// Filtros rápidos
+$(document).ready(function() {
+    // Filtros rápidos por estado de novedad
+    $('.filtro-rapido').click(function() {
+        var estado = $(this).data('estado');
+        $('.filtro-rapido').removeClass('active');
+        $(this).addClass('active');
+        // Implementar filtro aquí si es necesario
+    });
+
+    // Filtros por prioridad de novedad
+    $('.filtro-prioridad').click(function() {
+        var prioridad = $(this).data('prioridad');
+        $('.filtro-prioridad').removeClass('active');
+        $(this).addClass('active');
+        // Implementar filtro aquí si es necesario
+    });
+
+    // Cambiar estado de novedad via API
+    window.cambiarEstadoNovedad = function(id, nuevoEstado) {
+        var confirmacion = confirm('¿Está seguro de cambiar el estado de esta novedad?');
+        if (confirmacion) {
+            fetch('/api/novedades/' + id + '/estado', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ estado: nuevoEstado })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            })
+            .catch(error => {
+                alert('Error al cambiar el estado de la novedad');
+            });
+        }
+    };
+});
+</script>
+
+<style>
+    .table th {
+        white-space: nowrap;
+        font-weight: 600;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-bottom: 2px solid #dee2e6;
+        padding: 0.75rem 0.5rem;
+        background-color: #f8f9fa;
+    }
+    
+    .table td {
+        vertical-align: middle;
+        padding: 0.75rem 0.5rem;
+        font-size: 0.85rem;
+        border-top: 1px solid #f0f0f0;
+    }
+    
+    .btn-sm {
+        font-size: 0.8rem;
+        padding: 0.25rem 0.5rem;
+        min-width: 70px;
+    }
+    
+    .badge {
+        font-size: 0.75rem;
+        font-weight: 500;
+        padding: 0.35em 0.65em;
+    }
+    
+    .table tbody tr:hover {
+        background-color: #f8f9fa;
+        transition: background-color 0.2s;
+    }
+    
+    .filtro-rapido.active, .filtro-prioridad.active {
+        transform: scale(1.05);
+        box-shadow: 0 0 0 2px rgba(0,0,0,0.1);
+    }
+</style>
+{% endblock %}

@@ -1,0 +1,567 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Sistema Unificado de Gestión de Inventarios y Préstamos Quálitas - SUGIPQ{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+
+<style>
+    .fade-in {
+        animation: fadeIn 0.5s ease-in;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .stats-card {
+        transition: transform 0.2s, box-shadow 0.2s;
+        border: none;
+    }
+    
+    .stats-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.15) !important;
+    }
+    
+    .card-modulo {
+        cursor: pointer;
+        transition: all 0.3s ease;
+        border: none;
+        min-height: 140px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .card-modulo:hover {
+        transform: scale(1.05);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.2) !important;
+    }
+    
+    .stats-icon {
+        transition: transform 0.3s ease;
+    }
+    
+    .stats-card:hover .stats-icon {
+        transform: scale(1.1);
+    }
+    
+    .modal-content {
+        border: none;
+        border-radius: 12px;
+        overflow: hidden;
+    }
+    
+    .modal-header {
+        border-bottom: 2px solid rgba(255,255,255,0.2);
+    }
+    
+    .btn-modulo {
+        transition: all 0.3s ease;
+        border: 2px solid transparent;
+    }
+    
+    .btn-modulo:hover {
+        transform: translateY(-2px);
+        border-color: currentColor;
+    }
+    
+    .stats-number {
+        font-size: 2.5rem;
+        font-weight: 700;
+        line-height: 1;
+        margin-bottom: 0.5rem;
+    }
+    
+    .stats-label {
+        font-size: 0.9rem;
+        opacity: 0.8;
+        margin-bottom: 1rem;
+    }
+    
+    .card-modulo-pop {
+        background: linear-gradient(135deg, #A73493 0%, #8c2a7a 100%);
+    }
+    
+    .card-modulo-inventario {
+        background: linear-gradient(135deg, #0098B1 0%, #007a8f 100%);
+    }
+    
+    .card-modulo-prestamos {
+        background: linear-gradient(135deg, #D9D9D9 0%, #c4c4c4 100%);
+        color: #212529 !important;
+    }
+    
+    .card-modulo-pop:hover {
+        background: linear-gradient(135deg, #b83a9e 0%, #9a2f84 100%);
+    }
+    
+    .card-modulo-inventario:hover {
+        background: linear-gradient(135deg, #00a8c5 0%, #0089a1 100%);
+    }
+    
+    .card-modulo-prestamos:hover {
+        background: linear-gradient(135deg, #e0e0e0 0%, #d1d1d1 100%);
+    }
+    
+    .modal-header .fas {
+        color: #fff !important;
+        opacity: 0.9;
+    }
+    
+    .acciones-rapidas .btn {
+        border-radius: 8px;
+        font-weight: 500;
+        transition: all 0.3s ease;
+    }
+    
+    .acciones-rapidas .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container fade-in mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="fw-bold mb-2" style="color: #A73493;">
+                <i class="fas fa-tachometer-alt me-3"></i>Dashboard Principal
+            </h1>
+            <p class="text-muted fs-5">Resumen general del sistema de gestión de inventarios</p>
+        </div>
+        <div class="badge bg-primary fs-6 p-2">
+            <i class="fas fa-calendar me-2"></i>
+            <span id="fecha-actual">{{ now.strftime('%d/%m/%Y') if now else "" }}</span>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body bg-white rounded-3">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h4 class="fw-semibold text-dark mb-2">
+                        Bienvenido, {{ session.usuario_nombre }}
+                    </h4>
+                    <p class="text-muted mb-0 fs-5">
+                        <strong><i class="fas fa-shield-alt me-2"></i>Rol:</strong> 
+                        <span class="badge bg-secondary">{{ session.rol }}</span> |
+                        <strong><i class="fas fa-building me-2"></i>Oficina:</strong> 
+                        <span class="badge bg-info text-dark">{{ session.oficina_nombre }}</span>
+                    </p>
+                </div>
+                <div class="col-md-4 text-md-end">
+                    <div class="text-muted">
+                        <i class="fas fa-clock me-2"></i>
+                        <span id="hora-actual">{{ now.strftime('%H:%M') if now else "" }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-4">
+        {% if can_access('material_pop') %}
+        <div class="col-md-6 col-lg-4">
+            <div class="card card-modulo card-modulo-pop text-white text-center p-4"
+                 data-bs-toggle="modal" data-bs-target="#modalMaterialPOP">
+                <div class="card-body">
+                    <div class="mb-3">
+                        <i class="fas fa-bullhorn fa-3x mb-3"></i>
+                    </div>
+                    <h4 class="fw-bold mb-2">Material POP</h4>
+                    <p class="mb-0 opacity-90">Gestión de materiales POP</p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if can_access('inventario_corporativo') %}
+        <div class="col-md-6 col-lg-4">
+            <div class="card card-modulo card-modulo-inventario text-white text-center p-4"
+                 data-bs-toggle="modal" data-bs-target="#modalInventarioCorporativo">
+                <div class="card-body">
+                    <div class="mb-3">
+                        <i class="fas fa-warehouse fa-3x mb-3"></i>
+                    </div>
+                    <h4 class="fw-bold mb-2">Inventario Corporativo</h4>
+                    <p class="mb-0 opacity-90">Gestión de productos corporativos</p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if can_access('prestamo_material') %}
+        <div class="col-md-6 col-lg-4">
+            <div class="card card-modulo card-modulo-prestamos text-center p-4"
+                 data-bs-toggle="modal" data-bs-target="#modalPrestamos">
+                <div class="card-body">
+                    <div class="mb-3">
+                        <i class="fas fa-exchange-alt fa-3x mb-3" style="color:#A73493;"></i>
+                    </div>
+                    <h4 class="fw-bold mb-2">Préstamo de Material</h4>
+                    <p class="mb-0 opacity-90">Control y seguimiento de préstamos</p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="modal fade" id="modalMaterialPOP" tabindex="-1" aria-labelledby="modalMaterialPOPLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header" style="background-color: #A73493; color: #fff;">
+                <h4 class="modal-title fw-bold d-flex align-items-center" id="modalMaterialPOPLabel">
+                    <i class="fas fa-bullhorn me-3"></i> Material POP
+                </h4>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+
+            <div class="modal-body text-dark" style="background-color: #F8F9FA;">
+                <div class="row g-4 mb-4">
+                    {% if can_access('materiales', 'view') %}
+                    <div class="col-xl-3 col-md-6">
+                        <div class="card stats-card border-0 shadow-sm text-center p-4 bg-white h-100 text-dark">
+                            <div class="stats-icon mb-3" style="color: #A73493;">
+                                <i class="fas fa-box fa-3x"></i>
+                            </div>
+                            <h5 class="fw-semibold mb-2 text-dark">Materiales</h5>
+                            <div class="stats-number" style="color: #A73493;">{{ materiales|length }}</div>
+                            <p class="stats-label">Materiales registrados</p>
+                            <a href="/materiales" class="btn btn-primary btn-sm w-100 btn-modulo">
+                                <i class="fas fa-cog me-2"></i>Gestionar
+                            </a>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if can_access('oficinas', 'view') %}
+                    <div class="col-xl-3 col-md-6">
+                        <div class="card stats-card border-0 shadow-sm text-center p-4 bg-white h-100 text-dark">
+                            <div class="stats-icon mb-3" style="color: #0098B1;">
+                                <i class="fas fa-building fa-3x"></i>
+                            </div>
+                            <h5 class="fw-semibold mb-2 text-dark">Oficinas</h5>
+                            <div class="stats-number" style="color: #0098B1;">{{ oficinas|length }}</div>
+                            <p class="stats-label">Oficinas registradas</p>
+                            <a href="/oficinas" class="btn btn-primary btn-sm w-100 btn-modulo">
+                                <i class="fas fa-eye me-2"></i>Ver
+                            </a>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if can_access('solicitudes', 'view') %}
+                    <div class="col-xl-3 col-md-6">
+                        <div class="card stats-card border-0 shadow-sm text-center p-4 bg-white h-100 text-dark">
+                            <div class="stats-icon mb-3" style="color: #28a745;">
+                                <i class="fas fa-clipboard-list fa-3x"></i>
+                            </div>
+                            <h5 class="fw-semibold mb-2 text-dark">Solicitudes</h5>
+                            <div class="stats-number" style="color: #28a745;">{{ solicitudes|length }}</div>
+                            <p class="stats-label">Solicitudes activas</p>
+                            <a href="/solicitudes" class="btn btn-primary btn-sm w-100 btn-modulo">
+                                <i class="fas fa-tasks me-2"></i>Gestionar
+                            </a>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if can_access('aprobadores', 'view') %}
+                    <div class="col-xl-3 col-md-6">
+                        <div class="card stats-card border-0 shadow-sm text-center p-4 bg-white h-100 text-dark">
+                            <div class="stats-icon mb-3" style="color: #ffc107;">
+                                <i class="fas fa-user-check fa-3x"></i>
+                            </div>
+                            <h5 class="fw-semibold mb-2 text-dark">Aprobadores</h5>
+                            <div class="stats-number" style="color: #ffc107;">{{ aprobadores|length }}</div>
+                            <p class="stats-label">Aprobadores activos</p>
+                            <a href="/aprobadores" class="btn btn-primary btn-sm w-100 btn-modulo">
+                                <i class="fas fa-list me-2"></i>Ver
+                            </a>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body text-dark">
+                        <h5 class="fw-semibold mb-3" style="color: #A73493;">
+                            <i class="fas fa-bolt me-2"></i> Acciones Rápidas
+                        </h5>
+
+                        <div class="d-flex flex-wrap gap-3 acciones-rapidas">
+                            {% if can_access('materiales', 'create') %}
+                            <a href="/materiales/crear" class="btn btn-primary btn-lg">
+                                <i class="fas fa-plus me-2"></i> Crear Material
+                            </a>
+                            {% endif %}
+
+                            {% if can_access('solicitudes', 'create') %}
+                            <a href="/solicitudes/crear" class="btn btn-success btn-lg">
+                                <i class="fas fa-edit me-2"></i> Nueva Solicitud
+                            </a>
+                            {% endif %}
+
+                            {% if can_access('reportes', 'view_all') or can_access('reportes', 'view_own') %}
+                            <a href="/reportes" class="btn btn-info btn-lg">
+                                <i class="fas fa-chart-bar me-2"></i> Ver Reportes
+                            </a>
+                            {% endif %}
+
+                            {% if can_access('solicitudes', 'approve') %}
+                            <a href="/solicitudes" class="btn btn-warning btn-lg">
+                                <i class="fas fa-clipboard-check me-2"></i> Revisar Pendientes
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer" style="background-color: #D9D9D9;">
+                <button type="button" class="btn btn-outline-primary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>Cerrar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalInventarioCorporativo" tabindex="-1" aria-labelledby="modalInventarioCorporativoLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header" style="background-color: #0098B1; color: #fff;">
+                <h4 class="modal-title fw-bold d-flex align-items-center" id="modalInventarioCorporativoLabel">
+                    <i class="fas fa-warehouse me-3"></i> Inventario Corporativo
+                </h4>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+
+            <div class="modal-body text-dark" style="background-color: #F8F9FA;">
+                <div class="row g-4 mb-4">
+                    <div class="col-xl-4 col-md-6">
+                        <div class="card stats-card border-0 shadow-sm text-center p-4 bg-white h-100 text-dark">
+                            <div class="stats-icon mb-3" style="color: #0098B1;">
+                                <i class="fas fa-boxes fa-3x"></i>
+                            </div>
+                            <h5 class="fw-semibold mb-2 text-dark">Productos Totales</h5>
+                            <div class="stats-number" style="color: #0098B1;" id="total-productos">0</div>
+                            <p class="stats-label">Total de productos en inventario</p>
+                            <a href="{{ url_for('inventario_corporativo.listar_inventario_corporativo') }}" class="btn btn-primary btn-sm w-100 btn-modulo">
+                                <i class="fas fa-list me-2"></i>Ver Todos
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="col-xl-4 col-md-6">
+                        <div class="card stats-card border-0 shadow-sm text-center p-4 bg-white h-100 text-dark">
+                            <div class="stats-icon mb-3" style="color: #A73493;">
+                                <i class="fas fa-building fa-3x"></i>
+                            </div>
+                            <h5 class="fw-semibold mb-2 text-dark">Sede Principal</h5>
+                            <div class="stats-number" style="color: #A73493;" id="productos-sede">0</div>
+                            <p class="stats-label">Productos en sede principal</p>
+                            <a href="{{ url_for('inventario_corporativo.listar_sede_principal') }}" class="btn btn-primary btn-sm w-100 btn-modulo">
+                                <i class="fas fa-eye me-2"></i>Ver
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="col-xl-4 col-md-6">
+                        <div class="card stats-card border-0 shadow-sm text-center p-4 bg-white h-100 text-dark">
+                            <div class="stats-icon mb-3" style="color: #28a745;">
+                                <i class="fas fa-map-marker-alt fa-3x"></i>
+                            </div>
+                            <h5 class="fw-semibold mb-2 text-dark">Oficinas de Servicio</h5>
+                            <div class="stats-number" style="color: #28a745;" id="productos-oficinas">0</div>
+                            <p class="stats-label">Productos en oficinas de servicio</p>
+                            <a href="{{ url_for('inventario_corporativo.listar_oficinas_servicio') }}" class="btn btn-primary btn-sm w-100 btn-modulo">
+                                <i class="fas fa-location-arrow me-2"></i>Ver
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body text-dark">
+                        <h5 class="fw-semibold mb-3" style="color: #0098B1;">
+                            <i class="fas fa-bolt me-2"></i> Acciones Rápidas
+                        </h5>
+
+                        <div class="d-flex flex-wrap gap-3 acciones-rapidas">
+                            {% if can_access('inventario_corporativo', 'create') %}
+                            <a href="{{ url_for('inventario_corporativo.crear_inventario_corporativo') }}" class="btn btn-primary btn-lg">
+                                <i class="fas fa-plus me-2"></i> Nuevo Producto
+                            </a>
+                            {% endif %}
+
+                            <a href="{{ url_for('inventario_corporativo.listar_inventario_corporativo') }}" class="btn btn-success btn-lg">
+                                <i class="fas fa-search me-2"></i> Buscar Productos
+                            </a>
+
+                            {% if can_access('reportes', 'view_all') or can_access('reportes', 'view_own') %}
+                            <a href="/reportes" class="btn btn-info btn-lg">
+                                <i class="fas fa-chart-bar me-2"></i> Ver Reportes
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer" style="background-color: #D9D9D9;">
+                <button type="button" class="btn btn-outline-primary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>Cerrar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalPrestamos" tabindex="-1" aria-labelledby="modalPrestamosLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg rounded-3">
+      <div class="modal-header" style="background-color: #A73493; color: #fff;">
+        <h4 class="modal-title fw-bold d-flex align-items-center" id="modalPrestamosLabel">
+          <i class="fas fa-exchange-alt me-3"></i> Préstamo de Material
+        </h4>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body text-dark" style="background-color:#F8F9FA;">
+        <p class="text-muted mb-4 fs-5">Elige una acción para gestionar los préstamos del sistema.</p>
+
+        <div class="row g-4">
+          {% if can_access('prestamos', 'manage_materials') %}
+          <div class="col-md-4">
+            <div class="card h-100 border-0 shadow-sm stats-card">
+              <div class="card-body text-dark d-flex flex-column">
+                <div class="text-center mb-3">
+                  <i class="fas fa-plus-circle fa-3x mb-3" style="color:#A73493;"></i>
+                </div>
+                <h5 class="fw-semibold mb-2 text-dark text-center">Crear Material</h5>
+                <p class="text-muted small mb-3 text-center">Registrar un material para préstamos en el sistema</p>
+                <div class="mt-auto">
+                  <a href="{{ url_for('prestamos.crear_material_prestamo') }}" class="btn btn-outline-primary w-100 btn-modulo">
+                    <i class="fas fa-plus-square me-2"></i> Crear
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+          {% endif %}
+
+          {% if can_access('prestamos', 'create') %}
+          <div class="col-md-4">
+            <div class="card h-100 border-0 shadow-sm stats-card">
+              <div class="card-body text-dark d-flex flex-column">
+                <div class="text-center mb-3">
+                  <i class="fas fa-clipboard-list fa-3x mb-3" style="color:#0098B1;"></i>
+                </div>
+                <h5 class="fw-semibold mb-2 text-dark text-center">Nuevo Préstamo</h5>
+                <p class="text-muted small mb-3 text-center">Registrar entrega de material a oficina o usuario</p>
+                <div class="mt-auto">
+                  <a href="{{ url_for('prestamos.crear_prestamo') }}" class="btn btn-primary w-100 btn-modulo">
+                    <i class="fas fa-plus me-2"></i> Nuevo Préstamo
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+          {% endif %}
+
+          {% if can_access('prestamos', 'view') or can_access('prestamos', 'view_own') %}
+          <div class="col-md-4">
+            <div class="card h-100 border-0 shadow-sm stats-card">
+              <div class="card-body text-dark d-flex flex-column">
+                <div class="text-center mb-3">
+                  <i class="fas fa-box-open fa-3x mb-3" style="color:#6f42c1;"></i>
+                </div>
+                <h5 class="fw-semibold mb-2 text-dark text-center">Ver Préstamos</h5>
+                <p class="text-muted small mb-3 text-center">Consultar historial, estados y devoluciones</p>
+                <div class="mt-auto">
+                  <a href="{{ url_for('prestamos.listar_prestamos') }}" class="btn btn-outline-primary w-100 btn-modulo">
+                    <i class="fas fa-list me-2"></i> Ver Préstamos
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+
+        <div class="alert alert-light border mt-4 mb-0 text-dark">
+          <div class="d-flex align-items-center">
+            <i class="fas fa-info-circle me-3 fs-4 text-primary"></i>
+            <div>
+              <strong>Consejo:</strong> Al registrar un préstamo, verifica el
+              <span class="badge bg-success">stock disponible</span> y la 
+              <span class="badge bg-info">fecha de devolución prevista</span>.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer" style="background-color:#D9D9D9;">
+        <button type="button" class="btn btn-outline-primary" data-bs-dismiss="modal">
+          <i class="fas fa-times me-2"></i>Cerrar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    function actualizarHora() {
+        const ahora = new Date();
+        const hora = ahora.getHours().toString().padStart(2, '0');
+        const minutos = ahora.getMinutes().toString().padStart(2, '0');
+        document.getElementById('hora-actual').textContent = `${hora}:${minutos}`;
+    }
+    
+    actualizarHora();
+    setInterval(actualizarHora, 60000);
+
+    const invModal = document.getElementById('modalInventarioCorporativo');
+
+    if (invModal) {
+        invModal.addEventListener('show.bs.modal', function () {
+            fetch('{{ url_for("inventario_corporativo.api_estadisticas_dashboard") }}')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Error en la respuesta: ' + response.status);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    document.getElementById('total-productos').textContent = data.total_productos || 0;
+                    document.getElementById('productos-sede').textContent = data.productos_sede || 0;
+                    document.getElementById('productos-oficinas').textContent = data.productos_oficinas || 0;
+                })
+                .catch(error => {
+                    console.error('Error cargando estadísticas:', error);
+                    document.getElementById('total-productos').textContent = '0';
+                    document.getElementById('productos-sede').textContent = '0';
+                    document.getElementById('productos-oficinas').textContent = '0';
+                });
+        });
+    }
+
+    const cards = document.querySelectorAll('.stats-card, .card-modulo');
+    cards.forEach(card => {
+        card.addEventListener('mouseenter', function() {
+            this.style.transition = 'all 0.3s ease';
+        });
+    });
+});
+</script>
+{% endblock %}

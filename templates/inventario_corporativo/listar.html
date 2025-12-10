@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% block title %}Inventario Corporativo - Sistema de Gestión{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/inventario_corporativo.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header con botón de exportación -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h1 class="text-primary">Inventario Corporativo</h1>
+            <p>Productos cargados: {{ total_productos }}</p>
+        </div>
+        <div class="col-md-4 text-end">
+            <div class="btn-group">
+                <button type="button" class="btn btn-success dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="fas fa-file-excel"></i> Exportar
+                </button>
+                <ul class="dropdown-menu">
+                    <li><a class="dropdown-item" href="{{ url_for('inventario_corporativo.exportar_inventario_corporativo_excel', tipo='todo') }}">
+                        <i class="fas fa-table"></i> Todo el inventario
+                    </a></li>
+                </ul>
+            </div>
+            {% if puede_gestionar_inventario %}
+            <a href="/inventario-corporativo/crear" class="btn btn-primary ms-2">
+                <i class="fas fa-plus"></i> Nuevo Producto
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Tarjetas de estadísticas -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card">
+                <div class="card-body">
+                    <h5>Total Productos</h5>
+                    <h3>{{ total_productos }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card">
+                <div class="card-body">
+                    <h5>Valor Total</h5>
+                    <!-- valor_total_inventario viene ahora del controlador -->
+                    <h3>${{ "{:,.0f}".format(valor_total_inventario) }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card">
+                <div class="card-body">
+                    <h5>Stock Bajo</h5>
+                    <h3>{{ productos_bajo_stock }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card">
+                <div class="card-body">
+                    <h5>Asignables</h5>
+                    <h3>{{ productos_asignables }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabla de productos -->
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>Producto</th>
+                            <th>Categoría</th>
+                            <th>Valor</th>
+                            <th>Stock</th>
+                            {% if puede_ver_acciones_inventario %}
+                            <th>Acciones</th>
+                            {% endif %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for producto in productos %}
+                        <tr>
+                            <td><strong>{{ producto.codigo_unico }}</strong></td>
+                            <td>{{ producto.nombre }}</td>
+                            <td>{{ producto.categoria }}</td>
+                            <td>${{ "{:,.0f}".format(producto.valor_unitario) }}</td>
+                            <td>
+                                <span class="badge {% if producto.cantidad <= (producto.cantidad_minima or 5) %}bg-warning{% else %}bg-success{% endif %}">
+                                    {{ producto.cantidad }} u
+                                </span>
+                            </td>
+                            {% if puede_ver_acciones_inventario %}
+                            <td>
+                                <a href="/inventario-corporativo/{{ producto.id }}" class="btn btn-sm btn-primary">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <a href="/inventario-corporativo/editar/{{ producto.id }}" class="btn btn-sm btn-warning">
+                                    <i class="fas fa-edit"></i>
+                                </a>
+                            </td>
+                            {% endif %}
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="{% if puede_ver_acciones_inventario %}6{% else %}5{% endif %}" class="text-center text-muted py-4">
+                                No hay productos registrados
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Cargar estadísticas cuando se abre el modal
+document.addEventListener('DOMContentLoaded', function() {
+    const modal = document.getElementById('modalInventarioCorporativo');
+    if (modal) {
+        modal.addEventListener('show.bs.modal', function () {
+            fetch('{{ url_for("inventario_corporativo.api_estadisticas_inventario") }}')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('total-productos').textContent = data.total_productos || 0;
+                    document.getElementById('valor-total').textContent = '$' + (data.valor_total || 0).toLocaleString();
+                    document.getElementById('stock-bajo').textContent = data.stock_bajo || 0;
+
+                    // Si en el modal tienes spans para sede/oficinas, los puedes llenar así:
+                    const sedeEl = document.getElementById('productos-sede');
+                    const oficinasEl = document.getElementById('productos-oficinas');
+                    if (sedeEl) sedeEl.textContent = data.productos_sede || 0;
+                    if (oficinasEl) oficinasEl.textContent = data.productos_oficinas || 0;
+                })
+                .catch(error => {
+                    console.error('Error cargando estadísticas:', error);
+                    document.getElementById('total-productos').textContent = '0';
+                    document.getElementById('valor-total').textContent = '$0';
+                    document.getElementById('stock-bajo').textContent = '0';
+                });
+        });
+    }
+});
+</script>
+{% endblock %}

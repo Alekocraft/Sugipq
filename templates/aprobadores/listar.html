@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+{% block title %}Gestión de Aprobadores{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <a href="/dashboard" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Volver al Dashboard
+            </a>
+        </div>
+    </div>
+
+    <h1 class="mb-4">Gestión de Aprobadores</h1>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-list me-2"></i>Lista de Aprobadores
+                        <span class="badge bg-light text-dark ms-2">{{ aprobadores|length }}</span>
+                    </h5>
+                    {% if can_access is defined and can_access('aprobadores', 'create') %}
+                    <a href="/aprobadores/crear" class="btn btn-light btn-sm">
+                        <i class="fas fa-plus me-1"></i>Nuevo
+                    </a>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    {% if aprobadores and aprobadores|length > 0 %}
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Nombre</th>
+                                    <th>Email</th>
+                                    <th>Oficina</th>
+                                    <th>Estado</th>
+                                    <th>Registro</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for aprobador in aprobadores %}
+                                <tr>
+                                    <td><strong>#{{ aprobador.AprobadorId }}</strong></td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <div class="bg-primary text-white rounded-circle me-3 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                                {{ aprobador.NombreAprobador[0] if aprobador.NombreAprobador else 'U' }}
+                                            </div>
+                                            <div>
+                                                <strong>{{ aprobador.NombreAprobador }}</strong>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {% if aprobador.Email %}
+                                        <a href="mailto:{{ aprobador.Email }}" class="text-decoration-none">
+                                            <i class="fas fa-envelope me-1 text-muted"></i>{{ aprobador.Email }}
+                                        </a>
+                                        {% else %}
+                                        <span class="text-muted">No especificado</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-light text-dark border">COQ</span>
+                                    </td>
+                                    <td>
+                                        {% if aprobador.Activo == 1 %}
+                                        <span class="badge bg-success">
+                                            <i class="fas fa-check-circle me-1"></i>Activo
+                                        </span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">
+                                            <i class="fas fa-times-circle me-1"></i>Inactivo
+                                        </span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-muted">
+                                        <small>
+                                            {% if aprobador.FechaCreacion %}
+                                                {% if aprobador.FechaCreacion is string %}
+                                                    {{ aprobador.FechaCreacion[:10] }}
+                                                {% else %}
+                                                    {{ aprobador.FechaCreacion.strftime('%d/%m/%Y') }}
+                                                {% endif %}
+                                            {% else %}
+                                                N/A
+                                            {% endif %}
+                                        </small>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <div class="mb-3">
+                            <i class="fas fa-users fa-3x text-muted"></i>
+                        </div>
+                        <h4 class="text-muted mb-3">No hay aprobadores registrados</h4>
+                        <p class="text-muted mb-4">No se encontraron registros en el sistema.</p>
+                        {% if can_access is defined and can_access('aprobadores', 'create') %}
+                        <a href="/aprobadores/crear" class="btn btn-primary">
+                            <i class="fas fa-plus me-2"></i>Agregar Aprobador
+                        </a>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+                {% if aprobadores and aprobadores|length > 0 %}
+                <div class="card-footer text-muted">
+                    <small>
+                        <i class="fas fa-info-circle me-1"></i>
+                        Total: {{ aprobadores|length }} aprobador(es)
+                    </small>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .table th {
+        font-weight: 600;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .table td {
+        vertical-align: middle;
+    }
+    
+    .badge {
+        font-weight: 500;
+        padding: 0.35em 0.65em;
+    }
+    
+    .table-hover tbody tr:hover {
+        background-color: #f8f9fa;
+        transition: background-color 0.2s;
+    }
+    
+    .rounded-circle {
+        font-weight: 600;
+        font-size: 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+    });
+</script>
+{% endblock %}

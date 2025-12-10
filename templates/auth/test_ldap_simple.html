@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prueba LDAP - Sistema de Inventarios</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f5f5f5;
+            padding-top: 40px;
+        }
+        .card {
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .result-card {
+            margin-top: 20px;
+        }
+        .alert-success {
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+            color: #155724;
+        }
+        .alert-danger {
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+            color: #721c24;
+        }
+        .alert-warning {
+            background-color: #fff3cd;
+            border-color: #ffeaa7;
+            color: #856404;
+        }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h4 class="mb-0">Prueba de Conexión LDAP - Qualitas Colombia</h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info">
+                            <strong>Instrucciones:</strong><br>
+                            1. Ingrese su usuario de dominio (sin @qualitascolombia.com.co)<br>
+                            2. Ingrese su contraseña de dominio<br>
+                            3. El sistema probará autenticación y sincronización
+                        </div>
+                        
+                        <form method="POST" id="ldapForm">
+                            <div class="mb-3">
+                                <label for="username" class="form-label">Usuario AD</label>
+                                <input type="text" class="form-control" id="username" name="username" 
+                                       placeholder="ej: jperez" required>
+                                <div class="form-text">Solo el nombre de usuario, ej: "jperez" no "jperez@qualitascolombia.com.co"</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="password" class="form-label">Contraseña AD</label>
+                                <input type="password" class="form-control" id="password" name="password" required>
+                            </div>
+                            
+                            <div class="d-grid gap-2">
+                                <button type="submit" class="btn btn-primary">Probar Autenticación LDAP</button>
+                                <a href="/login" class="btn btn-secondary">Volver al Login</a>
+                                {% if session.get('usuario_id') %}
+                                <a href="/dashboard" class="btn btn-outline-secondary">Volver al Dashboard</a>
+                                {% endif %}
+                            </div>
+                        </form>
+                        
+                        {% if result %}
+                        <div class="result-card">
+                            <div class="card mt-4">
+                                <div class="card-header {% if result.success %}bg-success{% else %}bg-danger{% endif %} text-white">
+                                    <h5 class="mb-0">Resultado de la Prueba</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="alert {% if result.success %}alert-success{% else %}alert-danger{% endif %}">
+                                        <strong>{{ result.message }}</strong>
+                                    </div>
+                                    
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <h6>Configuración LDAP:</h6>
+                                            <ul class="list-unstyled">
+                                                <li><strong>Habilitado:</strong> {{ result.ldap_enabled }}</li>
+                                                <li><strong>Servidor:</strong> {{ result.ldap_server }}</li>
+                                                <li><strong>Dominio:</strong> {{ result.ldap_domain }}</li>
+                                                <li><strong>Usuario probado:</strong> {{ result.username }}</li>
+                                            </ul>
+                                        </div>
+                                        
+                                        {% if result.user_info %}
+                                        <div class="col-md-6">
+                                            <h6>Información del Usuario:</h6>
+                                            <ul class="list-unstyled">
+                                                <li><strong>Usuario:</strong> {{ result.user_info.username }}</li>
+                                                <li><strong>Nombre:</strong> {{ result.user_info.full_name }}</li>
+                                                <li><strong>Email:</strong> {{ result.user_info.email }}</li>
+                                                <li><strong>Departamento:</strong> {{ result.user_info.department }}</li>
+                                                <li><strong>Rol AD:</strong> {{ result.user_info.role_from_ad }}</li>
+                                                <li><strong>Grupos:</strong> {{ result.user_info.groups_count }}</li>
+                                            </ul>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    {% if result.sync_info %}
+                                    <div class="alert alert-success mt-3">
+                                        <h6>Sincronización Exitosa:</h6>
+                                        <ul class="list-unstyled">
+                                            <li><strong>ID en sistema:</strong> {{ result.sync_info.user_id }}</li>
+                                            <li><strong>Rol asignado:</strong> {{ result.sync_info.system_role }}</li>
+                                            <li><strong>Oficina ID:</strong> {{ result.sync_info.office_id }}</li>
+                                        </ul>
+                                        <p class="mb-0"><strong>⚠️ Importante:</strong> Ahora puede iniciar sesión con sus credenciales de dominio.</p>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    {% if result.sync_error %}
+                                    <div class="alert alert-warning mt-3">
+                                        <h6>Error en Sincronización:</h6>
+                                        <p>{{ result.sync_error }}</p>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    {% if result.traceback %}
+                                    <div class="mt-3">
+                                        <h6>Detalles del Error:</h6>
+                                        <pre>{{ result.traceback }}</pre>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                        
+                        <div class="card mt-4">
+                            <div class="card-header bg-info text-white">
+                                <h5 class="mb-0">Mapeo de Roles AD → Sistema</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-sm">
+                                        <thead>
+                                            <tr>
+                                                <th>Grupo/Departamento AD</th>
+                                                <th>Rol en Sistema</th>
+                                                <th>Permisos</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td>Administradores / Domain Admins</td>
+                                                <td><span class="badge bg-danger">Administrador</span></td>
+                                                <td>Acceso total a todos los módulos</td>
+                                            </tr>
+                                            <tr>
+                                                <td>Finanzas / Tesorería</td>
+                                                <td><span class="badge bg-warning">Tesoreria</span></td>
+                                                <td>Reportes, solicitudes</td>
+                                            </tr>
+                                            <tr>
+                                                <td>Almacén / Logística</td>
+                                                <td><span class="badge bg-success">Lider Inventario</span></td>
+                                                <td>Gestión de inventario</td>
+                                            </tr>
+                                            <tr>
+                                                <td>Aprobadores</td>
+                                                <td><span class="badge bg-primary">Aprobador</span></td>
+                                                <td>Aprobación de solicitudes</td>
+                                            </tr>
+                                            <tr>
+                                                <td>COQ</td>
+                                                <td><span class="badge bg-secondary">Oficina COQ</span></td>
+                                                <td>Acceso a oficina COQ</td>
+                                            </tr>
+                                            <tr>
+                                                <td>Polo Club</td>
+                                                <td><span class="badge bg-secondary">Oficina Polo Club</span></td>
+                                                <td>Acceso a oficina Polo Club</td>
+                                            </tr>
+                                            <tr>
+                                                <td>Otros</td>
+                                                <td><span class="badge bg-light text-dark">Usuario</span></td>
+                                                <td>Acceso básico</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="text-center mt-3 text-muted">
+                    <small>Sistema de Gestión de Inventarios - Qualitas Colombia © 2025</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Auto-enfocar el campo de usuario
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('username').focus();
+            
+            // Limpiar el formulario después de enviar
+            const form = document.getElementById('ldapForm');
+            if (form) {
+                form.addEventListener('submit', function() {
+                    setTimeout(() => {
+                        document.getElementById('password').value = '';
+                    }, 100);
+                });
+            }
+        });
+    </script>
+</body>
+</html>

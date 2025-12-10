@@ -1,0 +1,197 @@
+<!-- templates/usuarios/editar.html -->
+{% extends "base.html" %}
+
+{% block title %}Editar Usuario{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">
+            <i class="fas fa-user-edit mr-2"></i>Editar Usuario: {{ usuario.nombre_usuario }}
+        </h1>
+        <a href="{{ url_for('usuarios.listar_usuarios') }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left mr-2"></i>Volver a Usuarios
+        </a>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Información del Usuario</h6>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('usuarios.editar_usuario', usuario_id=usuario.id) }}">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="nombre_usuario">Nombre de Usuario</label>
+                                    <input type="text" class="form-control" id="nombre_usuario" 
+                                           value="{{ usuario.nombre_usuario }}" readonly>
+                                    <small class="form-text text-muted">El nombre de usuario no se puede cambiar</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="email">Correo Electrónico *</label>
+                                    <input type="email" class="form-control" id="email" 
+                                           name="email" value="{{ usuario.email }}" required>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="rol">Rol *</label>
+                                    <select class="form-control" id="rol" name="rol" required>
+                                        {% for rol in roles %}
+                                            <option value="{{ rol }}" 
+                                                {% if rol == usuario.rol %}selected{% endif %}>
+                                                {{ rol|title }}
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="oficina_id">Oficina *</label>
+                                    <select class="form-control" id="oficina_id" name="oficina_id" required>
+                                        {% for oficina in oficinas %}
+                                            <option value="{{ oficina.OficinaId }}" 
+                                                {% if oficina.OficinaId == usuario.oficina_id %}selected{% endif %}>
+                                                {{ oficina.NombreOficina }}
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="aprobador_id">Aprobador Asignado</label>
+                                    <select class="form-control" id="aprobador_id" name="aprobador_id">
+                                        <option value="">Sin aprobador asignado</option>
+                                        {% for aprobador in aprobadores %}
+                                            <option value="{{ aprobador.AprobadorId }}" 
+                                                {% if aprobador.AprobadorId == usuario.aprobador_id %}selected{% endif %}>
+                                                {{ aprobador.NombreAprobador }}
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group form-check">
+                            <input type="checkbox" class="form-check-input" id="activo" name="activo" 
+                                   {% if usuario.activo %}checked{% endif %}>
+                            <label class="form-check-label" for="activo">Usuario Activo</label>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save mr-2"></i>Guardar Cambios
+                        </button>
+                        <a href="{{ url_for('usuarios.listar_usuarios') }}" class="btn btn-secondary">
+                            <i class="fas fa-times mr-2"></i>Cancelar
+                        </a>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Formulario para cambiar contraseña -->
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Cambiar Contraseña</h6>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('usuarios.cambiar_contrasena', usuario_id=usuario.id) }}">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="nueva_contrasena">Nueva Contraseña *</label>
+                                    <input type="password" class="form-control" id="nueva_contrasena" 
+                                           name="nueva_contrasena" minlength="6">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="confirmar_contrasena">Confirmar Contraseña *</label>
+                                    <input type="password" class="form-control" id="confirmar_contrasena" 
+                                           name="confirmar_contrasena">
+                                </div>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-warning">
+                            <i class="fas fa-key mr-2"></i>Cambiar Contraseña
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-4">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Información del Usuario</h6>
+                </div>
+                <div class="card-body">
+                    <div class="text-center mb-4">
+                        <div class="icon-circle bg-primary">
+                            <i class="fas fa-user text-white"></i>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <h6 class="font-weight-bold text-primary mb-1">ID del Usuario:</h6>
+                        <p class="mb-0">{{ usuario.id }}</p>
+                    </div>
+                    <div class="mb-3">
+                        <h6 class="font-weight-bold text-primary mb-1">Usuario:</h6>
+                        <p class="mb-0">{{ usuario.nombre_usuario }}</p>
+                    </div>
+                    <div class="mb-3">
+                        <h6 class="font-weight-bold text-primary mb-1">Rol Actual:</h6>
+                        <p class="mb-0">
+                            <span class="badge badge-{{ 
+                                'primary' if usuario.rol == 'admin' 
+                                else 'success' if usuario.rol == 'tesoreria' 
+                                else 'info' if 'oficina' in usuario.rol 
+                                else 'warning' if usuario.rol == 'aprobador'
+                                else 'secondary'
+                            }}">
+                                {{ usuario.rol }}
+                            </span>
+                        </p>
+                    </div>
+                    <div class="mb-3">
+                        <h6 class="font-weight-bold text-primary mb-1">Estado:</h6>
+                        <p class="mb-0">
+                            {% if usuario.activo %}
+                                <span class="badge badge-success">Activo</span>
+                            {% else %}
+                                <span class="badge badge-danger">Inactivo</span>
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

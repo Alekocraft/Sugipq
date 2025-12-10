@@ -1,0 +1,23 @@
+# requirements.txt - Asegurar estas dependencias
+Flask==2.3.3
+ldap3==2.9.1
+bcrypt==4.1.2
+pywin32==306  # Solo para Windows
+python-ldap==3.4.4  # Alternativa para Linux
+Flask-Login==0.6.3
+
+# Tus dependencias existentes
+pandas==1.5.3
+pyodbc==4.0.39
+Werkzeug==2.3.7
+Jinja2==3.1.2
+click==8.1.7
+itsdangerous==2.1.2
+python-dateutil==2.8.2
+pytz==2023.3
+numpy==1.24.3
+openpyxl==3.1.2
+xlrd==2.0.1
+XlsxWriter==3.1.9
+SQLAlchemy==2.0.23
+cryptography==41.0.7

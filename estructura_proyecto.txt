@@ -1,0 +1,110 @@
+ESTRUCTURA DEL PROYECTO FLASK 
+============================= 
+Fecha: Tue 12/09/2025 18:27:49.34 
+ 
+[ARCHIVOS PRINCIPALES .PY] 
+-------------------------- 
+app.py 
+database.py 
+solicitudes.py 
+blueprints\api.py 
+blueprints\aprobacion.py 
+blueprints\aprobadores.py 
+blueprints\auth.py 
+blueprints\inventario_corporativo.py 
+blueprints\materiales.py 
+blueprints\novedades_model.py 
+blueprints\oficinas.py 
+blueprints\prestamos.py 
+blueprints\reportes.py 
+blueprints\solicitudes.py 
+blueprints\usuarios.py 
+config\config.py 
+config\ldap_config.py 
+config\permissions.py 
+config\__init__.py 
+models\generar_hash.py 
+models\inventario_corporativo_model.py 
+models\materiales_model.py 
+models\novedades_model.py 
+models\oficinas_model.py 
+models\prestamos_model.py 
+models\solicitudes_model.py 
+models\usuarios_model.py 
+models\verificar_imagenes.py 
+models\verificar_materiales.py 
+models\__init__.py 
+services\auth_service.py 
+templates\materials\__init__.py 
+templates\reportes\__init__.py 
+templates\solicitudes\__init__.py 
+utils\auth.py 
+utils\filters.py 
+utils\helpers.py 
+utils\initialization.py 
+utils\ldap_auth.py 
+utils\permissions.py 
+utils\__init__.py 
+ 
+[ARCHIVOS HTML en /templates/] 
+------------------------------ 
+templates\base.html 
+templates\dashboard.html 
+templates\aprobadores\listar.html 
+templates\auth\listar.html 
+templates\auth\login.html 
+templates\error\404.html 
+templates\error\500.html 
+templates\inventario_corporativo\asignar.html 
+templates\inventario_corporativo\crear.html 
+templates\inventario_corporativo\detalle.html 
+templates\inventario_corporativo\editar.html 
+templates\inventario_corporativo\listar.html 
+templates\inventario_corporativo\listar_con_filtros.html 
+templates\inventario_corporativo\reportes.html 
+templates\materials\crear.html 
+templates\materials\editar.html 
+templates\materials\listar.html 
+templates\oficinas\detalle.html 
+templates\oficinas\listar.html 
+templates\prestamos\crear.html 
+templates\prestamos\elemento_crear.html 
+templates\prestamos\listar.html 
+templates\reportes\historial_material.html 
+templates\reportes\index.html 
+templates\reportes\inventario.html 
+templates\reportes\materiales.html 
+templates\reportes\material_detalle.html 
+templates\reportes\novedades.html 
+templates\reportes\oficinas.html 
+templates\reportes\prestamos.html 
+templates\reportes\solicitudes.html 
+templates\solicitudes\crear.html 
+templates\solicitudes\listar.html 
+templates\solicitudes\solicitudes.html 
+templates\usuarios\crear.html 
+templates\usuarios\editar.html 
+templates\usuarios\listar.html 
+ 
+[ARCHIVOS CSS en /static/] 
+------------------------- 
+static\css\base.css 
+static\css\custom.css 
+static\css\dashboard.css 
+static\css\inventario_corporativo.css 
+static\css\login.css 
+ 
+[ARCHIVOS JS en /static/] 
+------------------------- 
+ 
+[ARCHIVOS DE CONFIGURACION] 
+--------------------------- 
+requirements.txt 
+ 
+Resumen: 
+--------- 
+Archivos .py: 3 
+Archivos HTML: 2 
+Archivos CSS: 0 
+Archivos JS: 0 
+ 

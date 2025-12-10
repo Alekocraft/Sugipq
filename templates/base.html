@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Sistema de Gestión de Inventarios{% endblock %}</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+    {% block styles %}{% endblock %}
+    
+    <style>
+        .navbar-brand {
+            transition: transform 0.2s ease;
+        }
+        
+        .navbar-brand:hover {
+            transform: scale(1.02);
+        }
+        
+        .nav-link {
+            transition: all 0.3s ease;
+            border-radius: 6px;
+            margin: 2px 4px;
+            padding: 8px 12px !important;
+        }
+        
+        .nav-link:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+            transform: translateY(-1px);
+        }
+        
+        .nav-link.active {
+            background-color: rgba(255, 255, 255, 0.2);
+            font-weight: 600;
+        }
+        
+        .dropdown-menu {
+            border: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .dropdown-item {
+            transition: all 0.2s ease;
+        }
+        
+        .dropdown-item:hover {
+            background-color: #f8f9fa;
+            transform: translateX(5px);
+        }
+        
+        .flash-messages {
+            z-index: 1050;
+        }
+        
+        .alert {
+            border: none;
+            border-left: 4px solid;
+        }
+        
+        .alert-success {
+            border-left-color: #198754;
+        }
+        
+        .alert-danger {
+            border-left-color: #dc3545;
+        }
+        
+        .alert-warning {
+            border-left-color: #ffc107;
+        }
+        
+        .alert-info {
+            border-left-color: #0dcaf0;
+        }
+        
+        footer {
+            background-color: #f8f9fa;
+        }
+    </style>
+</head>
+<body class="bg-light">
+
+    {% set current_path = request.path if request is defined and request.path else '' %}
+
+    <nav class="navbar navbar-expand-lg navbar-dark shadow-sm sticky-top" style="background-color: #532D8C;">
+        <div class="container-fluid">
+            <a class="navbar-brand fw-bold d-flex align-items-center" href="/dashboard">
+                <img src="{{ url_for('static', filename='images/Qualitas_Logo.svg') }}" alt="Quálitas" height="70" class="me-2">
+                <div class="d-flex flex-column">
+                    <span>Sistema de Inventarios</span>
+                    <small class="fw-normal opacity-75">SUGIPQ</small>
+                </div>
+            </a>
+
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarNav">
+                {% if current_path.startswith('/inventario-corporativo') %}
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link {% if current_path == '/dashboard' %}active{% endif %}" href="/dashboard">
+                            <i class="fas fa-tachometer-alt me-1"></i> Dashboard
+                        </a>
+                    </li>
+
+                    <li class="nav-item">
+                        <a class="nav-link {% if current_path.startswith('/inventario-corporativo') 
+                                             and not current_path.startswith('/inventario-corporativo/sede-principal') 
+                                             and not current_path.startswith('/inventario-corporativo/oficinas-servicio') 
+                                             and not current_path.startswith('/inventario-corporativo/crear') %}active{% endif %}" 
+                           href="/inventario-corporativo">
+                            <i class="fas fa-boxes me-1"></i> Todos los Productos
+                        </a>
+                    </li>
+
+                    <li class="nav-item">
+                        <a class="nav-link {% if current_path.startswith('/inventario-corporativo/sede-principal') %}active{% endif %}" 
+                           href="/inventario-corporativo/sede-principal">
+                            <i class="fas fa-building me-1"></i> Sede Principal
+                        </a>
+                    </li>
+
+                    <li class="nav-item">
+                        <a class="nav-link {% if current_path.startswith('/inventario-corporativo/oficinas-servicio') %}active{% endif %}" 
+                           href="/inventario-corporativo/oficinas-servicio">
+                            <i class="fas fa-map-marker-alt me-1"></i> Oficinas de Servicio
+                        </a>
+                    </li>
+
+                    {% if can_access is defined and can_access('inventario_corporativo', 'create') %}
+                        <li class="nav-item">
+                            <a class="nav-link {% if current_path.startswith('/inventario-corporativo/crear') %}active{% endif %}" 
+                               href="/inventario-corporativo/crear">
+                                <i class="fas fa-plus-circle me-1"></i> Nuevo Producto
+                            </a>
+                        </li>
+                    {% endif %}
+                </ul>
+
+                {% elif current_path.startswith('/prestamos') %}
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link {% if current_path == '/dashboard' %}active{% endif %}" href="/dashboard">
+                            <i class="fas fa-tachometer-alt me-1"></i> Dashboard
+                        </a>
+                    </li>
+
+                    <li class="nav-item">
+                        <a class="nav-link {% if current_path.startswith('/prestamos') 
+                                             and not current_path.startswith('/prestamos/crear') 
+                                             and not current_path.startswith('/prestamos/listar') %}active{% endif %}" 
+                           href="/prestamos">
+                            <i class="fas fa-clipboard-list me-1"></i> Todos los Préstamos
+                        </a>
+                    </li>
+
+                    {% if can_access is defined and can_access('prestamos', 'create') %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if current_path.startswith('/prestamos/crear') %}active{% endif %}" 
+                           href="/prestamos/crear">
+                            <i class="fas fa-plus-circle me-1"></i> Nuevo Préstamo
+                        </a>
+                    </li>
+                    {% endif %}
+
+                    {% if can_access is defined and can_access('materiales', 'view') %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if current_path.startswith('/prestamos/elementos') %}active{% endif %}" 
+                           href="/prestamos/elementos">
+                            <i class="fas fa-box me-1"></i> Materiales
+                        </a>
+                    </li>
+                    {% endif %}
+
+                    {% if can_access is defined and can_access('reportes', 'view') %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if current_path.startswith('/prestamos/reportes') %}active{% endif %}" 
+                           href="/prestamos/reportes">
+                            <i class="fas fa-chart-bar me-1"></i> Reportes
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+
+                {% else %}
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link {% if current_path == '/dashboard' %}active{% endif %}" href="/dashboard">
+                            <i class="fas fa-tachometer-alt me-1"></i> Dashboard
+                        </a>
+                    </li>
+
+                    {% if can_access is defined and can_access('solicitudes', 'view') %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if current_path.startswith('/solicitudes') %}active{% endif %}" href="/solicitudes">
+                            <i class="fas fa-clipboard-list me-1"></i> Solicitudes
+                        </a>
+                    </li>
+                    {% endif %}
+
+                    <li class="nav-item">
+                        <a class="nav-link {% if current_path.startswith('/aprobadores') %}active{% endif %}" href="/aprobadores">
+                            <i class="fas fa-user-check me-1"></i> Aprobadores
+                        </a>
+                    </li>
+
+                    <li class="nav-item">
+                        <a class="nav-link {% if current_path.startswith('/oficinas') %}active{% endif %}" href="/oficinas">
+                            <i class="fas fa-building me-1"></i> Oficinas
+                        </a>
+                    </li>
+
+                    {% if can_access is defined and can_access('materiales', 'view') %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if current_path.startswith('/materiales') %}active{% endif %}" href="/materiales">
+                            <i class="fas fa-box me-1"></i> Materiales
+                        </a>
+                    </li>
+                    {% endif %}
+
+                    {% if can_access is defined and can_access('reportes', 'view') %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if current_path.startswith('/reportes') %}active{% endif %}" href="/reportes">
+                            <i class="fas fa-chart-bar me-1"></i> Reportes
+                        </a>
+                    </li>
+                    {% endif %}
+                    
+                    <!-- Gestión de Usuarios - Solo visible para admin -->
+                    {% if session.usuario and session.rol == 'admin' %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if current_path.startswith('/usuarios') %}active{% endif %}" href="{{ url_for('usuarios.listar_usuarios') }}">
+                            <i class="fas fa-users me-1"></i>
+                            <span>Gestión de Usuarios</span>
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+                {% endif %}
+
+                <ul class="navbar-nav me-3">
+                    <li class="nav-item">
+                        <span class="nav-link text-light fw-semibold d-flex align-items-center">
+                            <i class="fas fa-layer-group me-2"></i> 
+                            <span class="badge bg-light text-dark">
+                                {% if current_path.startswith('/inventario-corporativo') %}
+                                    Inventario Corporativo
+                                {% elif current_path.startswith('/prestamos') %}
+                                    Préstamos
+                                {% else %}
+                                    Material POP
+                                {% endif %}
+                            </span>
+                        </span>
+                    </li>
+                </ul>
+
+                <ul class="navbar-nav">
+                    {% if session.usuario_nombre %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle fw-semibold d-flex align-items-center" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-user-circle me-2"></i> 
+                            <div class="d-flex flex-column text-start">
+                                <span>{{ session.usuario_nombre }}</span>
+                                <small class="fw-normal opacity-75">{{ session.rol }}</small>
+                            </div>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                            <li class="dropdown-item-text small text-muted px-3 py-2">
+                                <div class="d-flex flex-column">
+                                    <strong><i class="fas fa-id-card me-2"></i>Información del Usuario</strong>
+                                    <div class="mt-2">
+                                        <div><strong>Rol:</strong> {{ session.rol }}</div>
+                                        <div><strong>Oficina:</strong> {{ session.oficina_nombre }}</div>
+                                    </div>
+                                </div>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item text-danger d-flex align-items-center" href="/logout">
+                                    <i class="fas fa-sign-out-alt me-2"></i> Cerrar Sesión
+                                </a>
+                            </li>
+                        </ul>
+                    </li>
+                    {% else %}
+                    <li class="nav-item">
+                        <a class="nav-link d-flex align-items-center" href="/login">
+                            <i class="fas fa-sign-in-alt me-2"></i> Iniciar Sesión
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container-fluid py-4">
+        <div class="flash-messages mb-3">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show shadow-sm mb-2" role="alert">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-{% if category == 'success' %}check-circle{% elif category == 'danger' %}exclamation-triangle{% elif category == 'warning' %}exclamation-circle{% else %}info-circle{% endif %} me-2 fs-5"></i>
+                    <div class="flex-grow-1">
+                        {{ message }}
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            </div>
+            {% endfor %}
+            {% endif %}
+            {% endwith %}
+        </div>
+
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="text-center py-3 mt-5 small text-muted border-top bg-white">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-md-6 text-md-start">
+                    <strong>© {{ now.year if now else "2025" }} Quálitas Compañía de Seguros Colombia S.A.</strong>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    Sistema Unificado de Gestión de Inventarios y Préstamos Quálitas - SUGIPQ
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>
