@@ -527,15 +527,60 @@ class SolicitudModel:
 
     @staticmethod
     def _obtener_aprobador_id(usuario_id):
+        """Obtiene el ID del aprobador. Si el usuario no tiene aprobador asignado, usa su propio ID."""
         conn = get_database_connection()
+        if conn is None:
+            return usuario_id or 1  # Fallback al ID del usuario o 1
+    
         cursor = conn.cursor()
         try:
-            cursor.execute("SELECT AprobadorId FROM Usuarios WHERE UsuarioId = ?", (usuario_id,))
+            # Primero buscar si el usuario es aprobador
+            cursor.execute("""
+                SELECT u.UsuarioId, u.AprobadorId, a.AprobadorId as EsAprobador
+                FROM Usuarios u
+                LEFT JOIN Aprobadores a ON u.UsuarioId = a.AprobadorId
+                WHERE u.UsuarioId = ?
+            """, (usuario_id,))
+        
             row = cursor.fetchone()
-            return row[0] if row else 1
+        
+            if row:
+                usuario_db = row[0]
+                aprobador_asignado = row[1]
+                es_aprobador = row[2]
+            
+                # Si el usuario tiene un aprobador asignado en su registro, usarlo
+                if aprobador_asignado:
+                    return aprobador_asignado
+                # Si el usuario existe en la tabla Aprobadores, es un aprobador
+                elif es_aprobador:
+                    return usuario_db  # Es aprobador, usar su propio ID
+                # Si no es aprobador pero necesita aprobar, usar un aprobador por defecto
+                else:
+                    # Buscar un aprobador por defecto (primero en la tabla Aprobadores)
+                    cursor.execute("SELECT TOP 1 AprobadorId FROM Aprobadores WHERE Activo = 1 ORDER BY AprobadorId")
+                    aprobador_default = cursor.fetchone()
+                    if aprobador_default:
+                        return aprobador_default[0]
+                    else:
+                        return usuario_db  # Fallback al ID del usuario
+        
+            # Si no encuentra al usuario, retornar un valor por defecto
+            print(f"⚠️ Usuario {usuario_id} no encontrado. Usando aprobador por defecto.")
+            cursor.execute("SELECT TOP 1 AprobadorId FROM Aprobadores WHERE Activo = 1 ORDER BY AprobadorId")
+            aprobador_default = cursor.fetchone()
+            return aprobador_default[0] if aprobador_default else 1
+        
+        except Exception as e:
+            print(f"❌ Error obteniendo aprobador_id: {e}")
+            import traceback
+            traceback.print_exc()
+            return usuario_id or 1  # Fallback seguro
         finally:
-            cursor.close()
-            conn.close()
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
 
     @staticmethod
     def _mapear_solicitudes(rows):

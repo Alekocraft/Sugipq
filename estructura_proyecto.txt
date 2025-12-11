@@ -1,6 +1,6 @@
 ESTRUCTURA DEL PROYECTO FLASK 
 ============================= 
-Fecha: Tue 12/09/2025 18:27:49.34 
+Fecha: Thu 12/11/2025 15:04:12.24 
  
 [ARCHIVOS PRINCIPALES .PY] 
 -------------------------- 
@@ -31,8 +31,6 @@ models\oficinas_model.py
 models\prestamos_model.py 
 models\solicitudes_model.py 
 models\usuarios_model.py 
-models\verificar_imagenes.py 
-models\verificar_materiales.py 
 models\__init__.py 
 services\auth_service.py 
 templates\materials\__init__.py 
@@ -53,6 +51,7 @@ templates\dashboard.html
 templates\aprobadores\listar.html 
 templates\auth\listar.html 
 templates\auth\login.html 
+templates\auth\test_ldap_simple.html 
 templates\error\404.html 
 templates\error\500.html 
 templates\inventario_corporativo\asignar.html 
@@ -84,6 +83,7 @@ templates\solicitudes\listar.html
 templates\solicitudes\solicitudes.html 
 templates\usuarios\crear.html 
 templates\usuarios\editar.html 
+templates\usuarios\gestionar.html 
 templates\usuarios\listar.html 
  
 [ARCHIVOS CSS en /static/] 

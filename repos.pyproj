@@ -83,8 +83,6 @@
     <Compile Include="models\oficinas_model.py" />
     <Compile Include="models\solicitudes_model.py" />
     <Compile Include="models\usuarios_model.py" />
-    <Compile Include="models\verificar_imagenes.py" />
-    <Compile Include="models\verificar_materiales.py" />
     <Compile Include="models\__init__.py" />
     <Compile Include="services\auth_service.py" />
     <Compile Include="templates\materials\__init__.py" />

@@ -866,4 +866,46 @@ class UsuarioModel:
             return False
         finally:
             if conn:
+                conn.close()    
+    @staticmethod
+    def obtener_aprobadores_desde_tabla():
+        """
+        Obtiene aprobadores desde la tabla Aprobadores (no desde Usuarios)
+        """
+        conn = get_database_connection()
+        if not conn:
+            return []
+            
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT 
+                    AprobadorId,
+                    NombreAprobador,
+                    Email,
+                    Activo,
+                    FechaCreacion
+                FROM Aprobadores 
+                WHERE Activo = 1
+                ORDER BY NombreAprobador
+            """)
+            
+            aprobadores = []
+            for row in cursor.fetchall():
+                aprobadores.append({
+                    'AprobadorId': row[0],
+                    'NombreAprobador': row[1],
+                    'Email': row[2],
+                    'Activo': row[3],
+                    'FechaCreacion': row[4]
+                })
+            
+            logger.info(f"✅ Se encontraron {len(aprobadores)} aprobadores desde tabla Aprobadores")
+            return aprobadores
+            
+        except Exception as e:
+            logger.error(f"❌ Error obteniendo aprobadores desde tabla: {e}")
+            return []
+        finally:
+            if conn:
                 conn.close()

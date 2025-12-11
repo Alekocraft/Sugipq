@@ -136,7 +136,7 @@
         </div>
         <div class="badge bg-primary fs-6 p-2">
             <i class="fas fa-calendar me-2"></i>
-            <span id="fecha-actual">{{ now.strftime('%d/%m/%Y') if now else "" }}</span>
+            <span id="fecha-actual"></span>
         </div>
     </div>
 
@@ -157,7 +157,7 @@
                 <div class="col-md-4 text-md-end">
                     <div class="text-muted">
                         <i class="fas fa-clock me-2"></i>
-                        <span id="hora-actual">{{ now.strftime('%H:%M') if now else "" }}</span>
+                        <span id="hora-actual"></span>
                     </div>
                 </div>
             </div>
@@ -233,7 +233,7 @@
                             <h5 class="fw-semibold mb-2 text-dark">Materiales</h5>
                             <div class="stats-number" style="color: #A73493;">{{ materiales|length }}</div>
                             <p class="stats-label">Materiales registrados</p>
-                            <a href="/materiales" class="btn btn-primary btn-sm w-100 btn-modulo">
+                            <a href="{{ url_for('materiales.listar_materiales') }}" class="btn btn-primary btn-sm w-100 btn-modulo">
                                 <i class="fas fa-cog me-2"></i>Gestionar
                             </a>
                         </div>
@@ -521,6 +521,14 @@
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+    function actualizarFecha() {
+        const ahora = new Date();
+        const dia = ahora.getDate().toString().padStart(2, '0');
+        const mes = (ahora.getMonth() + 1).toString().padStart(2, '0'); // Mes empieza en 0
+        const año = ahora.getFullYear();
+        document.getElementById('fecha-actual').textContent = `${dia}/${mes}/${año}`;
+    }
+    
     function actualizarHora() {
         const ahora = new Date();
         const hora = ahora.getHours().toString().padStart(2, '0');
@@ -528,7 +536,11 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('hora-actual').textContent = `${hora}:${minutos}`;
     }
     
+    // Inicializar fecha y hora
+    actualizarFecha();
     actualizarHora();
+    
+    // Actualizar solo la hora cada minuto
     setInterval(actualizarHora, 60000);
 
     const invModal = document.getElementById('modalInventarioCorporativo');

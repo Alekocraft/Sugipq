@@ -2,9 +2,7 @@
 import bcrypt
 
 usuarios = {
-    "administrador": "metal",
-    "tesoreria": "pruebasq1",
-    "jpena": "pruebasq2",
+    "aprobador": "123456",
 }
 print("🔐 HASHES REALES PARA SQL SERVER\n" + "="*50)
 for user, pwd in usuarios.items():
