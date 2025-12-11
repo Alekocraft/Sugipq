@@ -3,9 +3,8 @@
 """
 Sistema centralizado de permisos basado en roles y oficinas config/permissions.py
 """
-
 ROLE_PERMISSIONS = {
-    'administrador': {
+    'admin': {  
         'modules': ['dashboard', 'material_pop', 'inventario_corporativo', 'prestamo_material', 'reportes'],  
         'actions': {
             'materiales': ['view', 'create', 'edit', 'delete'],
@@ -20,6 +19,22 @@ ROLE_PERMISSIONS = {
         'office_filter': 'all'
     },
 
+    'administrador': {   
+        'modules': ['dashboard', 'material_pop', 'inventario_corporativo', 'prestamo_material', 'reportes'],  
+        'actions': {
+            'materiales': ['view', 'create', 'edit', 'delete'],
+            'solicitudes': ['view', 'create', 'approve', 'reject', 'partial_approve'],
+            'oficinas': ['view', 'manage'],
+            'aprobadores': ['view', 'manage'],
+            'reportes': ['view_all'],  
+            'inventario_corporativo': ['view', 'create', 'edit', 'delete', 'assign', 'manage_sedes', 'manage_oficinas'],
+            'prestamos': ['view', 'create', 'approve', 'reject', 'return', 'manage_materials'],
+            'novedades': ['create', 'view', 'approve', 'reject']
+        },
+        'office_filter': 'all'
+    },
+
+ 
     'lider_inventario': {
         'modules': ['dashboard', 'material_pop', 'inventario_corporativo', 'prestamo_material', 'reportes'],  
         'actions': {

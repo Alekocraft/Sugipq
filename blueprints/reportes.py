@@ -30,7 +30,7 @@ def aplicar_filtro_permisos(datos, campo_oficina='oficina_id'):
     if not datos:
         return []
     
-    # Si puede ver todo (administrador/lider_inventario), no filtra
+    # Si puede ver todo (admin/administrador/lider_inventario), no filtra
     if can_access('materiales', 'view') and can_access('solicitudes', 'view'):
         return datos
     
@@ -94,7 +94,8 @@ def reporte_solicitudes():
         solicitudes = SolicitudModel.obtener_todas_con_detalle() or []
         
         # Aplicar filtro según permisos del usuario
-        if not (session.get('rol') in ['administrador', 'lider_inventario']):
+        rol_usuario = session.get('rol', '').lower()
+        if not (rol_usuario in ['admin', 'administrador', 'lider_inventario']):  # Actualizado
             solicitudes = filtrar_por_oficina_usuario(solicitudes, 'oficina_id')
         
         # Aplicar filtros adicionales
@@ -291,7 +292,8 @@ def exportar_solicitudes_excel():
         solicitudes = SolicitudModel.obtener_todas_con_detalle() or []
         
         # Aplicar filtro según permisos
-        if not (session.get('rol') in ['administrador', 'lider_inventario']):
+        rol_usuario = session.get('rol', '').lower()
+        if not (rol_usuario in ['admin', 'administrador', 'lider_inventario']):  # Actualizado
             solicitudes = filtrar_por_oficina_usuario(solicitudes, 'oficina_id')
         
         # Aplicar filtros adicionales (USANDO LA MISMA LÓGICA CORREGIDA)
@@ -455,7 +457,8 @@ def reporte_materiales():
         materiales = MaterialModel.obtener_todos() or []
         
         # Aplicar filtro según permisos
-        if not (session.get('rol') in ['administrador', 'lider_inventario']):
+        rol_usuario = session.get('rol', '').lower()
+        if not (rol_usuario in ['admin', 'administrador', 'lider_inventario']):  # Actualizado
             materiales = filtrar_por_oficina_usuario(materiales, 'oficina_id')
         
         # Calcular estadísticas
@@ -501,7 +504,8 @@ def reporte_inventario():
         materiales = MaterialModel.obtener_todos() or []
         
         # Aplicar filtro según permisos
-        if not (session.get('rol') in ['administrador', 'lider_inventario']):
+        rol_usuario = session.get('rol', '').lower()
+        if not (rol_usuario in ['admin', 'administrador', 'lider_inventario']):  # Actualizado
             materiales = filtrar_por_oficina_usuario(materiales, 'oficina_id')
         
         # Calcular estadísticas
@@ -572,7 +576,8 @@ def reporte_novedades():
         novedades = NovedadModel.obtener_todas() or []
         
         # Aplicar filtro según permisos
-        if not (session.get('rol') in ['administrador', 'lider_inventario']):
+        rol_usuario = session.get('rol', '').lower()
+        if not (rol_usuario in ['admin', 'administrador', 'lider_inventario']):  # Actualizado
             oficina_usuario = session.get('oficina_id')
             novedades = [n for n in novedades if n.get('oficina_id') == oficina_usuario]
         
@@ -1018,7 +1023,7 @@ def reporte_prestamos():
         rol_usuario = session.get('rol', '').lower()
         oficina_id_usuario = session.get('oficina_id')
         
-        if rol_usuario in ['administrador', 'lider_inventario']:
+        if rol_usuario in ['admin', 'administrador', 'lider_inventario']:  # Actualizado
             if filtro_oficina:
                 query += " AND pe.OficinaId = ?"
                 params.append(filtro_oficina)
@@ -1071,7 +1076,7 @@ def reporte_prestamos():
         
         # Obtener oficinas para el filtro (solo para admin/lider)
         oficinas = []
-        if rol_usuario in ['administrador', 'lider_inventario']:
+        if rol_usuario in ['admin', 'administrador', 'lider_inventario']:  # Actualizado
             cursor.execute("SELECT OficinaId, NombreOficina FROM Oficinas WHERE Activo = 1 ORDER BY NombreOficina")
             oficinas = [{'id': row[0], 'nombre': row[1]} for row in cursor.fetchall()]
         
@@ -1130,7 +1135,8 @@ def exportar_materiales_excel():
         materiales = MaterialModel.obtener_todos() or []
         
         # Aplicar filtro según permisos
-        if not (session.get('rol') in ['administrador', 'lider_inventario']):
+        rol_usuario = session.get('rol', '').lower()
+        if not (rol_usuario in ['admin', 'administrador', 'lider_inventario']):  # Actualizado
             materiales = filtrar_por_oficina_usuario(materiales, 'oficina_id')
 
         data = []
@@ -1748,7 +1754,8 @@ def material_detalle(material_id):
             return redirect('/reportes/materiales')
         
         # Verificar permisos de oficina
-        if not (session.get('rol') in ['administrador', 'lider_inventario']):
+        rol_usuario = session.get('rol', '').lower()
+        if not (rol_usuario in ['admin', 'administrador', 'lider_inventario']):  # Actualizado
             if material.get('oficina_id') != session.get('oficina_id'):
                 flash('No tiene permisos para ver este material', 'danger')
                 return redirect('/reportes/materiales')

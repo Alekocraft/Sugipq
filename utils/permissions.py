@@ -49,9 +49,11 @@ def normalize_role_key(role_raw: str) -> str:
             logger.debug(f"Rol encontrado por comparación plana: {key}")
             return key
     
-    # Detección por contenido específico
+    # Detección por contenido específico - CORREGIDO: 'admin' debe retornar 'admin'
     if 'admin' in role_normalized:
         logger.debug(f"Rol detectado como administrador: {role_raw}")
+        # Asegurar que tanto 'admin' como 'administrador' se normalicen a 'administrador'
+        # ya que en ROLE_PERMISSIONS tenemos ambos roles definidos con mismos permisos
         return 'administrador'
     if 'lider' in role_normalized and 'invent' in role_normalized:
         logger.debug(f"Rol detectado como líder de inventario: {role_raw}")
@@ -117,7 +119,7 @@ class PermissionManager:
     def can_view_actions() -> bool:
         """Determina si el usuario puede ver columnas de acciones en interfaces"""
         role_key = PermissionManager.get_user_permissions().get('role_key', '')
-        roles_with_actions = {'administrador', 'aprobador', 'lider_inventario', 'tesoreria'}
+        roles_with_actions = {'admin', 'aprobador', 'lider_inventario', 'tesoreria'}
         can_view = role_key in roles_with_actions
         logger.debug(f"Usuario puede ver acciones: {can_view}")
         return can_view

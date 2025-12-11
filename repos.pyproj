@@ -56,6 +56,7 @@
     <Content Include="templates\solicitudes\listar.html" />
     <Content Include="templates\usuarios\crear.html" />
     <Content Include="templates\usuarios\editar.html" />
+    <Content Include="templates\usuarios\gestionar.html" />
     <Content Include="templates\usuarios\listar.html" />
   </ItemGroup>
   <ItemGroup>

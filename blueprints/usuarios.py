@@ -1,45 +1,51 @@
-# blueprints/usuarios.py
-from flask import Blueprint, render_template, request, flash, redirect, url_for, session
+# blueprints/usuarios.py 
+from flask import Blueprint, render_template, request, flash, redirect, url_for, session, jsonify
 from functools import wraps
 from models.usuarios_model import UsuarioModel
 from database import get_database_connection
 import logging
+from config.config import Config  
+
 
 logger = logging.getLogger(__name__)
 
 usuarios_bp = Blueprint('usuarios', __name__, url_prefix='/usuarios')
 
-# Decorador para verificar permisos de administrador
+# ======================
+# DECORADORES
+# ======================
+
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if 'user' not in session:
+        if 'usuario_id' not in session:
             flash('Debe iniciar sesión para acceder a esta página', 'danger')
-            return redirect(url_for('auth.login'))
+            return redirect(url_for('auth_bp.login'))
         
-        if session['user'].get('rol') != 'admin':
+        # CORRECCIÓN: "admin" equivale a "administrador"
+        rol_actual = session.get('rol', '').lower()
+        if rol_actual not in ['administrador', 'admin']:
             flash('No tiene permisos de administrador para acceder a esta página', 'danger')
-            return redirect(url_for('dashboard.dashboard'))
+            return redirect(url_for('auth_bp.dashboard'))
         
         return f(*args, **kwargs)
     return decorated_function
+
+# ======================
+# RUTAS DE GESTIÓN DE USUARIOS
+# ======================
 
 @usuarios_bp.route('/')
 @admin_required
 def listar_usuarios():
     """
-    Lista todos los usuarios del sistema
-    Solo accesible por administradores
+    Lista todos los usuarios del sistema con gestión completa
     """
     try:
         conn = get_database_connection()
-        if not conn:
-            flash('Error de conexión a la base de datos', 'danger')
-            return render_template('usuarios/listar.html', usuarios=[])
-        
         cursor = conn.cursor()
         
-        # Obtener usuarios con información de oficina
+        # Obtener todos los usuarios con información completa
         cursor.execute("""
             SELECT 
                 u.UsuarioId,
@@ -51,11 +57,15 @@ def listar_usuarios():
                 u.Activo,
                 u.FechaCreacion,
                 u.AprobadorId,
-                a.NombreAprobador
+                a.NombreAprobador,
+                CASE 
+                    WHEN u.ContraseñaHash = 'LDAP_USER' THEN 'LDAP'
+                    ELSE 'LOCAL'
+                END as Tipo_Autenticacion
             FROM Usuarios u
             LEFT JOIN Oficinas o ON u.OficinaId = o.OficinaId
             LEFT JOIN Aprobadores a ON u.AprobadorId = a.AprobadorId
-            ORDER BY u.NombreUsuario
+            ORDER BY u.Activo DESC, u.NombreUsuario
         """)
         
         usuarios = []
@@ -67,151 +77,222 @@ def listar_usuarios():
                 'rol': row[3],
                 'oficina_id': row[4],
                 'oficina_nombre': row[5],
-                'activo': row[6],
+                'activo': bool(row[6]),
                 'fecha_creacion': row[7],
                 'aprobador_id': row[8],
-                'aprobador_nombre': row[9]
+                'aprobador_nombre': row[9],
+                'tipo_auth': row[10]
             })
         
-        conn.close()
-        
-        # Obtener lista de oficinas para el formulario
-        conn = get_database_connection()
-        cursor = conn.cursor()
+        # Obtener listas para formularios
         cursor.execute("SELECT OficinaId, NombreOficina FROM Oficinas WHERE Activo = 1 ORDER BY NombreOficina")
-        oficinas = cursor.fetchall()
+        oficinas = [{'id': row[0], 'nombre': row[1]} for row in cursor.fetchall()]
         
-        # Obtener lista de aprobadores para el formulario
         cursor.execute("SELECT AprobadorId, NombreAprobador FROM Aprobadores WHERE Activo = 1 ORDER BY NombreAprobador")
-        aprobadores = cursor.fetchall()
+        aprobadores = [{'id': row[0], 'nombre': row[1]} for row in cursor.fetchall()]
         
-        conn.close()
-        
-        # Lista de roles disponibles
+        # Roles disponibles según config/permissions.py
         roles_disponibles = [
-            'admin',
-            'tesoreria', 
-            'oficina_polo_club',
-            'oficina_coq',
+            'administrador',
+            'lider_inventario',
+            'tesoreria',
             'aprobador',
+            'oficina_coq',
+            'oficina_polo_club',
+            'oficina_cali',
+            'oficina_pereira',
+            'oficina_neiva',
+            'oficina_kennedy',
+            'oficina_bucaramanga',
+            'oficina_nogal',
+            'oficina_tunja',
+            'oficina_cartagena',
+            'oficina_morato',
+            'oficina_medellin',
+            'oficina_cedritos',
+            'oficina_lourdes',
             'usuario'
         ]
         
-        return render_template('usuarios/listar.html', 
+        # Estadísticas
+        cursor.execute("SELECT COUNT(*) FROM Usuarios WHERE Activo = 1")
+        total_activos = cursor.fetchone()[0]
+        
+        cursor.execute("SELECT COUNT(*) FROM Usuarios WHERE Activo = 0")
+        total_inactivos = cursor.fetchone()[0]
+        
+        cursor.execute("SELECT COUNT(*) FROM Usuarios WHERE ContraseñaHash = 'LDAP_USER'")
+        total_ldap = cursor.fetchone()[0]
+        
+        conn.close()
+        
+        return render_template('usuarios/listar.html',
                              usuarios=usuarios,
                              oficinas=oficinas,
                              aprobadores=aprobadores,
-                             roles=roles_disponibles)
+                             roles=roles_disponibles,
+                             total_activos=total_activos,
+                             total_inactivos=total_inactivos,
+                             total_ldap=total_ldap,
+                             total_usuarios=len(usuarios))
         
     except Exception as e:
-        logger.error(f"? Error listando usuarios: {e}")
+        logger.error(f"❌ Error listando usuarios: {e}")
         flash(f'Error al listar usuarios: {str(e)}', 'danger')
-        return render_template('usuarios/listar.html', usuarios=[])
+        return render_template('usuarios/listar.html', 
+                             usuarios=[], 
+                             oficinas=[], 
+                             aprobadores=[], 
+                             roles=[])
 
 @usuarios_bp.route('/crear', methods=['GET', 'POST'])
 @admin_required
 def crear_usuario():
     """
-    Crea un nuevo usuario manualmente
+    Crea un nuevo usuario (local o desde LDAP)
     """
-    if request.method == 'GET':
-        # Obtener datos para formulario
+    try:
         conn = get_database_connection()
         cursor = conn.cursor()
         
-        # Oficinas
-        cursor.execute("SELECT OficinaId, NombreOficina FROM Oficinas WHERE Activo = 1 ORDER BY NombreOficina")
-        oficinas = cursor.fetchall()
-        
-        # Aprobadores
-        cursor.execute("SELECT AprobadorId, NombreAprobador FROM Aprobadores WHERE Activo = 1 ORDER BY NombreAprobador")
-        aprobadores = cursor.fetchall()
-        
-        conn.close()
-        
-        # Roles disponibles
-        roles_disponibles = [
-            'admin',
-            'tesoreria', 
-            'oficina_polo_club',
-            'oficina_coq',
-            'aprobador',
-            'usuario'
-        ]
-        
-        return render_template('usuarios/crear.html',
-                             oficinas=oficinas,
-                             aprobadores=aprobadores,
-                             roles=roles_disponibles)
-    
-    elif request.method == 'POST':
-        try:
-            # Obtener datos del formulario
-            usuario_data = {
-                'usuario': request.form.get('nombre_usuario'),
-                'nombre': request.form.get('nombre_completo'),
-                'email': request.form.get('email'),
-                'rol': request.form.get('rol'),
-                'password': request.form.get('password'),
-                'oficina_id': request.form.get('oficina_id'),
-                'aprobador_id': request.form.get('aprobador_id') or None,
-                'activo': 1 if request.form.get('activo') == 'on' else 0
-            }
+        if request.method == 'GET':
+            # Obtener datos para formulario
+            cursor.execute("SELECT OficinaId, NombreOficina FROM Oficinas WHERE Activo = 1 ORDER BY NombreOficina")
+            oficinas = [{'id': row[0], 'nombre': row[1]} for row in cursor.fetchall()]
             
-            # Validaciones básicas
-            if not usuario_data['usuario'] or not usuario_data['password']:
-                flash('Usuario y contraseña son obligatorios', 'danger')
-                return redirect(url_for('usuarios.crear_usuario'))
+            cursor.execute("SELECT AprobadorId, NombreAprobador FROM Aprobadores WHERE Activo = 1 ORDER BY NombreAprobador")
+            aprobadores = [{'id': row[0], 'nombre': row[1]} for row in cursor.fetchall()]
             
-            # Verificar si el usuario ya existe
-            conn = get_database_connection()
-            cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM Usuarios WHERE NombreUsuario = ?", 
-                          (usuario_data['usuario'],))
-            if cursor.fetchone()[0] > 0:
-                flash('El nombre de usuario ya existe', 'danger')
-                conn.close()
-                return redirect(url_for('usuarios.crear_usuario'))
+            # Roles disponibles
+            roles_disponibles = [
+                'administrador',
+                'lider_inventario',
+                'tesoreria',
+                'aprobador',
+                'oficina_coq',
+                'oficina_polo_club',
+                'usuario'
+            ]
             
             conn.close()
             
-            # Crear usuario usando el modelo
-            if UsuarioModel.crear_usuario_manual({
-                'usuario': usuario_data['usuario'],
-                'nombre': usuario_data['email'],  # Usar email como nombre
-                'rol': usuario_data['rol'],
-                'oficina_id': usuario_data['oficina_id'],
-                'password': usuario_data['password']
-            }):
-                flash('Usuario creado exitosamente', 'success')
-                # Si hay aprobador_id, actualizar la tabla
-                if usuario_data['aprobador_id']:
-                    conn = get_database_connection()
-                    cursor = conn.cursor()
-                    cursor.execute("""
-                        UPDATE Usuarios 
-                        SET AprobadorId = ?, 
-                            CorreoElectronico = ?,
-                            Activo = ?
-                        WHERE NombreUsuario = ?
-                    """, (
-                        usuario_data['aprobador_id'],
-                        usuario_data['email'],
-                        usuario_data['activo'],
-                        usuario_data['usuario']
-                    ))
-                    conn.commit()
-                    conn.close()
+            return render_template('usuarios/crear.html',
+                                 oficinas=oficinas,
+                                 aprobadores=aprobadores,
+                                 roles=roles_disponibles)
+        
+        elif request.method == 'POST':
+            tipo_usuario = request.form.get('tipo_usuario', 'local')
+            
+            if tipo_usuario == 'local':
+                # Crear usuario local
+                usuario_data = {
+                    'usuario': request.form.get('nombre_usuario', '').strip(),
+                    'nombre': request.form.get('nombre_completo', '').strip(),
+                    'email': request.form.get('email', '').strip(),
+                    'rol': request.form.get('rol', 'usuario'),
+                    'password': request.form.get('password', ''),
+                    'oficina_id': request.form.get('oficina_id'),
+                    'aprobador_id': request.form.get('aprobador_id') or None,
+                    'activo': 1 if request.form.get('activo') == 'on' else 0
+                }
                 
-                return redirect(url_for('usuarios.listar_usuarios'))
+                # Validaciones
+                if not usuario_data['usuario']:
+                    flash('El nombre de usuario es obligatorio', 'danger')
+                    return redirect(url_for('usuarios.crear_usuario'))
+                
+                if not usuario_data['password']:
+                    flash('La contraseña es obligatoria para usuarios locales', 'danger')
+                    return redirect(url_for('usuarios.crear_usuario'))
+                
+                # Verificar si el usuario ya existe
+                cursor.execute("SELECT COUNT(*) FROM Usuarios WHERE NombreUsuario = ?", 
+                              (usuario_data['usuario'],))
+                if cursor.fetchone()[0] > 0:
+                    flash('El nombre de usuario ya existe', 'danger')
+                    conn.close()
+                    return redirect(url_for('usuarios.crear_usuario'))
+                
+                # Crear usuario local
+                success = UsuarioModel.crear_usuario_manual({
+                    'usuario': usuario_data['usuario'],
+                    'nombre': usuario_data['nombre'] or usuario_data['email'],
+                    'rol': usuario_data['rol'],
+                    'oficina_id': usuario_data['oficina_id'],
+                    'password': usuario_data['password']
+                })
+                
+                if success:
+                    # Actualizar campos adicionales si es necesario
+                    if usuario_data['aprobador_id'] or usuario_data['email']:
+                        cursor.execute("""
+                            UPDATE Usuarios 
+                            SET AprobadorId = ?, 
+                                CorreoElectronico = ?,
+                                Activo = ?,
+                                EsLDAP = 0
+                            WHERE NombreUsuario = ?
+                        """, (
+                            usuario_data['aprobador_id'],
+                            usuario_data['email'],
+                            usuario_data['activo'],
+                            usuario_data['usuario']
+                        ))
+                        conn.commit()
+                    
+                    flash('Usuario local creado exitosamente', 'success')
+                    conn.close()
+                    return redirect(url_for('usuarios.listar_usuarios'))
+                else:
+                    flash('Error al crear el usuario local', 'danger')
+                    conn.close()
+                    return redirect(url_for('usuarios.crear_usuario'))
+            
+            elif tipo_usuario == 'ldap':
+                # Crear usuario LDAP manualmente
+                usuario_ldap = request.form.get('usuario_ldap', '').strip()
+                email_ldap = request.form.get('email_ldap', '').strip()
+                rol_ldap = request.form.get('rol_ldap', 'usuario')
+                oficina_id_ldap = request.form.get('oficina_id_ldap')
+                
+                if not usuario_ldap:
+                    flash('El nombre de usuario LDAP es obligatorio', 'danger')
+                    return redirect(url_for('usuarios.crear_usuario'))
+                
+                # Verificar si ya existe
+                cursor.execute("SELECT COUNT(*) FROM Usuarios WHERE NombreUsuario = ?", (usuario_ldap,))
+                if cursor.fetchone()[0] > 0:
+                    flash('El usuario LDAP ya existe en el sistema', 'warning')
+                    conn.close()
+                    return redirect(url_for('usuarios.crear_usuario'))
+                
+                # Crear usuario LDAP manual
+                usuario_creado = UsuarioModel.crear_usuario_ldap_manual({
+                    'usuario': usuario_ldap,
+                    'email': email_ldap or f"{usuario_ldap}@qualitascolombia.com.co",
+                    'rol': rol_ldap,
+                    'oficina_id': oficina_id_ldap or 1
+                })
+                
+                conn.close()
+                
+                if usuario_creado:
+                    flash(f'Usuario LDAP "{usuario_ldap}" creado exitosamente. Debe autenticarse primero con sus credenciales de dominio para activarse.', 'success')
+                    return redirect(url_for('usuarios.listar_usuarios'))
+                else:
+                    flash('Error al crear el usuario LDAP', 'danger')
+                    return redirect(url_for('usuarios.crear_usuario'))
+            
             else:
-                flash('Error al crear el usuario', 'danger')
+                flash('Tipo de usuario no válido', 'danger')
+                conn.close()
                 return redirect(url_for('usuarios.crear_usuario'))
                 
-        except Exception as e:
-            logger.error(f"? Error creando usuario: {e}")
-            flash(f'Error al crear usuario: {str(e)}', 'danger')
-            return redirect(url_for('usuarios.crear_usuario'))
+    except Exception as e:
+        logger.error(f"❌ Error creando usuario: {e}")
+        flash(f'Error al crear usuario: {str(e)}', 'danger')
+        return redirect(url_for('usuarios.crear_usuario'))
 
 @usuarios_bp.route('/editar/<int:usuario_id>', methods=['GET', 'POST'])
 @admin_required
@@ -227,37 +308,43 @@ def editar_usuario(usuario_id):
             # Obtener datos del usuario
             cursor.execute("""
                 SELECT 
-                    UsuarioId,
-                    NombreUsuario,
-                    CorreoElectronico,
-                    Rol,
-                    OficinaId,
-                    AprobadorId,
-                    Activo
-                FROM Usuarios 
-                WHERE UsuarioId = ?
+                    u.UsuarioId,
+                    u.NombreUsuario,
+                    u.CorreoElectronico,
+                    u.Rol,
+                    u.OficinaId,
+                    u.AprobadorId,
+                    u.Activo,
+                    CASE 
+                        WHEN u.ContraseñaHash = 'LDAP_USER' THEN 'LDAP'
+                        ELSE 'LOCAL'
+                    END as Tipo_Autenticacion
+                FROM Usuarios u
+                WHERE u.UsuarioId = ?
             """, (usuario_id,))
             
             usuario = cursor.fetchone()
             
             if not usuario:
                 flash('Usuario no encontrado', 'danger')
+                conn.close()
                 return redirect(url_for('usuarios.listar_usuarios'))
             
             # Obtener datos para formulario
             cursor.execute("SELECT OficinaId, NombreOficina FROM Oficinas WHERE Activo = 1 ORDER BY NombreOficina")
-            oficinas = cursor.fetchall()
+            oficinas = [{'id': row[0], 'nombre': row[1]} for row in cursor.fetchall()]
             
             cursor.execute("SELECT AprobadorId, NombreAprobador FROM Aprobadores WHERE Activo = 1 ORDER BY NombreAprobador")
-            aprobadores = cursor.fetchall()
+            aprobadores = [{'id': row[0], 'nombre': row[1]} for row in cursor.fetchall()]
             
             # Roles disponibles
             roles_disponibles = [
-                'admin',
-                'tesoreria', 
-                'oficina_polo_club',
-                'oficina_coq',
+                'administrador',
+                'lider_inventario',
+                'tesoreria',
                 'aprobador',
+                'oficina_coq',
+                'oficina_polo_club',
                 'usuario'
             ]
             
@@ -270,7 +357,8 @@ def editar_usuario(usuario_id):
                 'rol': usuario[3],
                 'oficina_id': usuario[4],
                 'aprobador_id': usuario[5],
-                'activo': usuario[6]
+                'activo': bool(usuario[6]),
+                'tipo_auth': usuario[7]
             }
             
             return render_template('usuarios/editar.html',
@@ -282,20 +370,23 @@ def editar_usuario(usuario_id):
         elif request.method == 'POST':
             # Actualizar usuario
             nuevo_rol = request.form.get('rol')
-            nuevo_email = request.form.get('email')
+            nuevo_email = request.form.get('email', '').strip()
             nueva_oficina = request.form.get('oficina_id')
             nuevo_aprobador = request.form.get('aprobador_id') or None
             nuevo_activo = 1 if request.form.get('activo') == 'on' else 0
             
-            # Verificar que no estamos desactivando el último admin
-            if nuevo_activo == 0 and nuevo_rol == 'admin':
+            # Verificar que no estamos desactivando el último administrador activo
+            # CORRECCIÓN: Verificar ambos roles "admin" y "administrador"
+            es_admin = (nuevo_rol in ['administrador', 'admin'])
+            if nuevo_activo == 0 and es_admin:
                 cursor.execute("""
                     SELECT COUNT(*) FROM Usuarios 
-                    WHERE Rol = 'admin' AND Activo = 1 AND UsuarioId != ?
+                    WHERE Rol IN ('administrador', 'admin') AND Activo = 1 AND UsuarioId != ?
                 """, (usuario_id,))
                 
                 if cursor.fetchone()[0] == 0:
                     flash('No se puede desactivar el último administrador activo', 'danger')
+                    conn.close()
                     return redirect(url_for('usuarios.editar_usuario', usuario_id=usuario_id))
             
             # Actualizar usuario
@@ -323,7 +414,7 @@ def editar_usuario(usuario_id):
             return redirect(url_for('usuarios.listar_usuarios'))
             
     except Exception as e:
-        logger.error(f"? Error editando usuario: {e}")
+        logger.error(f"❌ Error editando usuario: {e}")
         flash(f'Error al editar usuario: {str(e)}', 'danger')
         return redirect(url_for('usuarios.listar_usuarios'))
 
@@ -331,7 +422,7 @@ def editar_usuario(usuario_id):
 @admin_required
 def cambiar_contrasena(usuario_id):
     """
-    Cambiar contraseña de un usuario (solo admin)
+    Cambiar contraseña de un usuario local (no LDAP)
     """
     try:
         nueva_contrasena = request.form.get('nueva_contrasena')
@@ -345,15 +436,24 @@ def cambiar_contrasena(usuario_id):
             flash('Las contraseñas no coinciden', 'danger')
             return redirect(url_for('usuarios.editar_usuario', usuario_id=usuario_id))
         
-        # Actualizar contraseña usando bcrypt
+        # Verificar que no sea usuario LDAP
+        conn = get_database_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT ContraseñaHash FROM Usuarios WHERE UsuarioId = ?", (usuario_id,))
+        resultado = cursor.fetchone()
+        
+        if resultado and resultado[0] == 'LDAP_USER':
+            flash('No se puede cambiar contraseña a usuarios LDAP', 'danger')
+            conn.close()
+            return redirect(url_for('usuarios.editar_usuario', usuario_id=usuario_id))
+        
+        # Actualizar contraseña
         import bcrypt
         password_hash = bcrypt.hashpw(
             nueva_contrasena.encode('utf-8'), 
             bcrypt.gensalt()
         ).decode('utf-8')
         
-        conn = get_database_connection()
-        cursor = conn.cursor()
         cursor.execute("""
             UPDATE Usuarios 
             SET ContraseñaHash = ?
@@ -367,35 +467,37 @@ def cambiar_contrasena(usuario_id):
         return redirect(url_for('usuarios.listar_usuarios'))
         
     except Exception as e:
-        logger.error(f"? Error cambiando contraseña: {e}")
+        logger.error(f"❌ Error cambiando contraseña: {e}")
         flash(f'Error al cambiar contraseña: {str(e)}', 'danger')
         return redirect(url_for('usuarios.editar_usuario', usuario_id=usuario_id))
 
-@usuarios_bp.route('/eliminar/<int:usuario_id>', methods=['POST'])
+@usuarios_bp.route('/desactivar/<int:usuario_id>', methods=['POST'])
 @admin_required
-def eliminar_usuario(usuario_id):
+def desactivar_usuario(usuario_id):
     """
-    Eliminar usuario (desactivar)
+    Desactivar usuario (eliminación lógica)
     """
     try:
-        # Verificar que no estamos eliminando el último admin
         conn = get_database_connection()
         cursor = conn.cursor()
         
+        # Verificar que no estamos desactivando el último admin
+        # CORRECCIÓN: Verificar ambos roles "admin" y "administrador"
         cursor.execute("SELECT Rol FROM Usuarios WHERE UsuarioId = ?", (usuario_id,))
         usuario = cursor.fetchone()
         
-        if usuario and usuario[0] == 'admin':
+        if usuario and usuario[0] in ['administrador', 'admin']:
             cursor.execute("""
                 SELECT COUNT(*) FROM Usuarios 
-                WHERE Rol = 'admin' AND Activo = 1 AND UsuarioId != ?
+                WHERE Rol IN ('administrador', 'admin') AND Activo = 1 AND UsuarioId != ?
             """, (usuario_id,))
             
             if cursor.fetchone()[0] == 0:
-                flash('No se puede eliminar el último administrador activo', 'danger')
+                flash('No se puede desactivar el último administrador activo', 'danger')
+                conn.close()
                 return redirect(url_for('usuarios.listar_usuarios'))
         
-        # Desactivar usuario (eliminación lógica)
+        # Desactivar usuario
         cursor.execute("""
             UPDATE Usuarios 
             SET Activo = 0
@@ -409,8 +511,8 @@ def eliminar_usuario(usuario_id):
         return redirect(url_for('usuarios.listar_usuarios'))
         
     except Exception as e:
-        logger.error(f"? Error eliminando usuario: {e}")
-        flash(f'Error al eliminar usuario: {str(e)}', 'danger')
+        logger.error(f"❌ Error desactivando usuario: {e}")
+        flash(f'Error al desactivar usuario: {str(e)}', 'danger')
         return redirect(url_for('usuarios.listar_usuarios'))
 
 @usuarios_bp.route('/reactivar/<int:usuario_id>', methods=['POST'])
@@ -422,6 +524,7 @@ def reactivar_usuario(usuario_id):
     try:
         conn = get_database_connection()
         cursor = conn.cursor()
+        
         cursor.execute("""
             UPDATE Usuarios 
             SET Activo = 1
@@ -435,6 +538,170 @@ def reactivar_usuario(usuario_id):
         return redirect(url_for('usuarios.listar_usuarios'))
         
     except Exception as e:
-        logger.error(f"? Error reactivando usuario: {e}")
+        logger.error(f"❌ Error reactivando usuario: {e}")
         flash(f'Error al reactivar usuario: {str(e)}', 'danger')
         return redirect(url_for('usuarios.listar_usuarios'))
+
+@usuarios_bp.route('/eliminar/<int:usuario_id>', methods=['POST'])
+@admin_required
+def eliminar_usuario(usuario_id):
+    """
+    Eliminar usuario permanentemente (solo si está desactivado)
+    """
+    try:
+        conn = get_database_connection()
+        cursor = conn.cursor()
+        
+        # Verificar que el usuario está desactivado
+        cursor.execute("SELECT Activo FROM Usuarios WHERE UsuarioId = ?", (usuario_id,))
+        usuario = cursor.fetchone()
+        
+        if usuario and usuario[0] == 1:
+            flash('No se puede eliminar un usuario activo. Desactívelo primero.', 'danger')
+            conn.close()
+            return redirect(url_for('usuarios.listar_usuarios'))
+        
+        # Verificar que no es el último admin (aunque esté desactivado)
+        # CORRECCIÓN: Verificar ambos roles "admin" y "administrador"
+        cursor.execute("SELECT Rol FROM Usuarios WHERE UsuarioId = ?", (usuario_id,))
+        rol_usuario = cursor.fetchone()
+        
+        if rol_usuario and rol_usuario[0] in ['administrador', 'admin']:
+            cursor.execute("""
+                SELECT COUNT(*) FROM Usuarios 
+                WHERE Rol IN ('administrador', 'admin') AND UsuarioId != ?
+            """, (usuario_id,))
+            
+            if cursor.fetchone()[0] == 0:
+                flash('No se puede eliminar el único administrador del sistema', 'danger')
+                conn.close()
+                return redirect(url_for('usuarios.listar_usuarios'))
+        
+        # Eliminar usuario
+        cursor.execute("DELETE FROM Usuarios WHERE UsuarioId = ?", (usuario_id,))
+        
+        conn.commit()
+        conn.close()
+        
+        flash('Usuario eliminado permanentemente', 'success')
+        return redirect(url_for('usuarios.listar_usuarios'))
+        
+    except Exception as e:
+        logger.error(f"❌ Error eliminando usuario: {e}")
+        flash(f'Error al eliminar usuario: {str(e)}', 'danger')
+        return redirect(url_for('usuarios.listar_usuarios'))
+
+@usuarios_bp.route('/buscar-ldap', methods=['POST'])
+@admin_required
+def buscar_usuario_ldap():
+    """
+    Buscar usuario en Active Directory
+    """
+    try:
+        search_term = request.form.get('search_term', '').strip()
+        
+        if not search_term:
+            return jsonify({'success': False, 'message': 'Término de búsqueda vacío'})
+        
+        # Verificar conexión LDAP
+        if not Config.LDAP_ENABLED:  
+            return jsonify({'success': False, 'message': 'LDAP deshabilitado'})
+        
+        from utils.ldap_auth import ad_auth
+        
+        # Buscar usuarios en AD
+        usuarios_encontrados = ad_auth.search_user_by_name(search_term)
+        
+        # Formatear resultados
+        resultados = []
+        for usuario in usuarios_encontrados:
+            resultados.append({
+                'usuario': usuario.get('usuario', ''),
+                'nombre': usuario.get('nombre', ''),
+                'email': usuario.get('email', ''),
+                'departamento': usuario.get('departamento', '')
+            })
+        
+        return jsonify({
+            'success': True,
+            'usuarios': resultados,
+            'total': len(resultados)
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error buscando usuario LDAP: {e}")
+        return jsonify({'success': False, 'message': str(e)})
+
+@usuarios_bp.route('/sync-ldap/<string:username>', methods=['POST'])
+@admin_required
+def sincronizar_usuario_ldap(username):
+    """
+    Forzar sincronización de usuario desde LDAP
+    """
+    try:
+        # Esta función requeriría que el admin ingrese la contraseña del usuario
+        # o usar una cuenta de servicio con permisos de lectura
+        flash('Función en desarrollo. Use /test-ldap para sincronizar usuarios.', 'info')
+        return redirect(url_for('usuarios.listar_usuarios'))
+        
+    except Exception as e:
+        logger.error(f"❌ Error sincronizando usuario LDAP: {e}")
+        flash(f'Error sincronizando usuario: {str(e)}', 'danger')
+        return redirect(url_for('usuarios.listar_usuarios'))
+
+# ======================
+# API PARA INTERFAZ
+# ======================
+
+@usuarios_bp.route('/api/estadisticas')
+@admin_required
+def api_estadisticas():
+    """
+    Obtiene estadísticas de usuarios para dashboard
+    """
+    try:
+        conn = get_database_connection()
+        cursor = conn.cursor()
+        
+        # Total usuarios
+        cursor.execute("SELECT COUNT(*) FROM Usuarios")
+        total = cursor.fetchone()[0]
+        
+        # Usuarios activos
+        cursor.execute("SELECT COUNT(*) FROM Usuarios WHERE Activo = 1")
+        activos = cursor.fetchone()[0]
+        
+        # Usuarios LDAP
+        cursor.execute("SELECT COUNT(*) FROM Usuarios WHERE ContraseñaHash = 'LDAP_USER'")
+        ldap = cursor.fetchone()[0]
+        
+        # Distribución por rol
+        cursor.execute("""
+            SELECT Rol, COUNT(*) as cantidad
+            FROM Usuarios 
+            WHERE Activo = 1
+            GROUP BY Rol
+            ORDER BY cantidad DESC
+        """)
+        
+        roles_dist = {}
+        for row in cursor.fetchall():
+            roles_dist[row[0]] = row[1]
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'estadisticas': {
+                'total': total,
+                'activos': activos,
+                'inactivos': total - activos,
+                'ldap': ldap,
+                'local': total - ldap,
+                'roles': roles_dist
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error obteniendo estadísticas: {e}")
+        return jsonify({'success': False, 'message': str(e)})

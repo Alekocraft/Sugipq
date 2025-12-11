@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Usuarios - Sistema de Inventarios</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --success-color: #27ae60;
+            --danger-color: #e74c3c;
+            --warning-color: #f39c12;
+        }
+        
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .card {
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border: none;
+        }
+        
+        .card-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            border-radius: 10px 10px 0 0 !important;
+            padding: 15px 20px;
+        }
+        
+        .table-responsive {
+            border-radius: 0 0 10px 10px;
+            overflow: hidden;
+        }
+        
+        .dataTables_wrapper {
+            padding: 0 10px;
+        }
+        
+        .badge-rol {
+            font-size: 0.8em;
+            padding: 5px 10px;
+            border-radius: 20px;
+        }
+        
+        .badge-admin { background-color: #dc3545; color: white; }
+        .badge-lider_inventario { background-color: #28a745; color: white; }
+        .badge-tesoreria { background-color: #17a2b8; color: white; }
+        .badge-aprobador { background-color: #007bff; color: white; }
+        .badge-oficina_coq { background-color: #6f42c1; color: white; }
+        .badge-oficina_polo_club { background-color: #fd7e14; color: white; }
+        .badge-usuario { background-color: #6c757d; color: white; }
+        
+        .status-active { color: #28a745; }
+        .status-inactive { color: #dc3545; }
+        
+        .btn-action {
+            padding: 5px 10px;
+            margin: 2px;
+            border-radius: 5px;
+            font-size: 0.85em;
+        }
+        
+        .search-box {
+            position: relative;
+        }
+        
+        .search-box i {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #6c757d;
+        }
+        
+        .search-box input {
+            padding-left: 40px;
+        }
+        
+        .modal-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+        }
+        
+        .tab-content {
+            padding: 20px 0;
+        }
+        
+        .nav-tabs .nav-link {
+            border: none;
+            color: #495057;
+            font-weight: 500;
+        }
+        
+        .nav-tabs .nav-link.active {
+            color: var(--secondary-color);
+            border-bottom: 3px solid var(--secondary-color);
+            background: none;
+        }
+    </style>
+</head>
+<body>
+    {% extends "base.html" %}
+    
+    {% block content %}
+    <div class="container-fluid py-4">
+        <div class="row">
+            <div class="col-12">
+                <!-- Título y botones -->
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div>
+                        <h2 class="mb-0"><i class="fas fa-users me-2"></i>Gestión de Usuarios</h2>
+                        <p class="text-muted mb-0">Administre los usuarios del sistema de inventarios</p>
+                    </div>
+                    <div>
+                        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#crearUsuarioModal">
+                            <i class="fas fa-user-plus me-2"></i>Crear Usuario
+                        </button>
+                        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#sincronizarAdModal">
+                            <i class="fas fa-sync-alt me-2"></i>Sincronizar desde AD
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Filtros -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Buscar</label>
+                                <div class="search-box">
+                                    <i class="fas fa-search"></i>
+                                    <input type="text" class="form-control" id="searchInput" placeholder="Buscar por nombre, email o usuario...">
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Rol</label>
+                                <select class="form-select" id="rolFilter">
+                                    <option value="">Todos los roles</option>
+                                    <option value="admin">Administrador</option>
+                                    <option value="lider_inventario">Líder de Inventario</option>
+                                    <option value="tesoreria">Tesorería</option>
+                                    <option value="aprobador">Aprobador</option>
+                                    <option value="oficina_coq">Oficina COQ</option>
+                                    <option value="oficina_polo_club">Oficina Polo Club</option>
+                                    <option value="usuario">Usuario</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Estado</label>
+                                <select class="form-select" id="estadoFilter">
+                                    <option value="">Todos</option>
+                                    <option value="activo">Activos</option>
+                                    <option value="inactivo">Inactivos</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2 d-flex align-items-end">
+                                <button class="btn btn-outline-secondary w-100" id="limpiarFiltros">
+                                    <i class="fas fa-times me-1"></i>Limpiar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Tabla de usuarios -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-list me-2"></i>Lista de Usuarios</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0" id="usuariosTable">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Usuario</th>
+                                        <th>Nombre/Email</th>
+                                        <th>Rol</th>
+                                        <th>Oficina</th>
+                                        <th>Estado</th>
+                                        <th>Fecha Creación</th>
+                                        <th>Tipo</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for usuario in usuarios %}
+                                    <tr>
+                                        <td>{{ usuario.id }}</td>
+                                        <td>
+                                            <strong>{{ usuario.usuario }}</strong>
+                                            {% if usuario.tipo_auth == 'LDAP' %}
+                                            <span class="badge bg-info ms-1" title="Usuario de dominio">LDAP</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ usuario.nombre }}</td>
+                                        <td>
+                                            <span class="badge badge-rol badge-{{ usuario.rol|replace('_', '-') }}">
+                                                {{ usuario.rol|replace('_', ' ')|title }}
+                                            </span>
+                                        </td>
+                                        <td>{{ usuario.oficina_nombre or 'Sin asignar' }}</td>
+                                        <td>
+                                            {% if usuario.activo %}
+                                            <span class="status-active">
+                                                <i class="fas fa-circle me-1"></i>Activo
+                                            </span>
+                                            {% else %}
+                                            <span class="status-inactive">
+                                                <i class="fas fa-circle me-1"></i>Inactivo
+                                            </span>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ usuario.fecha_creacion.strftime('%d/%m/%Y') if usuario.fecha_creacion else 'N/A' }}</td>
+                                        <td>
+                                            {% if usuario.tipo_auth == 'LDAP' %}
+                                            <span class="badge bg-info">Dominio</span>
+                                            {% else %}
+                                            <span class="badge bg-secondary">Local</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <div class="btn-group">
+                                                <button class="btn btn-sm btn-outline-primary btn-action" 
+                                                        onclick="editarUsuario({{ usuario.id }})"
+                                                        title="Editar">
+                                                    <i class="fas fa-edit"></i>
+                                                </button>
+                                                {% if usuario.activo %}
+                                                <button class="btn btn-sm btn-outline-warning btn-action" 
+                                                        onclick="desactivarUsuario({{ usuario.id }})"
+                                                        title="Desactivar">
+                                                    <i class="fas fa-ban"></i>
+                                                </button>
+                                                {% else %}
+                                                <button class="btn btn-sm btn-outline-success btn-action" 
+                                                        onclick="activarUsuario({{ usuario.id }})"
+                                                        title="Activar">
+                                                    <i class="fas fa-check"></i>
+                                                </button>
+                                                {% endif %}
+                                                <button class="btn btn-sm btn-outline-danger btn-action" 
+                                                        onclick="eliminarUsuario({{ usuario.id }})"
+                                                        title="Eliminar"
+                                                        {% if usuario.rol == 'admin' %}disabled{% endif %}>
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Resumen -->
+                <div class="row mt-4">
+                    <div class="col-md-3">
+                        <div class="card bg-primary text-white">
+                            <div class="card-body text-center">
+                                <h1 class="display-5 mb-1">{{ total_usuarios }}</h1>
+                                <p class="mb-0">Total Usuarios</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-success text-white">
+                            <div class="card-body text-center">
+                                <h1 class="display-5 mb-1">{{ usuarios_activos }}</h1>
+                                <p class="mb-0">Activos</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-info text-white">
+                            <div class="card-body text-center">
+                                <h1 class="display-5 mb-1">{{ usuarios_ldap }}</h1>
+                                <p class="mb-0">Usuarios AD</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-warning text-white">
+                            <div class="card-body text-center">
+                                <h1 class="display-5 mb-1">{{ usuarios_locales }}</h1>
+                                <p class="mb-0">Usuarios Locales</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal: Crear Usuario -->
+    <div class="modal fade" id="crearUsuarioModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-user-plus me-2"></i>Crear Nuevo Usuario</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <ul class="nav nav-tabs" id="crearUsuarioTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="local-tab" data-bs-toggle="tab" data-bs-target="#local" type="button">
+                                <i class="fas fa-user me-1"></i>Usuario Local
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="ad-tab" data-bs-toggle="tab" data-bs-target="#ad" type="button">
+                                <i class="fas fa-network-wired me-1"></i>Usuario de Dominio
+                            </button>
+                        </li>
+                    </ul>
+                    
+                    <div class="tab-content" id="crearUsuarioContent">
+                        <!-- Pestaña: Usuario Local -->
+                        <div class="tab-pane fade show active" id="local" role="tabpanel">
+                            <form id="formUsuarioLocal">
+                                <div class="row mt-3">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Nombre de Usuario *</label>
+                                            <input type="text" class="form-control" name="usuario" required>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Email *</label>
+                                            <input type="email" class="form-control" name="email" required>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Contraseña *</label>
+                                            <input type="password" class="form-control" name="password" required>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Confirmar Contraseña *</label>
+                                            <input type="password" class="form-control" name="confirm_password" required>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Rol *</label>
+                                            <select class="form-select" name="rol" required>
+                                                <option value="">Seleccione un rol</option>
+                                                {% for rol in roles_disponibles %}
+                                                <option value="{{ rol }}">{{ rol|replace('_', ' ')|title }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Oficina *</label>
+                                            <select class="form-select" name="oficina_id" required>
+                                                <option value="">Seleccione una oficina</option>
+                                                {% for oficina in oficinas %}
+                                                <option value="{{ oficina.id }}">{{ oficina.nombre }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-12">
+                                        <div class="form-check mb-3">
+                                            <input class="form-check-input" type="checkbox" name="activo" checked>
+                                            <label class="form-check-label">Usuario activo</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                        
+                        <!-- Pestaña: Usuario de Dominio -->
+                        <div class="tab-pane fade" id="ad" role="tabpanel">
+                            <form id="formUsuarioAd">
+                                <div class="row mt-3">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Usuario de Dominio *</label>
+                                            <input type="text" class="form-control" name="usuario_ad" 
+                                                   placeholder="ej: gsuarez" required>
+                                            <div class="form-text">Solo el nombre de usuario, sin dominio</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Contraseña (opcional)</label>
+                                            <input type="password" class="form-control" name="password_ad">
+                                            <div class="form-text">Para sincronizar automáticamente desde AD</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Rol *</label>
+                                            <select class="form-select" name="rol_ad" required>
+                                                <option value="">Seleccione un rol</option>
+                                                {% for rol in roles_disponibles %}
+                                                <option value="{{ rol }}">{{ rol|replace('_', ' ')|title }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Oficina *</label>
+                                            <select class="form-select" name="oficina_id_ad" required>
+                                                <option value="">Seleccione una oficina</option>
+                                                {% for oficina in oficinas %}
+                                                <option value="{{ oficina.id }}">{{ oficina.nombre }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-12">
+                                        <div class="form-check mb-3">
+                                            <input class="form-check-input" type="checkbox" name="forzar_sincronizacion">
+                                            <label class="form-check-label">Forzar sincronización desde AD</label>
+                                            <div class="form-text">Actualizará datos del usuario desde Active Directory</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" id="btnCrearUsuario">Crear Usuario</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal: Sincronizar desde AD -->
+    <div class="modal fade" id="sincronizarAdModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-sync-alt me-2"></i>Sincronizar Usuarios desde AD</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Buscará usuarios en Active Directory que aún no estén en el sistema
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Buscar usuarios por nombre o usuario</label>
+                        <input type="text" class="form-control" id="buscarAdInput" 
+                               placeholder="ej: gsuarez o Gloria">
+                    </div>
+                    
+                    <div id="resultadosAd" class="mt-3"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" id="btnBuscarAd">Buscar en AD</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal: Editar Usuario -->
+    <div class="modal fade" id="editarUsuarioModal" tabindex="-1">
+        <!-- Este modal se llena con JavaScript -->
+    </div>
+    {% endblock %}
+    
+    {% block scripts %}
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Inicializar DataTable
+        $(document).ready(function() {
+            const table = $('#usuariosTable').DataTable({
+                language: {
+                    url: '//cdn.datatables.net/plug-ins/1.11.5/i18n/es-ES.json'
+                },
+                pageLength: 25,
+                responsive: true,
+                order: [[1, 'asc']],
+                columnDefs: [
+                    { orderable: false, targets: [8] } // Deshabilitar orden en columna de acciones
+                ]
+            });
+            
+            // Filtro de búsqueda
+            $('#searchInput').on('keyup', function() {
+                table.search(this.value).draw();
+            });
+            
+            // Filtro por rol
+            $('#rolFilter').on('change', function() {
+                table.column(3).search(this.value ? this.value : '').draw();
+            });
+            
+            // Filtro por estado
+            $('#estadoFilter').on('change', function() {
+                table.column(5).search(this.value ? this.value : '').draw();
+            });
+            
+            // Limpiar filtros
+            $('#limpiarFiltros').on('click', function() {
+                $('#searchInput').val('');
+                $('#rolFilter').val('');
+                $('#estadoFilter').val('');
+                table.search('').columns().search('').draw();
+            });
+            
+            // Buscar en AD
+            $('#btnBuscarAd').on('click', function() {
+                const termino = $('#buscarAdInput').val();
+                if (!termino) {
+                    $('#resultadosAd').html('<div class="alert alert-warning">Ingrese un término de búsqueda</div>');
+                    return;
+                }
+                
+                $('#resultadosAd').html('<div class="text-center"><div class="spinner-border text-primary"></div><p>Buscando en Active Directory...</p></div>');
+                
+                $.ajax({
+                    url: '/usuarios/buscar-ad',
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({ termino: termino }),
+                    success: function(response) {
+                        if (response.success && response.usuarios.length > 0) {
+                            let html = '<div class="list-group">';
+                            response.usuarios.forEach(function(usuario) {
+                                html += `
+                                <div class="list-group-item">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <h6 class="mb-1">${usuario.nombre}</h6>
+                                            <p class="mb-1 text-muted">
+                                                <small>Usuario: ${usuario.usuario} | Email: ${usuario.email}</small>
+                                            </p>
+                                            <p class="mb-0"><small>Departamento: ${usuario.departamento || 'No especificado'}</small></p>
+                                        </div>
+                                        <button class="btn btn-sm btn-primary" onclick="sincronizarUsuarioAd('${usuario.usuario}')">
+                                            <i class="fas fa-user-plus me-1"></i>Sincronizar
+                                        </button>
+                                    </div>
+                                </div>
+                                `;
+                            });
+                            html += '</div>';
+                            $('#resultadosAd').html(html);
+                        } else {
+                            $('#resultadosAd').html('<div class="alert alert-warning">No se encontraron usuarios en AD</div>');
+                        }
+                    },
+                    error: function() {
+                        $('#resultadosAd').html('<div class="alert alert-danger">Error al buscar en AD</div>');
+                    }
+                });
+            });
+        });
+        
+        // Funciones de acciones
+        function editarUsuario(usuarioId) {
+            $.ajax({
+                url: `/usuarios/obtener/${usuarioId}`,
+                method: 'GET',
+                success: function(response) {
+                    if (response.success) {
+                        const usuario = response.usuario;
+                        
+                        const modalContent = `
+                        <div class="modal-dialog modal-lg">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title"><i class="fas fa-edit me-2"></i>Editar Usuario</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <form id="formEditarUsuario" data-usuario-id="${usuarioId}">
+                                    <div class="modal-body">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label">Usuario</label>
+                                                    <input type="text" class="form-control" value="${usuario.usuario}" readonly>
+                                                    <div class="form-text">El nombre de usuario no se puede cambiar</div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label">Email *</label>
+                                                    <input type="email" class="form-control" name="email" value="${usuario.nombre}" required>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label">Rol *</label>
+                                                    <select class="form-select" name="rol" required>
+                                                        <option value="">Seleccione un rol</option>
+                                                        <option value="admin" ${usuario.rol === 'admin' ? 'selected' : ''}>Administrador</option>
+                                                        <option value="lider_inventario" ${usuario.rol === 'lider_inventario' ? 'selected' : ''}>Líder de Inventario</option>
+                                                        <option value="tesoreria" ${usuario.rol === 'tesoreria' ? 'selected' : ''}>Tesorería</option>
+                                                        <option value="aprobador" ${usuario.rol === 'aprobador' ? 'selected' : ''}>Aprobador</option>
+                                                        <option value="oficina_coq" ${usuario.rol === 'oficina_coq' ? 'selected' : ''}>Oficina COQ</option>
+                                                        <option value="oficina_polo_club" ${usuario.rol === 'oficina_polo_club' ? 'selected' : ''}>Oficina Polo Club</option>
+                                                        <option value="usuario" ${usuario.rol === 'usuario' ? 'selected' : ''}>Usuario</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label">Oficina *</label>
+                                                    <select class="form-select" name="oficina_id" required>
+                                                        <option value="">Seleccione una oficina</option>
+                                                        {% for oficina in oficinas %}
+                                                        <option value="{{ oficina.id }}" ${usuario.oficina_id == {{ oficina.id }} ? 'selected' : ''}>
+                                                            {{ oficina.nombre }}
+                                                        </option>
+                                                        {% endfor %}
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div class="col-12">
+                                                <div class="form-check mb-3">
+                                                    <input class="form-check-input" type="checkbox" name="activo" id="activoUsuario" ${usuario.activo ? 'checked' : ''}>
+                                                    <label class="form-check-label" for="activoUsuario">Usuario activo</label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                        <button type="submit" class="btn btn-primary">Guardar Cambios</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                        `;
+                        
+                        $('#editarUsuarioModal').html(modalContent);
+                        const modal = new bootstrap.Modal(document.getElementById('editarUsuarioModal'));
+                        modal.show();
+                        
+                        // Manejar envío del formulario
+                        $('#formEditarUsuario').on('submit', function(e) {
+                            e.preventDefault();
+                            guardarCambiosUsuario(usuarioId);
+                        });
+                    }
+                }
+            });
+        }
+        
+        function guardarCambiosUsuario(usuarioId) {
+            const formData = $('#formEditarUsuario').serialize();
+            
+            $.ajax({
+                url: `/usuarios/actualizar/${usuarioId}`,
+                method: 'POST',
+                data: formData,
+                success: function(response) {
+                    if (response.success) {
+                        location.reload();
+                    } else {
+                        alert('Error: ' + response.message);
+                    }
+                }
+            });
+        }
+        
+        function sincronizarUsuarioAd(usuarioAd) {
+            $.ajax({
+                url: '/usuarios/sincronizar-ad',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ usuario_ad: usuarioAd }),
+                success: function(response) {
+                    if (response.success) {
+                        alert('Usuario sincronizado exitosamente');
+                        location.reload();
+                    } else {
+                        alert('Error: ' + response.message);
+                    }
+                }
+            });
+        }
+        
+        function desactivarUsuario(usuarioId) {
+            if (confirm('¿Está seguro de desactivar este usuario?')) {
+                $.ajax({
+                    url: `/usuarios/desactivar/${usuarioId}`,
+                    method: 'POST',
+                    success: function(response) {
+                        if (response.success) {
+                            location.reload();
+                        } else {
+                            alert('Error: ' + response.message);
+                        }
+                    }
+                });
+            }
+        }
+        
+        function activarUsuario(usuarioId) {
+            if (confirm('¿Está seguro de activar este usuario?')) {
+                $.ajax({
+                    url: `/usuarios/activar/${usuarioId}`,
+                    method: 'POST',
+                    success: function(response) {
+                        if (response.success) {
+                            location.reload();
+                        } else {
+                            alert('Error: ' + response.message);
+                        }
+                    }
+                });
+            }
+        }
+        
+        function eliminarUsuario(usuarioId) {
+            if (confirm('¿Está seguro de eliminar este usuario? Esta acción no se puede deshacer.')) {
+                $.ajax({
+                    url: `/usuarios/eliminar/${usuarioId}`,
+                    method: 'POST',
+                    success: function(response) {
+                        if (response.success) {
+                            location.reload();
+                        } else {
+                            alert('Error: ' + response.message);
+                        }
+                    }
+                });
+            }
+        }
+    </script>
+    {% endblock %}
+</body>
+</html>

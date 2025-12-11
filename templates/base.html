@@ -232,8 +232,8 @@
                     </li>
                     {% endif %}
                     
-                    <!-- Gestión de Usuarios - Solo visible para admin -->
-                    {% if session.usuario and session.rol == 'admin' %}
+                    <!-- Gestión de Usuarios - Solo visible para admin y administrador -->
+                    {% if session.usuario and session.rol in ['admin', 'administrador'] %}
                     <li class="nav-item">
                         <a class="nav-link {% if current_path.startswith('/usuarios') %}active{% endif %}" href="{{ url_for('usuarios.listar_usuarios') }}">
                             <i class="fas fa-users me-1"></i>

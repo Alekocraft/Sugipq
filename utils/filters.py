@@ -14,8 +14,8 @@ def filtrar_por_oficina_usuario(datos, campo_oficina_id='oficina_id'):
     rol_usuario = session.get('rol', '').lower()
     print(f"🔍 DEBUG filtrar_por_oficina_usuario: Rol usuario: {rol_usuario}")
     
-    # Administradores y líder de inventario ven todo
-    if rol_usuario in ['administrador', 'lider_inventario']:
+    # CORREGIDO: Ambos 'admin' y 'administrador' deben tener acceso total
+    if rol_usuario in ['admin', 'administrador', 'lider_inventario']:
         print("🔍 DEBUG filtrar_por_oficina_usuario: Usuario con acceso total")
         return datos
     
@@ -53,8 +53,8 @@ def verificar_acceso_oficina(oficina_id):
     
     rol_usuario = session.get('rol', '').lower()
     
-    # Administradores y líder de inventario acceden a todo
-    if rol_usuario in ['administrador', 'lider_inventario']:
+    # CORREGIDO: Ambos 'admin' y 'administrador' tienen acceso total
+    if rol_usuario in ['admin', 'administrador', 'lider_inventario']:
         return True
     
     # Para otros roles, verificar si es su oficina

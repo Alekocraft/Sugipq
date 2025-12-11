@@ -12,6 +12,7 @@ class UsuarioModel:
     def verificar_credenciales(usuario, contraseña):
         """
         Verifica credenciales PRIORIZANDO BD local, luego LDAP como fallback
+        Maneja usuarios LDAP pendientes de sincronización
         """
         logger.info(f"🔐 Intentando autenticación para: {usuario}")
         
@@ -21,35 +22,141 @@ class UsuarioModel:
         
         if usuario_local:
             logger.info(f"✅ Autenticación LOCAL exitosa para: {usuario}")
-            logger.info(f"📊 Datos usuario local: {usuario_local}")
             return usuario_local
         
         logger.info(f"❌ Autenticación LOCAL falló para: {usuario}")
         
-        # 2. SEGUNDO: Solo si LDAP está habilitado
+        # 2. Verificar si es usuario LDAP pendiente
+        conn = get_database_connection()
+        if conn:
+            try:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT UsuarioId, ContraseñaHash, Activo 
+                    FROM Usuarios 
+                    WHERE NombreUsuario = ? AND EsLDAP = 1
+                """, (usuario,))
+                
+                usuario_ldap = cursor.fetchone()
+                conn.close()
+                
+                if usuario_ldap:
+                    logger.info(f"🔄 Usuario LDAP encontrado: {usuario}")
+                    
+                    # Si está pendiente o es usuario LDAP
+                    if usuario_ldap[1] in ['LDAP_PENDING', 'LDAP_USER']:
+                        logger.info(f"🔄 2. Intentando LDAP para usuario registrado: {usuario}")
+                        
+                        if Config.LDAP_ENABLED:
+                            try:
+                                from utils.ldap_auth import ad_auth
+                                ad_user = ad_auth.authenticate_user(usuario, contraseña)
+                                
+                                if ad_user:
+                                    logger.info(f"✅ LDAP exitoso para usuario registrado: {usuario}")
+                                    
+                                    # Completar sincronización si estaba pendiente
+                                    if usuario_ldap[1] == 'LDAP_PENDING':
+                                        UsuarioModel.completar_sincronizacion_ldap(usuario, ad_user)
+                                    
+                                    # Obtener información del usuario
+                                    usuario_info = UsuarioModel._obtener_info_usuario(usuario)
+                                    if usuario_info:
+                                        return usuario_info
+                                    else:
+                                        # Si no se puede obtener info, crear sesión básica
+                                        return {
+                                            'id': usuario_ldap[0],
+                                            'usuario': usuario,
+                                            'nombre': usuario,
+                                            'rol': 'usuario',  # Rol por defecto hasta que se sincronice
+                                            'oficina_id': 1,
+                                            'oficina_nombre': ''
+                                        }
+                            except Exception as ldap_error:
+                                logger.error(f"❌ Error en LDAP para usuario registrado: {ldap_error}")
+                        
+                        # Si LDAP falla pero el usuario existe
+                        if usuario_ldap[2] == 1:  # Si está activo
+                            logger.warning(f"⚠️ Usuario LDAP no pudo autenticarse: {usuario}")
+                            return None
+            
+            except Exception as e:
+                logger.error(f"❌ Error verificando usuario LDAP: {e}")
+                if conn:
+                    conn.close()
+        
+        # 3. SEGUNDO: Solo si LDAP está habilitado y no es usuario registrado
         if Config.LDAP_ENABLED:
-            logger.info(f"🔄 2. Intentando LDAP para: {usuario}")
+            logger.info(f"🔄 3. Intentando LDAP para usuario nuevo: {usuario}")
             try:
                 from utils.ldap_auth import ad_auth
                 ad_user = ad_auth.authenticate_user(usuario, contraseña)
                 
                 if ad_user:
-                    logger.info(f"✅ LDAP exitoso para: {usuario}")
+                    logger.info(f"✅ LDAP exitoso para usuario nuevo: {usuario}")
                     # Sincronizar con BD local
                     usuario_info = UsuarioModel.sync_user_from_ad(ad_user)
                     
                     if usuario_info:
                         return usuario_info
                     else:
-                        logger.error(f"❌ Error sincronizando usuario LDAP: {usuario}")
+                        logger.error(f"❌ Error sincronizando usuario LDAP nuevo: {usuario}")
                 else:
                     logger.warning(f"❌ LDAP también falló para: {usuario}")
             except Exception as ldap_error:
-                logger.error(f"❌ Error en LDAP: {ldap_error}")
+                logger.error(f"❌ Error en LDAP para usuario nuevo: {ldap_error}")
         
-        # 3. Si todo falla
+        # 4. Si todo falla
         logger.error(f"❌ TODAS las autenticaciones fallaron para: {usuario}")
         return None
+
+    @staticmethod
+    def _obtener_info_usuario(username):
+        """
+        Obtiene información completa del usuario desde BD
+        """
+        conn = get_database_connection()
+        if not conn:
+            return None
+            
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT 
+                    u.UsuarioId, 
+                    u.NombreUsuario, 
+                    u.CorreoElectronico,
+                    u.Rol, 
+                    u.OficinaId, 
+                    o.NombreOficina,
+                    u.EsLDAP
+                FROM Usuarios u
+                LEFT JOIN Oficinas o ON u.OficinaId = o.OficinaId
+                WHERE u.NombreUsuario = ? AND u.Activo = 1
+            """, (username,))
+            
+            row = cursor.fetchone()
+            
+            if row:
+                usuario_info = {
+                    'id': row[0],
+                    'usuario': row[1],
+                    'nombre': row[2] if row[2] else row[1],
+                    'rol': row[3],
+                    'oficina_id': row[4],
+                    'oficina_nombre': row[5] if row[5] else '',
+                    'es_ldap': bool(row[6])
+                }
+                return usuario_info
+            return None
+                
+        except Exception as e:
+            logger.error(f"❌ Error obteniendo info usuario: {e}")
+            return None
+        finally:
+            if conn:
+                conn.close()
 
     @staticmethod
     def _verificar_localmente_corregido(usuario, contraseña):
@@ -208,8 +315,9 @@ class UsuarioModel:
                         OficinaId, 
                         Activo, 
                         FechaCreacion,
-                        ContraseñaHash
-                    ) VALUES (?, ?, ?, ?, 1, GETDATE(), 'LDAP_USER')
+                        ContraseñaHash,
+                        EsLDAP
+                    ) VALUES (?, ?, ?, ?, 1, GETDATE(), 'LDAP_USER', 1)
                 """, (
                     ad_user['username'],
                     ad_user.get('email', f"{ad_user['username']}@qualitascolombia.com.co"),
@@ -229,7 +337,8 @@ class UsuarioModel:
                     'nombre': ad_user.get('full_name', ad_user['username']),
                     'rol': default_rol,
                     'oficina_id': oficina_id,
-                    'oficina_nombre': ''
+                    'oficina_nombre': '',
+                    'es_ldap': True
                 }
             
                 logger.info(f"✅ Nuevo usuario sincronizado desde AD: {ad_user['username']}")
@@ -535,7 +644,8 @@ class UsuarioModel:
                     u.Rol, 
                     u.OficinaId, 
                     o.NombreOficina,
-                    u.FechaCreacion
+                    u.FechaCreacion,
+                    u.EsLDAP
                 FROM Usuarios u
                 LEFT JOIN Oficinas o ON u.OficinaId = o.OficinaId
                 WHERE u.Activo = 1
@@ -551,7 +661,8 @@ class UsuarioModel:
                     'rol': row[3],
                     'oficina_id': row[4],
                     'oficina_nombre': row[5] if row[5] else '',
-                    'fecha_creacion': row[6]
+                    'fecha_creacion': row[6],
+                    'es_ldap': bool(row[7])
                 })
             
             return usuarios
@@ -562,6 +673,7 @@ class UsuarioModel:
         finally:
             if conn:
                 conn.close()
+    
     @staticmethod
     def map_ad_role_to_system_role(ad_user):
         """
@@ -623,3 +735,135 @@ class UsuarioModel:
     
         # Por defecto
         return 'usuario'
+
+    @staticmethod
+    def crear_usuario_ldap_manual(usuario_data):
+        """
+        Crea usuario LDAP manualmente (para administradores)
+        El usuario debe autenticarse primero con LDAP para activarse
+        
+        Args:
+            usuario_data: Dict con datos del usuario LDAP
+            
+        Returns:
+            dict: Información del usuario creado o None si error
+        """
+        conn = get_database_connection()
+        if not conn:
+            return None
+            
+        try:
+            cursor = conn.cursor()
+            
+            # Verificar si ya existe
+            cursor.execute("""
+                SELECT UsuarioId FROM Usuarios 
+                WHERE NombreUsuario = ? AND Activo = 1
+            """, (usuario_data['usuario'],))
+            
+            if cursor.fetchone():
+                logger.warning(f"⚠️ Usuario LDAP ya existe: {usuario_data['usuario']}")
+                return None
+            
+            # Insertar usuario LDAP (con hash especial)
+            cursor.execute("""
+                INSERT INTO Usuarios (
+                    NombreUsuario, 
+                    CorreoElectronico, 
+                    Rol, 
+                    OficinaId, 
+                    ContraseñaHash, 
+                    Activo, 
+                    FechaCreacion,
+                    EsLDAP
+                ) VALUES (?, ?, ?, ?, 'LDAP_PENDING', 1, GETDATE(), 1)
+            """, (
+                usuario_data['usuario'],
+                usuario_data.get('email', f"{usuario_data['usuario']}@qualitascolombia.com.co"),
+                usuario_data.get('rol', 'usuario'),
+                usuario_data.get('oficina_id', 1)
+            ))
+            
+            conn.commit()
+            
+            # Obtener el ID del usuario creado
+            cursor.execute("SELECT UsuarioId FROM Usuarios WHERE NombreUsuario = ?", (usuario_data['usuario'],))
+            new_id = cursor.fetchone()[0]
+            
+            usuario_info = {
+                'id': new_id,
+                'usuario': usuario_data['usuario'],
+                'email': usuario_data.get('email', ''),
+                'rol': usuario_data.get('rol', 'usuario'),
+                'oficina_id': usuario_data.get('oficina_id', 1)
+            }
+            
+            logger.info(f"✅ Usuario LDAP manual creado: {usuario_data['usuario']} (pendiente de autenticación)")
+            return usuario_info
+                
+        except Exception as e:
+            logger.error(f"❌ Error creando usuario LDAP manual: {e}")
+            if conn:
+                conn.rollback()
+            return None
+        finally:
+            if conn:
+                conn.close()
+
+    @staticmethod
+    def completar_sincronizacion_ldap(username, ad_user_info):
+        """
+        Completa la sincronización de un usuario LDAP después de autenticación exitosa
+        
+        Args:
+            username: Nombre de usuario
+            ad_user_info: Información del usuario desde AD
+            
+        Returns:
+            bool: True si éxito
+        """
+        conn = get_database_connection()
+        if not conn:
+            return False
+            
+        try:
+            cursor = conn.cursor()
+            
+            # Actualizar información del usuario LDAP
+            cursor.execute("""
+                UPDATE Usuarios 
+                SET CorreoElectronico = ?,
+                    ContraseñaHash = 'LDAP_USER',
+                    EsLDAP = 1,
+                    FechaActualizacion = GETDATE()
+                WHERE NombreUsuario = ? AND ContraseñaHash = 'LDAP_PENDING'
+            """, (
+                ad_user_info.get('email', f"{username}@qualitascolombia.com.co"),
+                username
+            ))
+            
+            if cursor.rowcount == 0:
+                # Si no estaba pendiente, actualizar igual
+                cursor.execute("""
+                    UPDATE Usuarios 
+                    SET CorreoElectronico = ?,
+                        EsLDAP = 1,
+                        FechaActualizacion = GETDATE()
+                    WHERE NombreUsuario = ?
+                """, (
+                    ad_user_info.get('email', f"{username}@qualitascolombia.com.co"),
+                    username
+                ))
+            
+            conn.commit()
+            logger.info(f"✅ Sincronización LDAP completada para: {username}")
+            return True
+                
+        except Exception as e:
+            logger.error(f"❌ Error completando sincronización LDAP: {e}")
+            if conn:
+                conn.rollback()
+            return False
+        finally:
+            if conn:
+                conn.close()
