@@ -708,7 +708,7 @@ def exportar_prestamos_excel():
     """
     if not can_access('prestamos', 'read'):
         flash('❌ No tienes permisos para exportar préstamos', 'danger')
-        return redirect(url_for('prestamos.listar_prestamos'))
+        return redirect('/prestamos')
 
     try:
         # Parámetros de filtro
@@ -723,7 +723,7 @@ def exportar_prestamos_excel():
 
         if not HAS_PANDAS:
             flash('Exportar a Excel requiere pandas y openpyxl. Instálalos o usa PDF.', 'warning')
-            return redirect(url_for('prestamos.listar_prestamos', estado=filtro_estado or ''))
+            return redirect(f'/prestamos?estado={filtro_estado}' if filtro_estado else '/prestamos')
 
         # Armar DataFrame
         columnas = [
@@ -785,7 +785,7 @@ def exportar_prestamos_excel():
     except Exception as e:
         print(f"❌ Error exportando préstamos a Excel: {e}")
         flash('Error al exportar el reporte de préstamos a Excel', 'danger')
-        return redirect(url_for('prestamos.listar_prestamos'))
+        return redirect('/prestamos')
 
 
 @prestamos_bp.route('/exportar/pdf')
@@ -796,12 +796,12 @@ def exportar_prestamos_pdf():
     """
     if not can_access('prestamos', 'read'):
         flash('❌ No tienes permisos para exportar préstamos', 'danger')
-        return redirect(url_for('prestamos.listar_prestamos'))
+        return redirect('/prestamos')
 
     try:
         if not HAS_WEASYPRINT:
             flash('Exportar a PDF requiere WeasyPrint instalado.', 'warning')
-            return redirect(url_for('prestamos.listar_prestamos'))
+            return redirect('/prestamos')
 
         # Parámetros de filtro
         filtro_estado = request.args.get('estado', '').strip()
@@ -895,7 +895,7 @@ def exportar_prestamos_pdf():
     except Exception as e:
         print(f"❌ Error exportando préstamos a PDF: {e}")
         flash('Error al exportar el reporte de préstamos a PDF', 'danger')
-        return redirect(url_for('prestamos.listar_prestamos'))
+        return redirect('/prestamos')
 
 # =========================
 # API auxiliar: datos de un elemento

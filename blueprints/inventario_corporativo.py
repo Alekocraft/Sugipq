@@ -8,7 +8,7 @@ from io import BytesIO
 from datetime import datetime
 
 # =====================================================
-# CONFIGURACIÓN DEL BLUEPRINT
+# CONFIGURACIÃ“N DEL BLUEPRINT
 # =====================================================
 inventario_corporativo_bp = Blueprint(
     'inventario_corporativo',
@@ -20,7 +20,7 @@ inventario_corporativo_bp = Blueprint(
 # FUNCIONES AUXILIARES
 # =====================================================
 def _require_login():
-    """Verifica si el usuario está autenticado"""
+    """Verifica si el usuario estÃ¡ autenticado"""
     return 'usuario_id' in session
 
 def _handle_unauthorized():
@@ -34,7 +34,7 @@ def _handle_not_found():
     return redirect('/inventario-corporativo')
 
 def _calculate_inventory_stats(productos):
-    """Calcula estadísticas del inventario"""
+    """Calcula estadÃ­sticas del inventario"""
     if not productos:
         return {
             'valor_total': 0,
@@ -55,7 +55,7 @@ def _calculate_inventory_stats(productos):
     }
 
 def _handle_image_upload(archivo, producto_actual=None):
-    """Maneja la subida de imágenes"""
+    """Maneja la subida de imÃ¡genes"""
     if not archivo or not archivo.filename:
         return producto_actual.get('ruta_imagen') if producto_actual else None
     
@@ -77,12 +77,12 @@ def _validate_product_form(categorias, proveedores):
     if not nombre:
         errors.append('El nombre del producto es requerido')
     if not categoria_id or categoria_id == '0':
-        errors.append('Debe seleccionar una categoría')
+        errors.append('Debe seleccionar una categorÃ­a')
     if not proveedor_id or proveedor_id == '0':
         errors.append('Debe seleccionar un proveedor')
     
     if not categorias or not proveedores:
-        errors.append('Error: No hay categorías o proveedores disponibles. Contacte al administrador.')
+        errors.append('Error: No hay categorÃ­as o proveedores disponibles. Contacte al administrador.')
     
     if errors:
         for error in errors:
@@ -109,7 +109,7 @@ def _tiene_permiso_crear_inventario():
     Verifica si el usuario tiene permiso para crear inventario corporativo.
     Usa can_access y hace fallback manual para:
     - administrador
-    - líder inventario
+    - lÃ­der inventario
     - oficina COQ
     """
     role_raw = str(session.get('rol', ''))
@@ -117,27 +117,27 @@ def _tiene_permiso_crear_inventario():
 
     # DEBUG en consola del servidor
     print("===== DEBUG /inventario-corporativo/crear =====")
-    print(f"Rol en sesión: {role_raw!r}")
+    print(f"Rol en sesiÃ³n: {role_raw!r}")
 
     # 1) Lo que diga el sistema de permisos central
     tiene_permiso = can_access('inventario_corporativo', 'create')
     print(f"can_access('inventario_corporativo', 'create') = {tiene_permiso}")
 
     if tiene_permiso:
-        print("✅ Permiso concedido por sistema de permisos.")
+        print("âœ… Permiso concedido por sistema de permisos.")
         print("==============================================")
         return True
 
     # 2) Fallback: intentamos deducir por texto del rol
     role_sin_tildes = (
         role_norm
-        .replace('á', 'a')
-        .replace('é', 'e')
-        .replace('í', 'i')
-        .replace('ó', 'o')
-        .replace('ú', 'u')
-        .replace('ü', 'u')
-        .replace('ñ', 'n')
+        .replace('Ã¡', 'a')
+        .replace('Ã©', 'e')
+        .replace('Ã­', 'i')
+        .replace('Ã³', 'o')
+        .replace('Ãº', 'u')
+        .replace('Ã¼', 'u')
+        .replace('Ã±', 'n')
     )
 
     es_admin = 'admin' in role_sin_tildes
@@ -147,11 +147,11 @@ def _tiene_permiso_crear_inventario():
     print(f"Fallback: es_admin={es_admin}, es_lider_inv={es_lider_inv}, es_oficina_coq={es_oficina_coq}")
 
     if es_admin or es_lider_inv or es_oficina_coq:
-        print("✅ Permiso concedido por fallback de rol (admin/lider/oficina_coq).")
+        print("âœ… Permiso concedido por fallback de rol (admin/lider/oficina_coq).")
         print("==============================================")
         return True
 
-    print("❌ Sin permiso para crear inventario corporativo.")
+    print("âŒ Sin permiso para crear inventario corporativo.")
     print("==============================================")
     return False
 
@@ -161,7 +161,7 @@ def _tiene_permiso_crear_inventario():
 
 @inventario_corporativo_bp.route('/')
 def listar_inventario_corporativo():
-    """Lista todo el inventario corporativo con estadísticas"""
+    """Lista todo el inventario corporativo con estadÃ­sticas"""
     if not _require_login():
         return redirect('/login')
 
@@ -180,7 +180,7 @@ def listar_inventario_corporativo():
 
 @inventario_corporativo_bp.route('/<int:producto_id>')
 def ver_detalle_producto(producto_id):
-    """Muestra el detalle de un producto específico"""
+    """Muestra el detalle de un producto especÃ­fico"""
     if not _require_login():
         return redirect('/login')
 
@@ -249,7 +249,7 @@ def crear_inventario_corporativo():
                 flash('No fue posible crear el producto.', 'danger')
 
         except Exception as e:
-            flash('Ocurrió un error al guardar el producto.', 'danger')
+            flash('OcurriÃ³ un error al guardar el producto.', 'danger')
             print(f"[ERROR CREAR] {e}")
 
     return render_template('inventario_corporativo/crear.html',
@@ -335,11 +335,11 @@ def eliminar_producto_corporativo(producto_id):
     return redirect('/inventario-corporativo')
 
 # =====================================================
-# VISTAS ESPECÍFICAS POR UBICACIÓN
+# VISTAS ESPECÃFICAS POR UBICACIÃ“N
 # =====================================================
 
 def _render_filtered_view(productos, titulo, subtitulo, tipo):
-    """Renderiza vista filtrada con estadísticas"""
+    """Renderiza vista filtrada con estadÃ­sticas"""
     stats = _calculate_inventory_stats(productos)
     
     if tipo == 'oficinas':
@@ -384,7 +384,7 @@ def listar_oficinas_servicio():
     return _render_filtered_view(productos, 'Oficinas de Servicio', 'Productos en oficinas de servicio', 'oficinas')
 
 # =====================================================
-# ASIGNACIÓN DE PRODUCTOS
+# ASIGNACIÃ“N DE PRODUCTOS
 # =====================================================
 
 @inventario_corporativo_bp.route('/asignar/<int:producto_id>', methods=['GET', 'POST'])
@@ -441,12 +441,12 @@ def asignar_producto_corporativo(producto_id):
     )
 
 # =====================================================
-# APIS Y EXPORTACIÓN
+# APIS Y EXPORTACIÃ“N
 # =====================================================
 
 @inventario_corporativo_bp.route('/api/estadisticas-dashboard')
 def api_estadisticas_dashboard():
-    """API para estadísticas del dashboard (vista general)"""
+    """API para estadÃ­sticas del dashboard (vista general)"""
     if not _require_login():
         return jsonify({'error': 'No autorizado'}), 401
 
@@ -466,7 +466,7 @@ def api_estadisticas_dashboard():
         })
         
     except Exception as e:
-        print(f"Error en API estadísticas dashboard: {e}")
+        print(f"Error en API estadÃ­sticas dashboard: {e}")
         return jsonify({
             "total_productos": 0,
             "valor_total": 0,
@@ -478,9 +478,9 @@ def api_estadisticas_dashboard():
 @inventario_corporativo_bp.route('/api/estadisticas')
 def api_estadisticas_inventario():
     """
-    API para estadísticas generales del inventario.
+    API para estadÃ­sticas generales del inventario.
     Usada por el modal de inventario corporativo.
-    Ahora incluye también productos en sede y en oficinas.
+    Ahora incluye tambiÃ©n productos en sede y en oficinas.
     """
     if not _require_login():
         return jsonify({'error': 'No autorizado'}), 401
@@ -501,7 +501,7 @@ def api_estadisticas_inventario():
         })
         
     except Exception as e:
-        print(f"Error en API estadísticas: {e}")
+        print(f"Error en API estadÃ­sticas: {e}")
         return jsonify({
             "total_productos": 0,
             "valor_total": 0,
