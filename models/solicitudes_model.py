@@ -398,8 +398,17 @@ class SolicitudModel:
             params = []
             
             if estado and estado != 'todos':
-                where_clauses.append("sm.EstadoId = ?")
-                params.append(estado)
+                # Caso especial: filtrar todas las novedades (estados 7, 8 y 9)
+                if estado == 'todas_novedades':
+                    where_clauses.append("sm.EstadoId IN (7, 8, 9)")
+                # Si el estado es un nombre (string no numérico), buscar por nombre de estado
+                elif not str(estado).isdigit():
+                    where_clauses.append("es.NombreEstado = ?")
+                    params.append(estado)
+                # Si es un número, buscar por ID
+                else:
+                    where_clauses.append("sm.EstadoId = ?")
+                    params.append(estado)
             
             if oficina and oficina != 'todas':
                 where_clauses.append("o.NombreOficina = ?")

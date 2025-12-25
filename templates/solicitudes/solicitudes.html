@@ -15,15 +15,16 @@
                             <label for="estado" class="form-label">Filtrar por estado:</label>
                             <select name="estado" id="estado" class="form-select">
                                 <option value="todos" {% if filtro_estado=='todos' %}selected{% endif %}>Todos</option>
-                                <option value="pendiente" {% if filtro_estado=='pendiente' %}selected{% endif %}>Pendiente (1)</option>
-                                <option value="aprobada" {% if filtro_estado=='aprobada' %}selected{% endif %}>Aprobada (2)</option>
-                                <option value="rechazada" {% if filtro_estado=='rechazada' %}selected{% endif %}>Rechazada (3)</option>
-                                <option value="entregada_parcial" {% if filtro_estado=='entregada_parcial' %}selected{% endif %}>Entregada Parcial (4)</option>
-                                <option value="completada" {% if filtro_estado=='completada' %}selected{% endif %}>Completada (5)</option>
-                                <option value="devuelta" {% if filtro_estado=='devuelta' %}selected{% endif %}>Devuelta (6)</option>
-                                <option value="novedad_registrada" {% if filtro_estado=='novedad_registrada' %}selected{% endif %}>Novedad Registrada (7)</option>
-                                <option value="novedad_aceptada" {% if filtro_estado=='novedad_aceptada' %}selected{% endif %}>Novedad Aceptada (8)</option>
-                                <option value="novedad_rechazada" {% if filtro_estado=='novedad_rechazada' %}selected{% endif %}>Novedad Rechazada (9)</option>
+                                <option value="Pendiente" {% if filtro_estado=='Pendiente' %}selected{% endif %}>Pendiente</option>
+                                <option value="Aprobada" {% if filtro_estado=='Aprobada' %}selected{% endif %}>Aprobada</option>
+                                <option value="Rechazada" {% if filtro_estado=='Rechazada' %}selected{% endif %}>Rechazada</option>
+                                <option value="Entregada Parcial" {% if filtro_estado=='Entregada Parcial' %}selected{% endif %}>Entregada Parcial</option>
+                                <option value="Completada" {% if filtro_estado=='Completada' %}selected{% endif %}>Completada</option>
+                                <option value="Devuelta" {% if filtro_estado=='Devuelta' %}selected{% endif %}>Devuelta</option>
+                                <!-- Estados de novedad con nombres exactos como están en la BD -->
+                                <option value="Novedad Registrada" {% if filtro_estado=='Novedad Registrada' %}selected{% endif %}>Novedad Registrada</option>
+                                <option value="Novedad Aceptada" {% if filtro_estado=='Novedad Aceptada' %}selected{% endif %}>Novedad Aceptada</option>
+                                <option value="Novedad Rechazada" {% if filtro_estado=='Novedad Rechazada' %}selected{% endif %}>Novedad Rechazada</option>
                             </select>
                         </div>
 
@@ -95,7 +96,7 @@
                         </div>
 
                         <div class="col-md-2">
-                            <div class="card bg-warning text-white clickable-card" onclick="filtrarPorEstado('pendiente')">
+                            <div class="card bg-warning text-white clickable-card" onclick="filtrarPorEstado('Pendiente')">
                                 <div class="card-body">
                                     <h6>Pendientes</h6>
                                     <h4>{{ solicitudes_pendientes }}</h4>
@@ -104,7 +105,7 @@
                         </div>
 
                         <div class="col-md-2">
-                            <div class="card bg-success text-white clickable-card" onclick="filtrarPorEstado('aprobada')">
+                            <div class="card bg-success text-white clickable-card" onclick="filtrarPorEstado('Aprobada')">
                                 <div class="card-body">
                                     <h6>Aprobadas</h6>
                                     <h4>{{ solicitudes_aprobadas }}</h4>
@@ -113,7 +114,7 @@
                         </div>
 
                         <div class="col-md-2">
-                            <div class="card bg-danger text-white clickable-card" onclick="filtrarPorEstado('rechazada')">
+                            <div class="card bg-danger text-white clickable-card" onclick="filtrarPorEstado('Rechazada')">
                                 <div class="card-body">
                                     <h6>Rechazadas</h6>
                                     <h4>{{ solicitudes_rechazadas }}</h4>
@@ -122,7 +123,7 @@
                         </div>
 
                         <div class="col-md-2">
-                            <div class="card bg-info text-white clickable-card" onclick="filtrarPorEstado('devuelta')">
+                            <div class="card bg-info text-white clickable-card" onclick="filtrarPorEstado('Devuelta')">
                                 <div class="card-body">
                                     <h6>Devueltas</h6>
                                     <h4>{{ solicitudes_devueltas or 0 }}</h4>
@@ -131,7 +132,8 @@
                         </div>
 
                         <div class="col-md-2">
-                            <div class="card bg-secondary text-white clickable-card" onclick="filtrarPorEstado('novedad_registrada')">
+                            <!-- Cambiado para filtrar todas las novedades -->
+                            <div class="card bg-secondary text-white clickable-card" onclick="filtrarTodasNovedades()">
                                 <div class="card-body">
                                     <h6>Novedades</h6>
                                     <h4>{{ solicitudes_novedad or 0 }}</h4>
@@ -206,24 +208,23 @@
                                             <small class="text-muted">{{ solicitud.fecha_solicitud.strftime('%H:%M') if solicitud.fecha_solicitud else '' }}</small>
                                         </td>
                                         <td>
-                                            {% set estado_id = solicitud.estado_id or 1 %}
-                                            {% if estado_id == 1 %}
+                                            {% if solicitud.estado == 'Pendiente' or solicitud.estado_id == 1 %}
                                                 <span class="badge bg-warning">{{ solicitud.estado or 'Pendiente' }}</span>
-                                            {% elif estado_id == 2 %}
+                                            {% elif solicitud.estado == 'Aprobada' or solicitud.estado_id == 2 %}
                                                 <span class="badge bg-success">{{ solicitud.estado or 'Aprobada' }}</span>
-                                            {% elif estado_id == 3 %}
+                                            {% elif solicitud.estado == 'Rechazada' or solicitud.estado_id == 3 %}
                                                 <span class="badge bg-danger">{{ solicitud.estado or 'Rechazada' }}</span>
-                                            {% elif estado_id == 4 %}
+                                            {% elif solicitud.estado == 'Entregada Parcial' or solicitud.estado_id == 4 %}
                                                 <span class="badge bg-info">{{ solicitud.estado or 'Entregada Parcial' }}</span>
-                                            {% elif estado_id == 5 %}
+                                            {% elif solicitud.estado == 'Completada' or solicitud.estado_id == 5 %}
                                                 <span class="badge bg-success">{{ solicitud.estado or 'Completada' }}</span>
-                                            {% elif estado_id == 6 %}
+                                            {% elif solicitud.estado == 'Devuelta' or solicitud.estado_id == 6 %}
                                                 <span class="badge bg-primary">{{ solicitud.estado or 'Devuelta' }}</span>
-                                            {% elif estado_id == 7 %}
+                                            {% elif solicitud.estado == 'Novedad Registrada' or solicitud.estado_id == 7 %}
                                                 <span class="badge bg-secondary">{{ solicitud.estado or 'Novedad Registrada' }}</span>
-                                            {% elif estado_id == 8 %}
+                                            {% elif solicitud.estado == 'Novedad Aceptada' or solicitud.estado_id == 8 %}
                                                 <span class="badge bg-success">{{ solicitud.estado or 'Novedad Aceptada' }}</span>
-                                            {% elif estado_id == 9 %}
+                                            {% elif solicitud.estado == 'Novedad Rechazada' or solicitud.estado_id == 9 %}
                                                 <span class="badge bg-danger">{{ solicitud.estado or 'Novedad Rechazada' }}</span>
                                             {% else %}
                                                 <span class="badge bg-secondary">{{ solicitud.estado or 'Desconocido' }}</span>
@@ -311,11 +312,15 @@
                     {% else %}
                         <div class="alert alert-info text-center">
                             <h5>📭 No hay solicitudes</h5>
+                            <p class="mb-3">No se encontraron solicitudes con los filtros aplicados.</p>
                             {% if can_access('solicitudes', 'create') %}
-                            <a href="/solicitudes/crear" class="btn btn-primary">
+                            <a href="/solicitudes/crear" class="btn btn-primary me-2">
                                 ➕ Crear Primera Solicitud
                             </a>
                             {% endif %}
+                            <a href="/solicitudes" class="btn btn-secondary">
+                                🔄 Limpiar Filtros
+                            </a>
                         </div>
                     {% endif %}
                 </div>
@@ -491,6 +496,17 @@ function filtrarPorEstado(estado) {
     } else {
         url.searchParams.delete('estado');
     }
+    window.location.href = url.toString();
+}
+
+// Función para filtrar todas las novedades
+function filtrarTodasNovedades() {
+    const url = new URL(window.location.href);
+    
+    // Crear un parámetro que el backend pueda interpretar para filtrar todas las novedades
+    // Podemos usar un valor especial o dejarlo vacío para que el backend haga la lógica
+    url.searchParams.set('estado', 'todas_novedades');
+    
     window.location.href = url.toString();
 }
 
@@ -835,7 +851,7 @@ function cargarGestionNovedad(solicitudId) {
                     <div class="alert alert-info">
                         <h6>Información de la Novedad</h6>
                         <p><strong>Tipo:</strong> ${novedad.tipo_novedad}</p>
-                        <p><strong>Descripción:</strong> ${novedad.descripcion}</p>
+                        <p><strong>Descripcion:</strong> ${novedad.descripcion}</p>
                         <p><strong>Cantidad Afectada:</strong> ${novedad.cantidad_afectada}</p>
                         <p><strong>Registrada por:</strong> ${novedad.usuario_registra}</p>
                         <p><strong>Fecha:</strong> ${novedad.fecha_registro}</p>

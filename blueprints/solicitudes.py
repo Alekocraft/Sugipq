@@ -186,14 +186,18 @@ def listar():
         filtro_solicitante = request.args.get('solicitante', '')
         
         # Obtener todas las solicitudes del modelo
-        solicitudes_raw = SolicitudModel.obtener_todas()
+        # IMPORTANTE: Pasar el filtro de estado directamente al modelo para filtrar en SQL
+        if filtro_estado == 'todas_novedades':
+            # Caso especial: filtrar todas las novedades en el modelo
+            solicitudes_raw = SolicitudModel.obtener_todas(estado='todas_novedades')
+        elif filtro_estado != 'todos':
+            # Filtrar por estado específico en el modelo
+            solicitudes_raw = SolicitudModel.obtener_todas(estado=filtro_estado)
+        else:
+            solicitudes_raw = SolicitudModel.obtener_todas()
         
         # *** IMPORTANTE: Mapear campos del modelo a los nombres esperados por el template ***
         solicitudes = [mapear_solicitud(s) for s in solicitudes_raw]
-        
-        # Filtrar por estado (usando el nombre del estado)
-        if filtro_estado != 'todos':
-            solicitudes = [s for s in solicitudes if s.get('estado', '').lower() == filtro_estado.lower()]
         
         # Filtrar por oficina
         oficinas_unique = list(set([s.get('oficina_nombre', '') for s in solicitudes if s.get('oficina_nombre')]))
@@ -215,13 +219,16 @@ def listar():
         materiales = MaterialModel.obtener_todos()
         materiales_dict = {m['id']: m for m in materiales}
         
-        # Calcular estadísticas
-        total_solicitudes = len(solicitudes)
-        solicitudes_pendientes = len([s for s in solicitudes if s.get('estado', '').lower() == 'pendiente'])
-        solicitudes_aprobadas = len([s for s in solicitudes if s.get('estado', '').lower() == 'aprobada'])
-        solicitudes_rechazadas = len([s for s in solicitudes if s.get('estado', '').lower() == 'rechazada'])
-        solicitudes_devueltas = len([s for s in solicitudes if s.get('estado', '').lower() == 'devuelta'])
-        solicitudes_novedad = len([s for s in solicitudes if 'novedad' in s.get('estado', '').lower()])
+        # Calcular estadísticas (sobre TODAS las solicitudes, no las filtradas)
+        todas_solicitudes = [mapear_solicitud(s) for s in SolicitudModel.obtener_todas()]
+        todas_solicitudes = filtrar_por_oficina_usuario(todas_solicitudes)
+        
+        total_solicitudes = len(todas_solicitudes)
+        solicitudes_pendientes = len([s for s in todas_solicitudes if s.get('estado', '').lower() == 'pendiente'])
+        solicitudes_aprobadas = len([s for s in todas_solicitudes if s.get('estado', '').lower() == 'aprobada'])
+        solicitudes_rechazadas = len([s for s in todas_solicitudes if s.get('estado', '').lower() == 'rechazada'])
+        solicitudes_devueltas = len([s for s in todas_solicitudes if s.get('estado', '').lower() == 'devuelta'])
+        solicitudes_novedad = len([s for s in todas_solicitudes if 'novedad' in s.get('estado', '').lower()])
         
         # Verificar si mostrar sección de novedades
         mostrar_novedades = can_view_novedades()
