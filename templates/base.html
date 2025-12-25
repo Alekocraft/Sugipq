@@ -283,11 +283,10 @@
                             </li>
                             <li><hr class="dropdown-divider"></li>
                             <li>
-                                <form action="/logout" method="POST" style="display: inline;">
-                                    <button type="submit" class="dropdown-item text-danger d-flex align-items-center" style="background: none; border: none; width: 100%; text-align: left;">
-                                        <i class="fas fa-sign-out-alt me-2"></i> Cerrar Sesión
-                                    </button>
-                                </form>
+                                <!-- SOLUCIÓN: Usar un enlace simple en lugar de un formulario -->
+                                <a class="dropdown-item text-danger d-flex align-items-center" href="{{ url_for('logout') }}">
+                                    <i class="fas fa-sign-out-alt me-2"></i> Cerrar Sesión
+                                </a>
                             </li>
                         </ul>
                     </li>
