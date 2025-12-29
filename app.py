@@ -529,26 +529,6 @@ def api_session_check():
 # RUTAS DE MATERIALES (BACKUP)
 # ============================================================================
 
-@app.route('/materiales')
-def materiales_backup():
-    """Ruta de respaldo para materiales"""
-    if 'usuario_id' not in session:
-        return redirect('/auth/login')
-    
-    try:
-        # Usar el filtrado por oficina si no es administrador
-        oficina_id = None if user_can_view_all() else session.get('oficina_id')
-        materiales = MaterialModel.obtener_todos(oficina_id) or []
-        
-        return render_template('materiales/index.html', 
-            materiales=materiales,
-            can_edit=has_gestion_completa()
-        )
-    except Exception as e:
-        logger.error(f"Error en ruta de materiales: {e}")
-        flash('Error cargando materiales', 'danger')
-        return redirect('/dashboard')
-
 @app.route('/materiales/crear', methods=['GET', 'POST'])
 def crear_material_backup():
     """Ruta de respaldo para crear material"""
