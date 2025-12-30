@@ -20,6 +20,7 @@
     <VisualStudioVersion Condition=" '$(VisualStudioVersion)' == '' ">10.0</VisualStudioVersion>
   </PropertyGroup>
   <ItemGroup>
+    <Content Include=".gitignore" />
     <Content Include="requirements.txt" />
     <Content Include="scripts\agregar_columnas_usuario_ad.sql" />
     <Content Include="static\css\base.css" />
@@ -28,6 +29,13 @@
     <Content Include="static\css\inventario_corporativo.css" />
     <Content Include="static\css\login.css" />
     <Content Include="templates\auth\test_ldap.html" />
+    <Content Include="templates\confirmacion\confirmado_exitoso.html" />
+    <Content Include="templates\confirmacion\confirmar.html" />
+    <Content Include="templates\confirmacion\error.html" />
+    <Content Include="templates\confirmacion\mis_pendientes.html" />
+    <Content Include="templates\confirmacion\token_expirado.html" />
+    <Content Include="templates\confirmacion\ya_confirmado.htm" />
+    <Content Include="templates\inventario_corporativo\confirmaciones.html" />
     <Content Include="templates\prestamos\elemento_crear.html" />
     <Content Include="templates\auth\listar.html" />
     <Content Include="templates\auth\login.html" />
@@ -65,6 +73,7 @@
     <Compile Include="blueprints\api.py" />
     <Compile Include="blueprints\aprobacion.py" />
     <Compile Include="blueprints\aprobadores.py" />
+    <Compile Include="blueprints\confirmacion_asignaciones.py" />
     <Compile Include="blueprints\inventario_corporativo.py" />
     <Compile Include="blueprints\materiales.py" />
     <Compile Include="blueprints\novedades_model.py" />
@@ -78,6 +87,7 @@
     <Compile Include="config\permissions.py" />
     <Compile Include="config\__init__.py" />
     <Compile Include="database.py" />
+    <Compile Include="models\confirmacion_asignaciones_model.py" />
     <Compile Include="models\generar_hash.py" />
     <Compile Include="models\inventario_corporativo_model_extended.py" />
     <Compile Include="models\materiales_model.py" />
@@ -108,6 +118,7 @@
     <Folder Include="config\" />
     <Folder Include="scripts\" />
     <Folder Include="services\" />
+    <Folder Include="templates\confirmacion\" />
     <Folder Include="templates\usuarios\" />
     <Folder Include="utils\" />
     <Folder Include="static\css\" />

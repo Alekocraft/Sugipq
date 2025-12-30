@@ -1,0 +1,83 @@
+<!-- templates/confirmacion/confirmado_exitoso.html -->
+{% extends "base.html" %}
+
+{% block title %}Confirmacion Exitosa{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow-lg text-center">
+                <div class="card-body py-5">
+                    <!-- Icono de exito -->
+                    <div class="mb-4">
+                        <i class="fas fa-check-circle text-success" style="font-size: 5rem;"></i>
+                    </div>
+                    
+                    <!-- Mensaje principal -->
+                    <h2 class="text-success mb-3">Confirmacion Exitosa!</h2>
+                    <p class="lead">{{ mensaje or 'Su asignacion ha sido confirmada correctamente.' }}</p>
+                    
+                    <!-- Detalles -->
+                    <div class="alert alert-success mt-4">
+                        <h5><i class="fas fa-box"></i> Producto Confirmado</h5>
+                        <p class="mb-1"><strong>{{ producto }}</strong></p>
+                        <p class="mb-0 text-muted">{{ oficina }}</p>
+                    </div>
+                    
+                    <!-- Informacion adicional -->
+                    <div class="mt-4 text-muted">
+                        <p><i class="fas fa-calendar-check"></i> Fecha de confirmacion: {{ fecha_confirmacion.strftime('%d/%m/%Y %H:%M') }}</p>
+                        <p class="small">
+                            Se ha registrado la recepcion del elemento en el sistema de inventario corporativo.
+                            El registro queda guardado con su usuario y timestamp.
+                        </p>
+                    </div>
+                    
+                    <!-- Botones de accion -->
+                    <div class="mt-5">
+                        <a href="/dashboard" class="btn btn-primary btn-lg">
+                            <i class="fas fa-home"></i> Ir al Dashboard
+                        </a>
+                        <a href="/confirmacion/mis-pendientes" class="btn btn-outline-secondary btn-lg ms-2">
+                            <i class="fas fa-list"></i> Ver Mis Pendientes
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .card {
+        border: none;
+        border-radius: 15px;
+        animation: fadeInUp 0.5s ease-in-out;
+    }
+    
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    .fa-check-circle {
+        animation: scaleIn 0.5s ease-in-out;
+    }
+    
+    @keyframes scaleIn {
+        from {
+            transform: scale(0);
+        }
+        to {
+            transform: scale(1);
+        }
+    }
+</style>
+{% endblock %}

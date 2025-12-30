@@ -127,7 +127,7 @@ Desktop.ini
 [Hh]umbs.db
 *.stackdump
 
-# Archivos de recuperaci贸n
+# Archivos de recuperaci髇
 *.bak
 *.backup
 *.old
@@ -178,7 +178,7 @@ backup.sql
 *.dump
 *.backup
 
-# Archivos de configuraci贸n local
+# Archivos de configuraci髇 local
 config.local.*
 settings.local.*
 *.local.*
@@ -218,7 +218,7 @@ pids/
 *.pid.lock
 
 # --------------------------------------------
-# Archivos espec铆ficos de proyecto
+# Archivos espec韋icos de proyecto
 # --------------------------------------------
 # Docker
 docker-compose.override.yml
@@ -240,7 +240,7 @@ coverage/
 *.dmg
 
 # --------------------------------------------
-# Documentaci贸n generada
+# Documentaci髇 generada
 # --------------------------------------------
 _site/
 .sass-cache/
@@ -250,7 +250,7 @@ docs/_build/
 docs/_site/
 
 # ============================================
-# REGLAS ESPEC脥FICAS PARA SEGURIDAD
+# REGLAS ESPEC虵ICAS PARA SEGURIDAD
 # ============================================
 
 # Ignorar cualquier archivo con "secret" o "password" en el nombre
@@ -273,7 +273,7 @@ heapdump.*
 *.hprof
 *.dmp
 
-# Archivos de sesi贸n
+# Archivos de sesi髇
 *.session
 *session*
 
@@ -281,7 +281,7 @@ heapdump.*
 .cache/
 *.cache
 
-# Archivos de usuario espec铆fico
+# Archivos de usuario espec韋ico
 *.userprefs
 
  

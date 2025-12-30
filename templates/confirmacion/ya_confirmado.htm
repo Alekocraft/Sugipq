@@ -1,0 +1,49 @@
+<!-- templates/confirmacion/ya_confirmado.html -->
+{% extends "base.html" %}
+
+{% block title %}Asignacion Ya Confirmada{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow-lg text-center">
+                <div class="card-body py-5">
+                    <div class="mb-4">
+                        <i class="fas fa-check-double text-info" style="font-size: 5rem;"></i>
+                    </div>
+                    
+                    <h2 class="text-info mb-3">Asignacion Ya Confirmada</h2>
+                    <p class="lead">{{ mensaje or 'Esta asignacion ya fue confirmada anteriormente.' }}</p>
+                    
+                    <div class="alert alert-info mt-4">
+                        <i class="fas fa-info-circle"></i>
+                        <p class="mb-0">
+                            El token de confirmacion ya fue utilizado.
+                            La recepcion del elemento ya esta registrada en el sistema.
+                        </p>
+                    </div>
+                    
+                    <div class="mt-4 text-muted small">
+                        <p><strong>Que hacer si esto es un error:</strong></p>
+                        <ul class="text-start">
+                            <li>Verifique en "Mis Pendientes" si tiene otras confirmaciones</li>
+                            <li>Contacte al administrador si no reconoce esta confirmacion</li>
+                            <li>Revise el historial de asignaciones en el sistema</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="mt-5">
+                        <a href="/dashboard" class="btn btn-primary btn-lg">
+                            <i class="fas fa-home"></i> Ir al Dashboard
+                        </a>
+                        <a href="/confirmacion/mis-pendientes" class="btn btn-outline-secondary btn-lg ms-2">
+                            <i class="fas fa-list"></i> Ver Pendientes
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

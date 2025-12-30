@@ -11,6 +11,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 from database import get_database_connection
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -342,6 +343,228 @@ Sistema de Gestión de Inventarios - Qualitas Colombia
         '''
         
         return NotificationService._enviar_email(destinatario_email, asunto, html, texto)
+    
+    @staticmethod
+    def enviar_notificacion_asignacion_con_confirmacion(destinatario_email, destinatario_nombre, 
+                                                        producto_info, cantidad, oficina_nombre,
+                                                        asignador_nombre, token_confirmacion=None,
+                                                        base_url='http://localhost:5000'):
+        """
+        Envía notificación de asignación de producto con link de confirmación.
+        """
+        fecha_actual = datetime.now().strftime('%d/%m/%Y %H:%M')
+        
+        # Generar link de confirmación si hay token
+        link_confirmacion = None
+        if token_confirmacion:
+            link_confirmacion = f"{base_url}/confirmacion/confirmar-asignacion/{token_confirmacion}"
+        
+        asunto = f'📦 Asignación de Inventario - {producto_info.get("nombre", "Producto")}'
+        
+        # Construir el bloque de confirmación por separado
+        bloque_confirmacion = ''
+        if token_confirmacion and link_confirmacion:
+            bloque_confirmacion = f'''
+                    <div class="card" style="background: #fff3cd; border-left-color: #ffc107;">
+                        <h4 style="color: #856404; margin-top: 0;">⚠️ ACCIÓN REQUERIDA</h4>
+                        <p style="color: #856404; margin-bottom: 15px;">
+                            Debe confirmar la recepción de este elemento dentro de los próximos <strong>8 días</strong>.
+                        </p>
+                        <center>
+                            <a href="{link_confirmacion}" class="btn" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                                ✅ CONFIRMAR RECEPCIÓN
+                            </a>
+                        </center>
+                        <p style="font-size: 12px; color: #666; margin-top: 15px; margin-bottom: 0;">
+                            Si el botón no funciona, copie y pegue este enlace en su navegador:<br>
+                            <a href="{link_confirmacion}" style="word-break: break-all;">{link_confirmacion}</a>
+                        </p>
+                    </div>
+            '''
+        else:
+            bloque_confirmacion = '<p style="color: #666;">Por favor, confirma la recepción de este elemento con el área de inventario.</p>'
+        
+        html = f'''
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>{NotificationService._generar_estilos_base()}</style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>📦 Nueva Asignación de Inventario</h1>
+                </div>
+                <div class="content">
+                    <p>Hola <strong>{destinatario_nombre}</strong>,</p>
+                    <p>Se te ha asignado el siguiente elemento del inventario corporativo:</p>
+                    
+                    <div class="card">
+                        <h3 style="color: {ESTILOS['colores']['primario']}; margin-top: 0;">
+                            {producto_info.get('nombre', 'Producto')}
+                        </h3>
+                        <div class="detail-row">
+                            <span class="detail-label">Código:</span>
+                            <span class="detail-value">{producto_info.get('codigo_unico', 'N/A')}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Categoría:</span>
+                            <span class="detail-value">{producto_info.get('categoria', 'N/A')}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Cantidad Asignada:</span>
+                            <span class="badge" style="background: {ESTILOS['colores']['exito']}; color: white;">
+                                {cantidad} unidad(es)
+                            </span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Oficina Destino:</span>
+                            <span class="detail-value">{oficina_nombre}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Asignado por:</span>
+                            <span class="detail-value">{asignador_nombre}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Fecha:</span>
+                            <span class="detail-value">{fecha_actual}</span>
+                        </div>
+                    </div>
+                    
+                    {bloque_confirmacion}
+                    
+                    <p style="color: #666; font-size: 14px; margin-top: 20px;">
+                        Si tiene alguna pregunta o problema con esta asignación, 
+                        por favor contacte al departamento de inventario.
+                    </p>
+                </div>
+                <div class="footer">
+                    <p>Este es un mensaje automático del Sistema de Gestión de Inventarios.</p>
+                    <p>Qualitas Colombia - {datetime.now().year}</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        '''
+        
+        texto_confirmacion = ''
+        if token_confirmacion and link_confirmacion:
+            texto_confirmacion = f'''
+IMPORTANTE: Debe confirmar la recepción dentro de los próximos 8 días.
+Link de confirmación: {link_confirmacion}
+'''
+        
+        texto = f'''
+NUEVA ASIGNACIÓN DE INVENTARIO CORPORATIVO
+==========================================
+
+Hola {destinatario_nombre},
+
+Se te ha asignado: {producto_info.get('nombre', 'Producto')}
+Código: {producto_info.get('codigo_unico', 'N/A')}
+Cantidad: {cantidad} unidad(es)
+Oficina: {oficina_nombre}
+Asignado por: {asignador_nombre}
+Fecha: {fecha_actual}
+
+{texto_confirmacion}
+---
+Sistema de Gestión de Inventarios - Qualitas Colombia
+        '''
+        
+        return NotificationService._enviar_email(destinatario_email, asunto, html, texto)
+    
+    @staticmethod
+    def enviar_notificacion_confirmacion_asignacion(asignacion_id, producto_nombre, 
+                                                     usuario_nombre, usuario_email):
+        """
+        Envía notificación a los gestores cuando el usuario confirma la recepción.
+        """
+        emails_gestores = NotificationService._obtener_emails_gestores()
+        
+        if not emails_gestores:
+            logger.warning("No hay gestores configurados para notificar confirmación")
+            return False
+        
+        fecha_actual = datetime.now().strftime('%d/%m/%Y %H:%M')
+        
+        asunto = f"✅ Confirmación de Recepción: {producto_nombre}"
+        
+        html = f'''
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>{NotificationService._generar_estilos_base()}</style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header" style="background: linear-gradient(135deg, {ESTILOS['colores']['exito']} 0%, #146c43 100%);">
+                    <h1>✅ Recepción Confirmada</h1>
+                </div>
+                <div class="content">
+                    <p>Se ha confirmado la recepción del siguiente producto:</p>
+                    
+                    <div class="card" style="border-left-color: {ESTILOS['colores']['exito']};">
+                        <div class="detail-row">
+                            <span class="detail-label">Producto:</span>
+                            <span class="detail-value">{producto_nombre}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Usuario:</span>
+                            <span class="detail-value">{usuario_nombre}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Email:</span>
+                            <span class="detail-value">{usuario_email}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">ID Asignación:</span>
+                            <span class="detail-value">#{asignacion_id}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Fecha de confirmación:</span>
+                            <span class="badge" style="background: {ESTILOS['colores']['exito']}; color: white;">
+                                {fecha_actual}
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <p style="color: #666;">
+                        El usuario ha confirmado exitosamente la recepción del elemento asignado.
+                    </p>
+                </div>
+                <div class="footer">
+                    <p>Sistema de Gestión de Inventarios - Qualitas Colombia</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        '''
+        
+        texto = f'''
+CONFIRMACIÓN DE RECEPCIÓN
+=========================
+
+Producto: {producto_nombre}
+Usuario: {usuario_nombre}
+Email: {usuario_email}
+ID Asignación: #{asignacion_id}
+Fecha de confirmación: {fecha_actual}
+
+El usuario ha confirmado exitosamente la recepción del elemento.
+
+---
+Sistema de Gestión de Inventarios - Qualitas Colombia
+        '''
+        
+        exitos = 0
+        for email in emails_gestores:
+            if NotificationService._enviar_email(email, asunto, html, texto):
+                exitos += 1
+        
+        return exitos > 0
 
     # ========================================================================
     # NOTIFICACIONES - MATERIAL POP (SOLICITUDES)
@@ -457,6 +680,8 @@ Sistema de Gestión de Inventarios - Qualitas Colombia
         
         asunto = f'{estado_config.get("icono", "📋")} Solicitud {estado_nuevo} - {solicitud_info.get("material_nombre", "Material")}'
         
+        observacion_html = f'<div class="detail-row"><span class="detail-label">Observación:</span><span class="detail-value">{observacion}</span></div>' if observacion else ''
+        
         html = f'''
         <!DOCTYPE html>
         <html>
@@ -500,7 +725,7 @@ Sistema de Gestión de Inventarios - Qualitas Colombia
                             <span class="detail-label">Fecha:</span>
                             <span class="detail-value">{fecha_actual}</span>
                         </div>
-                        {f'<div class="detail-row"><span class="detail-label">Observación:</span><span class="detail-value">{observacion}</span></div>' if observacion else ''}
+                        {observacion_html}
                     </div>
                 </div>
                 <div class="footer">
@@ -511,6 +736,8 @@ Sistema de Gestión de Inventarios - Qualitas Colombia
         </html>
         '''
         
+        texto_observacion = f'\nObservación: {observacion}' if observacion else ''
+        
         texto = f'''
 ACTUALIZACIÓN DE SOLICITUD
 ==========================
@@ -520,8 +747,7 @@ Cantidad: {solicitud_info.get('cantidad_solicitada', 0)} unidades
 Estado Anterior: {estado_anterior}
 Nuevo Estado: {estado_nuevo}
 Procesado por: {usuario_accion}
-Fecha: {fecha_actual}
-{f'Observación: {observacion}' if observacion else ''}
+Fecha: {fecha_actual}{texto_observacion}
 
 ---
 Sistema de Gestión de Inventarios - Qualitas Colombia
@@ -735,6 +961,8 @@ Sistema de Gestión de Inventarios - Qualitas Colombia
         
         asunto = f'{estado_config.get("icono", "📋")} Préstamo {estado_nuevo} - {prestamo_info.get("material", "Material")}'
         
+        observacion_html = f'<div class="detail-row"><span class="detail-label">Observación:</span><span class="detail-value">{observacion}</span></div>' if observacion else ''
+        
         html = f'''
         <!DOCTYPE html>
         <html>
@@ -774,7 +1002,7 @@ Sistema de Gestión de Inventarios - Qualitas Colombia
                             <span class="detail-label">Fecha:</span>
                             <span class="detail-value">{fecha_actual}</span>
                         </div>
-                        {f'<div class="detail-row"><span class="detail-label">Observación:</span><span class="detail-value">{observacion}</span></div>' if observacion else ''}
+                        {observacion_html}
                     </div>
                 </div>
                 <div class="footer">
@@ -785,6 +1013,8 @@ Sistema de Gestión de Inventarios - Qualitas Colombia
         </html>
         '''
         
+        texto_observacion = f'\nObservación: {observacion}' if observacion else ''
+        
         texto = f'''
 ACTUALIZACIÓN DE PRÉSTAMO
 =========================
@@ -793,8 +1023,7 @@ Elemento: {prestamo_info.get('material', 'N/A')}
 Cantidad: {prestamo_info.get('cantidad', 0)} unidades
 Nuevo Estado: {estado_nuevo}
 Procesado por: {usuario_accion}
-Fecha: {fecha_actual}
-{f'Observación: {observacion}' if observacion else ''}
+Fecha: {fecha_actual}{texto_observacion}
 
 ---
 Sistema de Gestión de Inventarios - Qualitas Colombia
@@ -818,11 +1047,6 @@ def notificar_asignacion_inventario(destinatario_email, destinatario_nombre,
 def notificar_solicitud(solicitud_info, tipo_notificacion, **kwargs):
     """
     Función genérica para notificar sobre solicitudes
-    
-    Args:
-        solicitud_info: Diccionario con información de la solicitud
-        tipo_notificacion: 'creada', 'aprobada', 'rechazada', 'entregada', etc.
-        **kwargs: Argumentos adicionales según el tipo
     """
     if tipo_notificacion == 'creada':
         return NotificationService.notificar_solicitud_creada(solicitud_info)
@@ -844,11 +1068,6 @@ def notificar_solicitud(solicitud_info, tipo_notificacion, **kwargs):
 def notificar_prestamo(prestamo_info, tipo_notificacion, **kwargs):
     """
     Función genérica para notificar sobre préstamos
-    
-    Args:
-        prestamo_info: Diccionario con información del préstamo
-        tipo_notificacion: 'creado', 'aprobado', 'rechazado', 'devuelto'
-        **kwargs: Argumentos adicionales
     """
     if tipo_notificacion == 'creado':
         return NotificationService.notificar_prestamo_creado(prestamo_info)

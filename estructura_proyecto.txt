@@ -1,6 +1,6 @@
 ESTRUCTURA DEL PROYECTO FLASK 
 ============================= 
-Fecha: Mon 12/29/2025 16:00:24.32 
+Fecha: Tue 12/30/2025  9:15:08.51 
 Directorio actual: C:\Users\sinventarios\source\repos\sugipqt 
  
 [ARCHIVOS PRINCIPALES .PY] 
@@ -12,6 +12,7 @@ blueprints\api.py
 blueprints\aprobacion.py 
 blueprints\aprobadores.py 
 blueprints\auth.py 
+blueprints\confirmacion_asignaciones.py 
 blueprints\inventario_corporativo.py 
 blueprints\materiales.py 
 blueprints\novedades_model.py 
@@ -24,6 +25,7 @@ config\config.py
 config\ldap_config.py 
 config\permissions.py 
 config\__init__.py 
+models\confirmacion_asignaciones_model.py 
 models\generar_hash.py 
 models\inventario_corporativo_model.py 
 models\inventario_corporativo_model_extended.py 
@@ -56,9 +58,15 @@ templates\aprobadores\listar.html
 templates\auth\listar.html 
 templates\auth\login.html 
 templates\auth\test_ldap.html 
+templates\confirmacion\confirmado_exitoso.html 
+templates\confirmacion\confirmar.html 
+templates\confirmacion\error.html 
+templates\confirmacion\mis_pendientes.html 
+templates\confirmacion\token_expirado.html 
 templates\error\404.html 
 templates\error\500.html 
 templates\inventario_corporativo\asignar.html 
+templates\inventario_corporativo\confirmaciones.html 
 templates\inventario_corporativo\crear.html 
 templates\inventario_corporativo\detalle.html 
 templates\inventario_corporativo\editar.html 
@@ -124,7 +132,6 @@ logs\ldap.log
 [config] 
 [logs] 
 [models] 
-[scripts] 
 [services] 
 [static] 
 [templates] 
@@ -133,13 +140,13 @@ logs\ldap.log
  
 Resumen: 
 --------- 
-Archivos .py: 3757 
-Archivos HTML: 39 
+Archivos .py: 3759 
+Archivos HTML: 45 
 Archivos CSS: 5 
 Archivos JS: 0 
 Archivos de entorno: 0 
 Archivos de logs: 2 
-Carpetas (sin entornos virtuales): 12 
+Carpetas (sin entornos virtuales): 11 
  
 [ENTORNOS VIRTUALES EXCLUIDOS] 
 ------------------------------ 

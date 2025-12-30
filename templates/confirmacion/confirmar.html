@@ -1,0 +1,269 @@
+<!-- templates/confirmacion/confirmar.html -->
+{% extends "base.html" %}
+
+{% block title %}Confirmar Asignacion de Inventario{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <!-- Encabezado -->
+            <div class="card shadow-lg">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0">
+                        <i class="fas fa-check-circle"></i> Confirmacion de Asignacion
+                    </h3>
+                </div>
+                
+                <div class="card-body">
+                    <!-- Mensajes de error si existen -->
+                    {% if error %}
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>Error de Autenticacion:</strong> {{ error }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                    {% endif %}
+
+                    <!-- Informacion de la asignacion -->
+                    <div class="alert alert-info">
+                        <h5><i class="fas fa-info-circle"></i> Informacion de la Asignacion</h5>
+                        <hr>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p><strong>Producto:</strong><br>{{ asignacion.producto_nombre }}</p>
+                                <p><strong>Codigo:</strong> {{ asignacion.codigo_unico }}</p>
+                                <p><strong>Categoria:</strong> {{ asignacion.categoria or 'N/A' }}</p>
+                            </div>
+                            <div class="col-md-6">
+                                <p><strong>Oficina:</strong><br>{{ asignacion.oficina_nombre }}</p>
+                                <p><strong>Fecha de Asignacion:</strong><br>{{ asignacion.fecha_asignacion.strftime('%d/%m/%Y %H:%M') }}</p>
+                                <p><strong>Asignado a:</strong><br>{{ asignacion.usuario_nombre }}</p>
+                                <p><strong>Email:</strong><br><span class="badge bg-secondary">{{ asignacion.usuario_email }}</span></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Advertencia de tiempo -->
+                    {% if asignacion.dias_restantes <= 2 %}
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>Atencion:</strong> Este token expira en {{ asignacion.dias_restantes }} dia(s).
+                        Fecha de expiracion: {{ asignacion.fecha_expiracion.strftime('%d/%m/%Y %H:%M') }}
+                    </div>
+                    {% endif %}
+
+                    <!-- Formulario de confirmacion -->
+                    <div class="card mt-4">
+                        <div class="card-body">
+                            <h5 class="card-title">
+                                <i class="fas fa-lock"></i> Confirmar Recepcion con Active Directory
+                            </h5>
+                            <p class="text-muted">
+                                Para confirmar que ha recibido este elemento, debe autenticarse con sus credenciales del Active Directory.
+                            </p>
+
+                            <form method="POST" action="{{ url_for('confirmacion.confirmar_asignacion', token=token) }}" id="formConfirmacion">
+                                <input type="hidden" name="email" value="{{ asignacion.usuario_email }}">
+                                
+                                {% if ldap_disponible %}
+                                <!-- Autenticacion con AD -->
+                                <div id="authSection">
+                                    <div class="alert alert-info alert-sm mb-3">
+                                        <i class="fas fa-shield-alt"></i>
+                                        <small>
+                                            <strong>Importante:</strong> Debe usar las credenciales del usuario asignado: 
+                                            <strong class="text-primary">{{ asignacion.usuario_email }}</strong>
+                                        </small>
+                                    </div>
+
+                                    <div class="form-group mb-3">
+                                        <label for="username">
+                                            <i class="fas fa-user"></i> Usuario Active Directory <span class="text-danger">*</span>
+                                        </label>
+                                        <input type="text" 
+                                               class="form-control {% if error %}is-invalid{% endif %}" 
+                                               id="username" 
+                                               name="username" 
+                                               placeholder="Ej: lramirez"
+                                               value="{{ username_anterior or '' }}"
+                                               required
+                                               autocomplete="username"
+                                               autofocus>
+                                        <small class="form-text text-muted">Su nombre de usuario de red (sin @qualitascolombia.com.co)</small>
+                                    </div>
+
+                                    <div class="form-group mb-3">
+                                        <label for="password">
+                                            <i class="fas fa-lock"></i> Contrasena <span class="text-danger">*</span>
+                                        </label>
+                                        <div class="input-group">
+                                            <input type="password" 
+                                                   class="form-control {% if error %}is-invalid{% endif %}" 
+                                                   id="password" 
+                                                   name="password" 
+                                                   placeholder="Su contrasena de red"
+                                                   required
+                                                   autocomplete="current-password">
+                                            <button class="btn btn-outline-secondary" type="button" id="togglePassword">
+                                                <i class="fas fa-eye" id="toggleIcon"></i>
+                                            </button>
+                                        </div>
+                                        <small class="form-text text-muted">La misma que usa para iniciar sesion en Windows</small>
+                                    </div>
+                                </div>
+                                {% else %}
+                                <!-- Sin autenticacion AD disponible -->
+                                <input type="hidden" name="sin_autenticar" value="true">
+                                <div class="alert alert-warning">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                    <strong>Sistema de autenticacion no disponible.</strong><br>
+                                    La confirmacion se registrara sin validacion de credenciales.
+                                    Por favor contacte al administrador del sistema.
+                                </div>
+                                {% endif %}
+
+                                <!-- Checkbox de confirmacion -->
+                                <div class="form-check mb-3 p-3 bg-light rounded">
+                                    <input class="form-check-input" 
+                                           type="checkbox" 
+                                           id="confirmoRecepcion" 
+                                           required>
+                                    <label class="form-check-label" for="confirmoRecepcion">
+                                        <strong>Confirmo bajo mi responsabilidad que:</strong><br>
+                                        <ul class="mb-0 mt-2">
+                                            <li>He recibido fisicamente el producto: <span class="text-primary">{{ asignacion.producto_nombre }}</span></li>
+                                            <li>El producto esta en condiciones adecuadas</li>
+                                            <li>Acepto la responsabilidad sobre este elemento</li>
+                                        </ul>
+                                    </label>
+                                </div>
+
+                                <!-- Botones -->
+                                <div class="d-grid gap-2">
+                                    <button type="submit" 
+                                            class="btn btn-primary btn-lg" 
+                                            id="btnConfirmar">
+                                        <i class="fas fa-check"></i> Confirmar Recepcion
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Informacion adicional -->
+                    <div class="mt-4">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h6 class="card-title"><i class="fas fa-question-circle"></i> Que significa esto?</h6>
+                                <p class="card-text small mb-0">
+                                    Al confirmar con sus credenciales del Active Directory, usted esta declarando que ha recibido 
+                                    fisicamente el elemento mencionado y que esta en condiciones adecuadas. Esta confirmacion 
+                                    quedara registrada en el sistema de inventario corporativo con:
+                                </p>
+                                <ul class="small mb-0 mt-2">
+                                    <li><strong>Usuario AD:</strong> Su identidad verificada</li>
+                                    <li><strong>Fecha y Hora:</strong> Timestamp de confirmacion</li>
+                                    <li><strong>Direccion IP:</strong> Desde donde confirmo</li>
+                                    <li><strong>Navegador:</strong> Informacion del dispositivo</li>
+                                </ul>
+                                <p class="small text-muted mb-0 mt-2">
+                                    <i class="fas fa-info-circle"></i> Esta informacion garantiza la autenticidad y trazabilidad de la confirmacion.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card-footer text-muted text-center">
+                    <small>
+                        <i class="fas fa-shield-alt"></i> 
+                        Conexion segura - Sus credenciales son validadas contra Active Directory
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .card {
+        border: none;
+        border-radius: 10px;
+    }
+    
+    .card-header {
+        border-radius: 10px 10px 0 0 !important;
+    }
+    
+    .btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        transition: transform 0.2s;
+    }
+    
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+    
+    .btn-primary:disabled {
+        opacity: 0.6;
+        transform: none;
+    }
+    
+    .alert {
+        border-left: 4px solid;
+    }
+    
+    .alert-info {
+        border-left-color: #17a2b8;
+    }
+    
+    .alert-warning {
+        border-left-color: #ffc107;
+    }
+
+    .alert-danger {
+        border-left-color: #dc3545;
+    }
+
+    .alert-sm {
+        padding: 0.5rem 1rem;
+        font-size: 0.875rem;
+    }
+
+    .is-invalid {
+        border-color: #dc3545;
+    }
+
+    .form-check-label ul {
+        list-style-position: inside;
+    }
+</style>
+
+<script>
+// Toggle password visibility
+document.getElementById('togglePassword').addEventListener('click', function() {
+    const passwordInput = document.getElementById('password');
+    const toggleIcon = document.getElementById('toggleIcon');
+    
+    if (passwordInput.type === 'password') {
+        passwordInput.type = 'text';
+        toggleIcon.classList.remove('fa-eye');
+        toggleIcon.classList.add('fa-eye-slash');
+    } else {
+        passwordInput.type = 'password';
+        toggleIcon.classList.remove('fa-eye-slash');
+        toggleIcon.classList.add('fa-eye');
+    }
+});
+
+// Form submission
+document.getElementById('formConfirmacion').addEventListener('submit', function(e) {
+    const btnConfirmar = document.getElementById('btnConfirmar');
+    btnConfirmar.disabled = true;
+    btnConfirmar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Validando credenciales y confirmando...';
+});
+</script>
+{% endblock %}

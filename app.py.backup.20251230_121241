@@ -676,11 +676,7 @@ def listar_usuarios_backup():
     
     try:
         usuarios = UsuarioModel.obtener_todos() or []
-        return render_template('usuarios/listar.html',
-                               usuarios=usuarios,
-                               total_usuarios=len(usuarios),
-                               total_activos=len([u for u in usuarios if u.get('activo', True)]),
-                               total_inactivos=len([u for u in usuarios if not u.get('activo', True)]))
+        return render_template('usuarios/listar.html', usuarios=usuarios)
     except Exception as e:
         logger.error(f"Error listando usuarios: {e}")
         flash('Error cargando usuarios', 'danger')

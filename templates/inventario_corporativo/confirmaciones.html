@@ -1,0 +1,331 @@
+<!-- templates/inventario_corporativo/confirmaciones.html -->
+{% extends "base.html" %}
+
+{% block title %}Confirmaciones - {{ producto.nombre }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/inventario-corporativo">Inventario</a></li>
+            <li class="breadcrumb-item"><a href="/inventario-corporativo/{{ producto.id }}">{{ producto.nombre }}</a></li>
+            <li class="breadcrumb-item active">Confirmaciones</li>
+        </ol>
+    </nav>
+
+    <!-- Encabezado -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h2>
+                <i class="fas fa-check-circle"></i> 
+                Estado de Confirmaciones
+            </h2>
+            <p class="text-muted">
+                {{ producto.nombre }} - {{ producto.codigo_unico }}
+            </p>
+        </div>
+        <div class="col-md-4 text-end">
+            <a href="/inventario-corporativo/{{ producto.id }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Volver al Producto
+            </a>
+        </div>
+    </div>
+
+    <!-- Estadísticas -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-white bg-primary">
+                <div class="card-body">
+                    <h5 class="card-title">Total Asignaciones</h5>
+                    <h2 class="mb-0">{{ estadisticas.total }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-success">
+                <div class="card-body">
+                    <h5 class="card-title">Confirmadas</h5>
+                    <h2 class="mb-0">{{ estadisticas.confirmadas }}</h2>
+                    <small>{{ "%.1f"|format(estadisticas.tasa_confirmacion) }}% del total</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-warning">
+                <div class="card-body">
+                    <h5 class="card-title">Pendientes</h5>
+                    <h2 class="mb-0">{{ estadisticas.pendientes }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-danger">
+                <div class="card-body">
+                    <h5 class="card-title">Expiradas</h5>
+                    <h2 class="mb-0">{{ estadisticas.expiradas }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabla de asignaciones -->
+    <div class="card">
+        <div class="card-header">
+            <h5><i class="fas fa-list"></i> Detalle de Asignaciones</h5>
+        </div>
+        <div class="card-body">
+            {% if asignaciones %}
+            <div class="table-responsive">
+                <table class="table table-hover" id="tablaConfirmaciones">
+                    <thead>
+                        <tr>
+                            <th>Usuario</th>
+                            <th>Email</th>
+                            <th>Oficina</th>
+                            <th>Fecha Asignación</th>
+                            <th>Estado</th>
+                            <th>Fecha Confirmación</th>
+                            <th>Días Restantes</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for asig in asignaciones %}
+                        <tr class="{% if asig.EstadoConfirmacion == 'PENDIENTE' and asig.DiasRestantes <= 2 %}table-warning{% endif %}">
+                            <td>
+                                <i class="fas fa-user"></i>
+                                {{ asig.UsuarioADNombre or 'Sin usuario' }}
+                            </td>
+                            <td>
+                                {% if asig.UsuarioADEmail %}
+                                <a href="mailto:{{ asig.UsuarioADEmail }}">{{ asig.UsuarioADEmail }}</a>
+                                {% else %}
+                                <span class="text-muted">N/A</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ asig.oficina }}</td>
+                            <td>{{ asig.FechaAsignacion.strftime('%d/%m/%Y %H:%M') }}</td>
+                            <td>
+                                {% if asig.EstadoConfirmacion == 'CONFIRMADO' %}
+                                <span class="badge bg-success">
+                                    <i class="fas fa-check-circle"></i> Confirmado
+                                </span>
+                                {% elif asig.EstadoConfirmacion == 'PENDIENTE' %}
+                                <span class="badge bg-warning">
+                                    <i class="fas fa-clock"></i> Pendiente
+                                </span>
+                                {% elif asig.EstadoConfirmacion == 'EXPIRADO' %}
+                                <span class="badge bg-danger">
+                                    <i class="fas fa-times-circle"></i> Expirado
+                                </span>
+                                {% else %}
+                                <span class="badge bg-secondary">
+                                    <i class="fas fa-minus"></i> Sin Token
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if asig.FechaConfirmacion %}
+                                {{ asig.FechaConfirmacion.strftime('%d/%m/%Y %H:%M') }}
+                                <br>
+                                <small class="text-muted">Por: {{ asig.UsuarioConfirmacion }}</small>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if asig.EstadoConfirmacion == 'PENDIENTE' %}
+                                    {% if asig.DiasRestantes <= 2 %}
+                                    <span class="text-danger fw-bold">
+                                        <i class="fas fa-exclamation-triangle"></i>
+                                        {{ asig.DiasRestantes }} día(s)
+                                    </span>
+                                    {% else %}
+                                    <span class="text-success">
+                                        {{ asig.DiasRestantes }} días
+                                    </span>
+                                    {% endif %}
+                                {% elif asig.EstadoConfirmacion == 'EXPIRADO' %}
+                                <span class="text-danger">Expirado</span>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if asig.EstadoConfirmacion == 'PENDIENTE' %}
+                                <button class="btn btn-sm btn-primary" 
+                                        onclick="reenviarNotificacion({{ asig.AsignacionId }})">
+                                    <i class="fas fa-envelope"></i> Reenviar
+                                </button>
+                                {% elif asig.EstadoConfirmacion == 'EXPIRADO' and puede_gestionar_inventario %}
+                                <button class="btn btn-sm btn-warning" 
+                                        onclick="regenerarToken({{ asig.AsignacionId }})">
+                                    <i class="fas fa-redo"></i> Regenerar
+                                </button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i>
+                No hay asignaciones registradas para este producto.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Información adicional -->
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h6><i class="fas fa-info-circle"></i> Información del Sistema</h6>
+                </div>
+                <div class="card-body">
+                    <ul class="mb-0">
+                        <li>Los tokens de confirmación tienen una validez de <strong>8 días</strong></li>
+                        <li>Los usuarios reciben un email con el link de confirmación</li>
+                        <li>Las confirmaciones requieren autenticación con Active Directory</li>
+                        <li>Los tokens expirados pueden ser regenerados por administradores</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h6><i class="fas fa-chart-pie"></i> Análisis</h6>
+                </div>
+                <div class="card-body">
+                    <canvas id="chartConfirmaciones" style="max-height: 200px;"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .card {
+        margin-bottom: 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .table-warning {
+        animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+        0%, 100% { background-color: #fff3cd; }
+        50% { background-color: #ffe69c; }
+    }
+</style>
+
+<script>
+// Función para reenviar notificación
+function reenviarNotificacion(asignacionId) {
+    if (!confirm('¿Desea reenviar la notificación de confirmación?')) {
+        return;
+    }
+    
+    // Aquí implementar llamada AJAX para reenviar
+    fetch(`/api/reenviar-confirmacion/${asignacionId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Notificación reenviada exitosamente');
+        } else {
+            alert('Error al reenviar notificación: ' + data.message);
+        }
+    })
+    .catch(error => {
+        alert('Error: ' + error);
+    });
+}
+
+// Función para regenerar token
+function regenerarToken(asignacionId) {
+    if (!confirm('¿Desea regenerar el token de confirmación? Se enviará un nuevo email al usuario.')) {
+        return;
+    }
+    
+    // Aquí implementar llamada AJAX para regenerar
+    fetch(`/api/regenerar-token/${asignacionId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Token regenerado y notificación enviada');
+            location.reload();
+        } else {
+            alert('Error al regenerar token: ' + data.message);
+        }
+    })
+    .catch(error => {
+        alert('Error: ' + error);
+    });
+}
+
+// Gráfico de confirmaciones (requiere Chart.js)
+{% if asignaciones %}
+document.addEventListener('DOMContentLoaded', function() {
+    var ctx = document.getElementById('chartConfirmaciones');
+    if (ctx && typeof Chart !== 'undefined') {
+        new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Confirmadas', 'Pendientes', 'Expiradas', 'Sin Token'],
+                datasets: [{
+                    data: [
+                        {{ estadisticas.confirmadas }},
+                        {{ estadisticas.pendientes }},
+                        {{ estadisticas.expiradas }},
+                        {{ estadisticas.sin_token }}
+                    ],
+                    backgroundColor: [
+                        '#28a745',
+                        '#ffc107',
+                        '#dc3545',
+                        '#6c757d'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+    }
+});
+{% endif %}
+
+// DataTables (opcional, si está disponible)
+if (typeof $.fn.dataTable !== 'undefined') {
+    $('#tablaConfirmaciones').DataTable({
+        language: {
+            url: '//cdn.datatables.net/plug-ins/1.13.7/i18n/es-ES.json'
+        },
+        order: [[3, 'desc']], // Ordenar por fecha de asignación
+        pageLength: 25
+    });
+}
+</script>
+{% endblock %}

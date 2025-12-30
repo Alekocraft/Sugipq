@@ -1,0 +1,109 @@
+<!-- templates/confirmacion/mis_pendientes.html -->
+{% extends "base.html" %}
+
+{% block title %}Mis Confirmaciones Pendientes{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <!-- Encabezado -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-tasks"></i> Mis Confirmaciones Pendientes</h2>
+                <span class="badge bg-primary fs-5">{{ total_pendientes }} pendiente(s)</span>
+            </div>
+
+            {% if total_pendientes == 0 %}
+            <!-- Sin pendientes -->
+            <div class="card shadow-sm">
+                <div class="card-body text-center py-5">
+                    <i class="fas fa-check-circle text-success" style="font-size: 4rem;"></i>
+                    <h4 class="mt-3">¡No tienes confirmaciones pendientes!</h4>
+                    <p class="text-muted">Todas tus asignaciones han sido confirmadas.</p>
+                    <a href="/dashboard" class="btn btn-primary mt-3">
+                        <i class="fas fa-home"></i> Volver al Dashboard
+                    </a>
+                </div>
+            </div>
+            {% else %}
+            <!-- Lista de pendientes -->
+            <div class="row">
+                {% for pendiente in pendientes %}
+                <div class="col-md-6 mb-4">
+                    <div class="card shadow-sm h-100 {% if pendiente.DiasRestantes <= 2 %}border-warning{% endif %}">
+                        <div class="card-header bg-white">
+                            <h5 class="mb-0">
+                                <i class="fas fa-box text-primary"></i>
+                                {{ pendiente.NombreProducto }}
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <p class="mb-2">
+                                <strong>Código:</strong> 
+                                <span class="badge bg-secondary">{{ pendiente.CodigoUnico }}</span>
+                            </p>
+                            <p class="mb-2">
+                                <strong>Oficina:</strong> {{ pendiente.NombreOficina }}
+                            </p>
+                            <p class="mb-2">
+                                <strong>Fecha Asignación:</strong> 
+                                {{ pendiente.FechaAsignacion.strftime('%d/%m/%Y %H:%M') }}
+                            </p>
+                            
+                            <!-- Advertencia de días restantes -->
+                            {% if pendiente.DiasRestantes <= 2 %}
+                            <div class="alert alert-warning py-2 px-3 mb-3">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <strong>¡Urgente!</strong> Expira en {{ pendiente.DiasRestantes }} día(s)
+                            </div>
+                            {% else %}
+                            <p class="mb-2 text-muted">
+                                <i class="fas fa-clock"></i>
+                                Expira en {{ pendiente.DiasRestantes }} días
+                                <small>({{ pendiente.FechaExpiracion.strftime('%d/%m/%Y') }})</small>
+                            </p>
+                            {% endif %}
+                        </div>
+                        <div class="card-footer bg-white">
+                            <a href="{{ url_for('confirmacion.confirmar_asignacion', token=pendiente.Token) }}" 
+                               class="btn btn-primary w-100">
+                                <i class="fas fa-check"></i> Confirmar Ahora
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- Información adicional -->
+            <div class="card bg-light mt-4">
+                <div class="card-body">
+                    <h5><i class="fas fa-info-circle"></i> Información Importante</h5>
+                    <ul class="mb-0">
+                        <li>Las confirmaciones deben realizarse dentro de los 8 días posteriores a la asignación.</li>
+                        <li>Necesitarás tus credenciales del Active Directory para confirmar.</li>
+                        <li>Una vez confirmada, la asignación quedará registrada en el sistema.</li>
+                        <li>Si un token expira, contacta al administrador para generar uno nuevo.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .card {
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 16px rgba(0,0,0,0.1) !important;
+    }
+    
+    .border-warning {
+        border-width: 3px !important;
+    }
+</style>
+{% endblock %}

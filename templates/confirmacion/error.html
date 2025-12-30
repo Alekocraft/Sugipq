@@ -1,0 +1,50 @@
+<!-- templates/confirmacion/error.html -->
+{% extends "base.html" %}
+
+{% block title %}Error en Confirmación{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow-lg text-center">
+                <div class="card-body py-5">
+                    <div class="mb-4">
+                        <i class="fas fa-exclamation-circle text-danger" style="font-size: 5rem;"></i>
+                    </div>
+                    
+                    <h2 class="text-danger mb-3">Error de Confirmación</h2>
+                    <p class="lead">{{ mensaje or 'Ha ocurrido un error al procesar la confirmación.' }}</p>
+                    
+                    <div class="alert alert-danger mt-4">
+                        <i class="fas fa-times-circle"></i>
+                        <p class="mb-0">
+                            No se pudo procesar su confirmación. 
+                            Por favor, verifique el enlace o contacte al administrador.
+                        </p>
+                    </div>
+                    
+                    <div class="mt-4 text-muted small">
+                        <p><strong>Posibles causas:</strong></p>
+                        <ul class="text-start">
+                            <li>El enlace no es válido o está incompleto</li>
+                            <li>El token ya fue utilizado</li>
+                            <li>El enlace ha expirado</li>
+                            <li>Error de conexión con la base de datos</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="mt-5">
+                        <a href="/dashboard" class="btn btn-primary btn-lg">
+                            <i class="fas fa-home"></i> Ir al Dashboard
+                        </a>
+                        <a href="mailto:sistemas@empresa.com" class="btn btn-outline-secondary btn-lg ms-2">
+                            <i class="fas fa-envelope"></i> Contactar Soporte
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
