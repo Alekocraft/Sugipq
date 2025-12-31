@@ -4,7 +4,6 @@
 
 {% block content %}
 <div class="container-fluid fade-in">
-    <!-- Encabezado compacto -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h1 class="h3 fw-bold mb-1 text-primary">
@@ -17,7 +16,6 @@
         </a>
     </div>
 
-    <!-- Banner informativo -->
     <div class="alert alert-info mb-4">
         <strong><i class="fas fa-info-circle me-1"></i>Vista filtrada:</strong>
         {% if session.rol in ['administrador', 'lider_inventario', 'aprobador', 'tesoreria'] %}
@@ -27,7 +25,6 @@
         {% endif %}
     </div>
 
-    <!-- Filtros -->
     <div class="card border-0 shadow-sm mb-4">
         <div class="card-header bg-light py-3">
             <h6 class="mb-0 fw-semibold">
@@ -72,7 +69,6 @@
         </div>
     </div>
 
-    <!-- Resumen General -->
     <div class="row mb-4">
         <div class="col-md-12">
             <div class="card border-0 shadow-sm">
@@ -133,7 +129,6 @@
         </div>
     </div>
 
-    <!-- Lista de Préstamos -->
     <div class="card border-0 shadow-sm">
         <div class="card-header bg-success text-white py-3">
             <div class="d-flex justify-content-between align-items-center">
@@ -167,13 +162,11 @@
                         {% set fecha_devolucion_prevista = prestamo.fecha_devolucion_prevista.strftime('%d/%m/%Y') if prestamo.fecha_devolucion_prevista else 'N/A' %}
                         {% set fecha_devolucion_real = prestamo.fecha_devolucion_real.strftime('%d/%m/%Y') if prestamo.fecha_devolucion_real else 'Pendiente' %}
                         
-                        {# ✅ DETERMINAR COLOR DEL ESTADO Y SI ESTÁ ATRASADO #}
                         {% set estado_original = prestamo.estado|default('PRESTADO') %}
                         {% set estado_clase = '' %}
                         {% set estado_texto = estado_original %}
                         
                         {% if estado_original == 'PRESTADO' %}
-                            {% set hoy = now().date() if now is defined else datetime.now().date() %}
                             {% set devolucion_prevista = prestamo.fecha_devolucion_prevista.date() if prestamo.fecha_devolucion_prevista else hoy %}
                             {% if hoy > devolucion_prevista %}
                                 {% set estado_clase = 'danger' %}
@@ -295,7 +288,6 @@
 {% endblock %}
 
 {% block scripts %}
-<!-- Incluir las librerías para exportación -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
@@ -308,7 +300,6 @@
             const ws = XLSX.utils.table_to_sheet(tabla);
             XLSX.utils.book_append_sheet(wb, ws, 'Préstamos');
             
-            // Obtener parámetros de filtro para el nombre del archivo
             const oficina = document.getElementById('filtro_oficina').value;
             const estado = document.getElementById('filtro_estado').value;
             
@@ -336,17 +327,14 @@
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF('landscape');
 
-            // Obtener parámetros de filtro
             const oficina = document.getElementById('filtro_oficina').value;
             const estado = document.getElementById('filtro_estado').value;
             const nombreOficina = document.getElementById('filtro_oficina').options[document.getElementById('filtro_oficina').selectedIndex].text;
             
-            // Título
             doc.setFontSize(16);
             doc.setTextColor(40, 40, 40);
             doc.text('Reporte de Préstamos - Sistema de Gestión', 14, 15);
             
-            // Subtítulo con información de filtros
             doc.setFontSize(10);
             doc.setTextColor(100, 100, 100);
             doc.text(`Generado: ${new Date().toLocaleDateString('es-ES', { 
@@ -365,13 +353,12 @@
             
             doc.text(infoFiltros, 14, 28);
 
-            // Tabla
             doc.autoTable({
                 html: '#tablaPrestamos',
                 startY: 35,
                 theme: 'grid',
                 headStyles: { 
-                    fillColor: [34, 139, 34], // Verde
+                    fillColor: [34, 139, 34],
                     textColor: [255, 255, 255],
                     fontSize: 9,
                     fontStyle: 'bold'
@@ -381,17 +368,17 @@
                     cellPadding: 3
                 },
                 columnStyles: {
-                    0: { cellWidth: 15 }, // ID
-                    1: { cellWidth: 40 }, // Material
-                    2: { cellWidth: 25 }, // Solicitante
-                    3: { cellWidth: 25 }, // Oficina
-                    4: { cellWidth: 20, halign: 'center' }, // Cantidad
-                    5: { cellWidth: 25 }, // Fecha Préstamo
-                    6: { cellWidth: 25 }, // Devolución Prevista
-                    7: { cellWidth: 25 }, // Devolución Real
-                    8: { cellWidth: 25, halign: 'center' }, // Estado
-                    9: { cellWidth: 35 }, // Evento
-                    10: { cellWidth: 40 } // Observaciones
+                    0: { cellWidth: 15 },
+                    1: { cellWidth: 40 },
+                    2: { cellWidth: 25 },
+                    3: { cellWidth: 25 },
+                    4: { cellWidth: 20, halign: 'center' },
+                    5: { cellWidth: 25 },
+                    6: { cellWidth: 25 },
+                    7: { cellWidth: 25 },
+                    8: { cellWidth: 25, halign: 'center' },
+                    9: { cellWidth: 35 },
+                    10: { cellWidth: 40 }
                 },
                 styles: { 
                     overflow: 'linebreak',
@@ -423,7 +410,6 @@
     }
 
     function mostrarNotificacion(mensaje, tipo) {
-        // Crear toast simple
         const toastHTML = `
             <div class="position-fixed top-0 end-0 p-3" style="z-index: 1060">
                 <div class="toast align-items-center text-white bg-${tipo === 'success' ? 'success' : 'danger'} border-0 show" role="alert">
@@ -438,12 +424,10 @@
             </div>
         `;
         
-        // Insertar en el DOM
         const div = document.createElement('div');
         div.innerHTML = toastHTML;
         document.body.appendChild(div.firstElementChild);
         
-        // Auto-eliminar después de 3 segundos
         setTimeout(() => {
             const toastElement = document.querySelector('.toast');
             if (toastElement) {
@@ -453,9 +437,7 @@
         }, 3000);
     }
     
-    // Añadir tooltips
     document.addEventListener('DOMContentLoaded', function() {
-        // Inicializar tooltips de Bootstrap
         const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
         tooltipTriggerList.map(function (tooltipTriggerEl) {
             return new bootstrap.Tooltip(tooltipTriggerEl);
