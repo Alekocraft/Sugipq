@@ -1,5 +1,5 @@
 """
-BLUEPRINT DE REPORTES - Versión mejorada con filtros avanzados
+BLUEPRINT DE REPORTES - VersiÃƒÂ³n mejorada con filtros avanzados
 Integra la funcionalidad original con la estructura actual del sistema
 """
 
@@ -18,14 +18,14 @@ from utils.filters import filtrar_por_oficina_usuario
 # Crear blueprint de reportes
 reportes_bp = Blueprint('reportes', __name__, url_prefix='/reportes')
 
-# Helpers de autenticación locales
+# Helpers de autenticaciÃƒÂ³n locales
 def _require_login():
     return 'usuario_id' in session
 
-# Helper para aplicar filtros según permisos
+# Helper para aplicar filtros segÃƒÂºn permisos
 def aplicar_filtro_permisos(datos, campo_oficina='oficina_id'):
     """
-    Aplica filtro de oficina según permisos del usuario
+    Aplica filtro de oficina segÃƒÂºn permisos del usuario
     """
     if not datos:
         return []
@@ -57,10 +57,10 @@ def aplicar_filtro_permisos(datos, campo_oficina='oficina_id'):
 # RUTAS DE REPORTES
 # ============================================================================
 
-# Página principal de reportes
+# PÃƒÂ¡gina principal de reportes
 @reportes_bp.route('/')
 def reportes_index():
-    """Página principal de reportes"""
+    """PÃƒÂ¡gina principal de reportes"""
     if not _require_login():
         return redirect('/login')
     
@@ -72,7 +72,7 @@ def reportes_index():
 
 @reportes_bp.route('/solicitudes')
 def reporte_solicitudes():
-    """Reporte de solicitudes con filtros avanzados - VERSIÓN CORREGIDA"""
+    """Reporte de solicitudes con filtros avanzados - VERSIÃƒâ€œN CORREGIDA"""
     if not _require_login():
         return redirect('/login')
     
@@ -82,7 +82,7 @@ def reporte_solicitudes():
         return redirect('/reportes')
     
     try:
-        # Obtener parámetros de filtro
+        # Obtener parÃƒÂ¡metros de filtro
         filtro_estado = request.args.get('estado', 'todos')
         filtro_oficina = request.args.get('oficina', 'todas')
         filtro_material = request.args.get('material', '').strip()
@@ -93,7 +93,7 @@ def reporte_solicitudes():
         # Obtener todas las solicitudes con detalle
         solicitudes = SolicitudModel.obtener_todas_con_detalle() or []
         
-        # Aplicar filtro según permisos del usuario
+        # Aplicar filtro segÃƒÂºn permisos del usuario
         if not (session.get('rol') in ['administrador', 'lider_inventario']):
             solicitudes = filtrar_por_oficina_usuario(solicitudes, 'oficina_id')
         
@@ -104,7 +104,7 @@ def reporte_solicitudes():
             if filtro_estado != 'todos':
                 estado_solicitud = solicitud.get('estado', '').lower()
                 estado_filtro = filtro_estado.lower()
-                # CORRECCIÓN: Mejor comparación de estados
+                # CORRECCIÃƒâ€œN: Mejor comparaciÃƒÂ³n de estados
                 if estado_filtro == 'pendiente' and 'pendiente' not in estado_solicitud:
                     continue
                 elif estado_filtro == 'aprobada' and 'aprobada' not in estado_solicitud:
@@ -118,21 +118,21 @@ def reporte_solicitudes():
                 elif estado_filtro == 'devuelta' and 'devuelta' not in estado_solicitud:
                     continue
             
-            # Filtro por oficina - CORRECCIÓN: Usar ID en lugar de nombre
+            # Filtro por oficina - CORRECCIÃƒâ€œN: Usar ID en lugar de nombre
             if filtro_oficina != 'todas':
                 oficina_solicitud_id = solicitud.get('oficina_id')
-                # Intentar convertir ambos a string para comparación
+                # Intentar convertir ambos a string para comparaciÃƒÂ³n
                 if str(oficina_solicitud_id) != str(filtro_oficina):
                     continue
             
-            # Filtro por material (búsqueda por parte del nombre) - CORRECCIÓN
+            # Filtro por material (bÃƒÂºsqueda por parte del nombre) - CORRECCIÃƒâ€œN
             if filtro_material:
                 material_nombre = str(solicitud.get('material_nombre', '')).lower()
                 material_filtro = filtro_material.lower().strip()
                 if material_filtro not in material_nombre:
                     continue
             
-            # Filtro por solicitante (búsqueda por parte del nombre) - CORRECCIÓN
+            # Filtro por solicitante (bÃƒÂºsqueda por parte del nombre) - CORRECCIÃƒâ€œN
             if filtro_solicitante:
                 solicitante = str(solicitud.get('usuario_solicitante', '')).lower()
                 solicitante_filtro = filtro_solicitante.lower().strip()
@@ -154,7 +154,6 @@ def reporte_solicitudes():
                         if fecha_solicitud < fecha_inicio:
                             continue
                 except Exception as e:
-                    print(f"⚠️ Error procesando fecha inicio: {e}")
                     continue
             
             if filtro_fecha_fin:
@@ -171,12 +170,11 @@ def reporte_solicitudes():
                         if fecha_solicitud > fecha_fin:
                             continue
                 except Exception as e:
-                    print(f"⚠️ Error procesando fecha fin: {e}")
                     continue
             
             solicitudes_filtradas.append(solicitud)
         
-        # Calcular estadísticas
+        # Calcular estadÃƒÂ­sticas
         estados = {
             'pendiente': 0, 
             'aprobada': 0, 
@@ -212,18 +210,13 @@ def reporte_solicitudes():
         materiales = MaterialModel.obtener_todos() or []
         nombres_materiales = list(set([m.get('nombre', '') for m in materiales]))
         
-        # Calcular tasa de aprobación
+        # Calcular tasa de aprobaciÃƒÂ³n
         total_solicitudes = len(solicitudes_filtradas)
         tasa_aprobacion = 0
         if total_solicitudes > 0:
             aprobadas_totales = estados['aprobada'] + estados['completada'] + estados['parcial']
             tasa_aprobacion = round((aprobadas_totales / total_solicitudes) * 100, 1)
         
-        print(f"🔍 REPORTE SOLICITUDES - FILTROS APLICADOS:")
-        print(f"   Filtro oficina: {filtro_oficina}")
-        print(f"   Filtro material: {filtro_material}")
-        print(f"   Filtro solicitante: {filtro_solicitante}")
-        print(f"   Solicitudes encontradas: {len(solicitudes_filtradas)}")
         
         return render_template('reportes/solicitudes.html',
                              solicitudes=solicitudes_filtradas,
@@ -247,9 +240,6 @@ def reporte_solicitudes():
                              tasa_aprobacion=tasa_aprobacion)
                              
     except Exception as e:
-        print(f"❌ Error generando reporte de solicitudes: {e}")
-        import traceback
-        traceback.print_exc()
         flash('Error al generar el reporte de solicitudes', 'danger')
         return render_template('reportes/solicitudes.html',
                              solicitudes=[],
@@ -264,12 +254,12 @@ def reporte_solicitudes():
                              devueltas=0)
 
 # ----------------------------------
-# EXPORTACIÓN DE SOLICITUDES A EXCEL
+# EXPORTACIÃƒâ€œN DE SOLICITUDES A EXCEL
 # ----------------------------------
 
 @reportes_bp.route('/solicitudes/exportar/excel')
 def exportar_solicitudes_excel():
-    """Exporta las solicitudes filtradas a Excel - VERSIÓN CORREGIDA"""
+    """Exporta las solicitudes filtradas a Excel - VERSIÃƒâ€œN CORREGIDA"""
     if not _require_login():
         return redirect('/login')
     
@@ -290,18 +280,18 @@ def exportar_solicitudes_excel():
         # Obtener datos
         solicitudes = SolicitudModel.obtener_todas_con_detalle() or []
         
-        # Aplicar filtro según permisos
+        # Aplicar filtro segÃƒÂºn permisos
         if not (session.get('rol') in ['administrador', 'lider_inventario']):
             solicitudes = filtrar_por_oficina_usuario(solicitudes, 'oficina_id')
         
-        # Aplicar filtros adicionales (USANDO LA MISMA LÓGICA CORREGIDA)
+        # Aplicar filtros adicionales (USANDO LA MISMA LÃƒâ€œGICA CORREGIDA)
         solicitudes_filtradas = []
         for solicitud in solicitudes:
             # Filtro por estado
             if filtro_estado != 'todos':
                 estado_solicitud = solicitud.get('estado', '').lower()
                 estado_filtro = filtro_estado.lower()
-                # CORRECCIÓN: Mejor comparación de estados
+                # CORRECCIÃƒâ€œN: Mejor comparaciÃƒÂ³n de estados
                 if estado_filtro == 'pendiente' and 'pendiente' not in estado_solicitud:
                     continue
                 elif estado_filtro == 'aprobada' and 'aprobada' not in estado_solicitud:
@@ -315,20 +305,20 @@ def exportar_solicitudes_excel():
                 elif estado_filtro == 'devuelta' and 'devuelta' not in estado_solicitud:
                     continue
             
-            # Filtro por oficina - CORRECCIÓN
+            # Filtro por oficina - CORRECCIÃƒâ€œN
             if filtro_oficina != 'todas':
                 oficina_solicitud_id = solicitud.get('oficina_id')
                 if str(oficina_solicitud_id) != str(filtro_oficina):
                     continue
             
-            # Filtro por material - CORRECCIÓN
+            # Filtro por material - CORRECCIÃƒâ€œN
             if filtro_material:
                 material_nombre = str(solicitud.get('material_nombre', '')).lower()
                 material_filtro = filtro_material.lower().strip()
                 if material_filtro not in material_nombre:
                     continue
             
-            # Filtro por solicitante - CORRECCIÓN
+            # Filtro por solicitante - CORRECCIÃƒâ€œN
             if filtro_solicitante:
                 solicitante = str(solicitud.get('usuario_solicitante', '')).lower()
                 solicitante_filtro = filtro_solicitante.lower().strip()
@@ -380,7 +370,7 @@ def exportar_solicitudes_excel():
                 'Oficina': sol.get('oficina_nombre', ''),
                 'Estado': sol.get('estado', ''),
                 'Fecha Solicitud': sol.get('fecha_solicitud', ''),
-                'Fecha Aprobación': sol.get('fecha_aprobacion', ''),
+                'Fecha AprobaciÃƒÂ³n': sol.get('fecha_aprobacion', ''),
                 'Observaciones': sol.get('observacion', ''),
                 'Usuario Aprobador': sol.get('usuario_aprobador', ''),
                 'Stock Actual Material': sol.get('cantidad_disponible', '')
@@ -415,7 +405,7 @@ def exportar_solicitudes_excel():
                     f'Filtro Oficina: {filtro_oficina if filtro_oficina != "todas" else "Todas"}',
                     f'Filtro Material: {filtro_material if filtro_material else "Ninguno"}',
                     f'Filtro Solicitante: {filtro_solicitante if filtro_solicitante else "Ninguno"}',
-                    f'Fecha Generación: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'
+                    f'Fecha GeneraciÃƒÂ³n: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'
                 ]
             }
             df_summary = pd.DataFrame(summary_data)
@@ -433,7 +423,6 @@ def exportar_solicitudes_excel():
                          download_name=filename)
                          
     except Exception as e:
-        print(f"❌ Error exportando solicitudes a Excel: {e}")
         flash('Error al exportar el reporte de solicitudes a Excel', 'danger')
         return redirect('/reportes/solicitudes')
 
@@ -454,14 +443,14 @@ def reporte_materiales():
     try:
         materiales = MaterialModel.obtener_todos() or []
         
-        # Aplicar filtro según permisos
+        # Aplicar filtro segÃƒÂºn permisos
         if not (session.get('rol') in ['administrador', 'lider_inventario']):
             materiales = filtrar_por_oficina_usuario(materiales, 'oficina_id')
         
-        # Calcular estadísticas
+        # Calcular estadÃƒÂ­sticas
         valor_total_inventario = sum(m.get('valor_total', 0) or 0 for m in materiales)
         
-        # Obtener estadísticas de solicitudes
+        # Obtener estadÃƒÂ­sticas de solicitudes
         stats_dict = {}
         for mat in materiales:
             stats = SolicitudModel.obtener_estadisticas_por_material(mat['id'])
@@ -478,7 +467,6 @@ def reporte_materiales():
                              total_solicitudes=total_solicitudes,
                              total_entregado=total_entregado)
     except Exception as e:
-        print(f"❌ Error generando reporte de materiales: {e}")
         flash('Error al generar el reporte de materiales', 'danger')
         return render_template('reportes/materiales.html',
                              materiales=[],
@@ -500,11 +488,11 @@ def reporte_inventario():
     try:
         materiales = MaterialModel.obtener_todos() or []
         
-        # Aplicar filtro según permisos
+        # Aplicar filtro segÃƒÂºn permisos
         if not (session.get('rol') in ['administrador', 'lider_inventario']):
             materiales = filtrar_por_oficina_usuario(materiales, 'oficina_id')
         
-        # Calcular estadísticas
+        # Calcular estadÃƒÂ­sticas
         valor_total = 0
         for material in materiales:
             valor_total_material = material.get('valor_total', 0)
@@ -548,7 +536,6 @@ def reporte_inventario():
                             ubicaciones=ubicaciones)
         
     except Exception as e:
-        print(f"❌ Error en reporte_inventario: {e}")
         flash('Error al generar el reporte de inventario', 'danger')
         return render_template('reportes/inventario.html',
                             productos=[],
@@ -571,12 +558,12 @@ def reporte_novedades():
     try:
         novedades = NovedadModel.obtener_todas() or []
         
-        # Aplicar filtro según permisos
+        # Aplicar filtro segÃƒÂºn permisos
         if not (session.get('rol') in ['administrador', 'lider_inventario']):
             oficina_usuario = session.get('oficina_id')
             novedades = [n for n in novedades if n.get('oficina_id') == oficina_usuario]
         
-        # Calcular estadísticas
+        # Calcular estadÃƒÂ­sticas
         total_novedades = len(novedades)
         
         # Contar por estado
@@ -601,10 +588,10 @@ def reporte_novedades():
             elif prioridad == 'baja':
                 prioridades['baja'] += 1
         
-        # Tipos de novedad únicos
+        # Tipos de novedad ÃƒÂºnicos
         tipos_novedad = list(set([n.get('tipo', 'General') for n in novedades]))
         
-        # Reportantes únicos
+        # Reportantes ÃƒÂºnicos
         reportantes = list(set([n.get('usuario_registra', 'Desconocido') for n in novedades]))
         
         # Novedades recientes
@@ -625,7 +612,6 @@ def reporte_novedades():
                              reportantes=reportantes,
                              novedades_recientes=novedades_recientes)
     except Exception as e:
-        print(f"❌ Error en reporte_novedades: {e}")
         flash('Error al generar el reporte de novedades', 'danger')
         return render_template('reportes/novedades.html',
                              novedades=[],
@@ -654,25 +640,21 @@ def reporte_oficinas():
         # Obtener todas las oficinas
         oficinas = OficinaModel.obtener_todas() or []
         
-        print(f"🔍 DEBUG reporte_oficinas: Total oficinas obtenidas: {len(oficinas)}")
         
         rol_usuario = session.get('rol', '').lower()
         oficina_id_usuario = session.get('oficina_id')
         
-        print(f"🔍 Permisos usuario - Rol: {rol_usuario}, Oficina ID: {oficina_id_usuario}")
         
-        # SOLO filtrar si es rol específico de oficina
+        # SOLO filtrar si es rol especÃƒÂ­fico de oficina
         if rol_usuario.startswith('oficina_'):
-            print(f"🔍 Filtrando solo oficina del usuario: ID {oficina_id_usuario}")
             oficinas_filtradas = []
             for o in oficinas:
                 if o.get('id') == oficina_id_usuario:
                     oficinas_filtradas.append(o)
             oficinas = oficinas_filtradas
         
-        print(f"🔍 Oficinas después de filtrar: {len(oficinas)}")
         
-        # Obtener información de inventario corporativo para cada oficina
+        # Obtener informaciÃƒÂ³n de inventario corporativo para cada oficina
         from database import get_database_connection
         
         conn = None
@@ -684,14 +666,13 @@ def reporte_oficinas():
                 oficina_id = oficina.get('id')
                 oficina_nombre = oficina.get('nombre', '')
                 
-                print(f"🔍 Procesando oficina: {oficina_nombre} (ID: {oficina_id})")
                 
                 try:
                     
                     cursor.execute("""
                         SELECT DISTINCT
                             pc.ProductoId,
-                            pc.CodigoUnico,  -- NUEVO: Código único del producto
+                            pc.CodigoUnico,  -- NUEVO: CÃƒÂ³digo ÃƒÂºnico del producto
                             pc.NombreProducto,
                             pc.Descripcion,
                             pc.ValorUnitario,
@@ -752,10 +733,8 @@ def reporte_oficinas():
                     valor_total_oficina = sum(p.get('valor_total', 0) for p in productos_oficina)
                     oficina['valor_total_inventario'] = valor_total_oficina
                     
-                    print(f"✅ Inventario corporativo para {oficina_nombre}: {len(productos_oficina)} productos")
                     
                 except Exception as mat_error:
-                    print(f"⚠️ Error obteniendo inventario corporativo para oficina {oficina_id}: {mat_error}")
                     oficina['materiales'] = []
                     oficina['cantidad_materiales'] = 0
                     oficina['valor_total_inventario'] = 0
@@ -796,11 +775,10 @@ def reporte_oficinas():
                     oficina['cantidad_solicitudes'] = len(solicitudes_oficina)
                     
                 except Exception as sol_error:
-                    print(f"⚠️ Error obteniendo solicitudes para oficina {oficina_id}: {sol_error}")
                     oficina['solicitudes'] = []
                     oficina['cantidad_solicitudes'] = 0
                 
-                # --- Préstamos de esta oficina ---
+                # --- PrÃƒÂ©stamos de esta oficina ---
                 try:
                     cursor.execute("""
                         SELECT COUNT(*) 
@@ -812,7 +790,6 @@ def reporte_oficinas():
                     oficina['cantidad_prestamos'] = result[0] if result else 0
                     
                 except Exception as prestamo_error:
-                    print(f"⚠️ Error obteniendo préstamos para oficina {oficina_id}: {prestamo_error}")
                     oficina['cantidad_prestamos'] = 0
                 
                 # --- HISTORIAL DE ASIGNACIONES CORPORATIVAS - TABLA CORRECTA ---
@@ -839,7 +816,7 @@ def reporte_oficinas():
                     for row in cursor.fetchall():
                         movimiento = {
                             'fecha': row[1],
-                            'accion': row[2] if row[2] else 'Asignación',
+                            'accion': row[2] if row[2] else 'AsignaciÃƒÂ³n',
                             'material_nombre': row[6] if row[6] else f"Producto ID: {row[0]}",
                             'cantidad': row[3] if row[3] else 1,
                             'oficina_destino_nombre': row[7] if row[7] else oficina_nombre,
@@ -848,11 +825,11 @@ def reporte_oficinas():
                         }
                         historial_oficina.append(movimiento)
                     
-                    # También buscar asignaciones regulares
+                    # TambiÃƒÂ©n buscar asignaciones regulares
                     cursor.execute("""
                         SELECT TOP 5
                             a.FechaAsignacion,
-                            'Asignación a Usuario' as Accion,
+                            'AsignaciÃƒÂ³n a Usuario' as Accion,
                             a.UsuarioAsignador,
                             a.Observaciones,
                             pc.NombreProducto as MaterialNombre
@@ -878,7 +855,7 @@ def reporte_oficinas():
                     # Combinar todos los movimientos
                     todos_movimientos = historial_oficina + asignaciones_regulares
                     
-                    # Ordenar por fecha (más reciente primero)
+                    # Ordenar por fecha (mÃƒÂ¡s reciente primero)
                     todos_movimientos_ordenados = sorted(
                         todos_movimientos, 
                         key=lambda x: x['fecha'] if x['fecha'] else datetime.min, 
@@ -888,23 +865,18 @@ def reporte_oficinas():
                     oficina['movimientos'] = todos_movimientos_ordenados
                     oficina['cantidad_movimientos'] = len(todos_movimientos_ordenados)
                     
-                    print(f"✅ Movimientos para oficina {oficina_nombre}: {len(todos_movimientos_ordenados)} registros")
                     
                     # Debug: Mostrar los primeros 3 movimientos
                     for i, mov in enumerate(todos_movimientos_ordenados[:3]):
-                        print(f"   {i+1}. {mov.get('fecha')} - {mov.get('accion')}: {mov.get('material_nombre')}")
+
+                        pass
                     
                 except Exception as mov_error:
-                    print(f"⚠️ Error obteniendo movimientos para oficina {oficina_id}: {mov_error}")
-                    import traceback
-                    traceback.print_exc()
                     oficina['movimientos'] = []
                     oficina['cantidad_movimientos'] = 0
         
         except Exception as e:
-            print(f"⚠️ Error general obteniendo datos: {e}")
-            import traceback
-            traceback.print_exc()
+            pass
             
             for oficina in oficinas:
                 oficina['materiales'] = []
@@ -927,11 +899,6 @@ def reporte_oficinas():
         total_movimientos_oficinas = sum(o.get('cantidad_movimientos', 0) for o in oficinas)
         oficinas_activas_count = len([o for o in oficinas if o.get('estado') == 'activo'])
         
-        print(f"✅ REPORTE OFICINAS GENERADO:")
-        print(f"   - Total oficinas: {len(oficinas)}")
-        print(f"   - Total materiales: {total_materiales_oficinas}")
-        print(f"   - Valor total inventario: ${total_valor_inventario:,.2f}")
-        print(f"   - Total movimientos: {total_movimientos_oficinas}")
         
         return render_template('reportes/oficinas.html',
                              oficinas=oficinas,
@@ -943,9 +910,6 @@ def reporte_oficinas():
                              total_valor_inventario=total_valor_inventario)
         
     except Exception as e:
-        print(f"❌ Error generando reporte de oficinas: {e}")
-        import traceback
-        traceback.print_exc()
         flash('Error al generar el reporte de oficinas', 'danger')
         return render_template('reportes/oficinas.html',
                              oficinas=[],
@@ -958,7 +922,7 @@ def reporte_oficinas():
 
 @reportes_bp.route('/prestamos')
 def reporte_prestamos():
-    """Reporte de préstamos - VERSIÓN CORREGIDA CON TODAS LAS ESTADÍSTICAS"""
+    """Reporte de préstamos"""
     if not _require_login():
         return redirect('/login')
     
@@ -972,7 +936,6 @@ def reporte_prestamos():
         conn = get_database_connection()
         cursor = conn.cursor()
         
-        # Obtener filtros del template
         filtro_estado = request.args.get('estado', 'todos')
         filtro_oficina = request.args.get('oficina', 'todas')
         filtro_material = request.args.get('material', '').strip()
@@ -980,13 +943,6 @@ def reporte_prestamos():
         filtro_fecha_inicio = request.args.get('fecha_inicio', '')
         filtro_fecha_fin = request.args.get('fecha_fin', '')
         
-        print(f"🔍 Filtros recibidos:")
-        print(f"   Estado: {filtro_estado}")
-        print(f"   Oficina: {filtro_oficina}")
-        print(f"   Material: {filtro_material}")
-        print(f"   Solicitante: {filtro_solicitante}")
-        
-        # Construir consulta base con cálculo de estado ATRASADO
         query = """
             SELECT 
                 pe.PrestamoId,
@@ -1006,7 +962,6 @@ def reporte_prestamos():
                 pe.UsuarioPrestador,
                 ep.ValorUnitario,
                 (pe.CantidadPrestada * ep.ValorUnitario) as Subtotal,
-                -- Calcular si está atrasado
                 CASE 
                     WHEN pe.Estado = 'PRESTADO' AND pe.FechaDevolucionPrevista < CAST(GETDATE() AS DATE)
                     THEN 1
@@ -1021,37 +976,29 @@ def reporte_prestamos():
         
         params = []
         
-        # Aplicar filtro de estado
-        # NOTA: ATRASADO no es un estado real, se filtra después
         if filtro_estado and filtro_estado != 'todos' and filtro_estado != 'ATRASADO':
             query += " AND pe.Estado = ?"
             params.append(filtro_estado)
         
-        # Aplicar filtro de oficina según permisos
         rol_usuario = session.get('rol', '').lower()
         oficina_id_usuario = session.get('oficina_id')
         
-        # Los roles con acceso total pueden filtrar por oficina
         if rol_usuario in ['administrador', 'lider_inventario', 'aprobador', 'tesoreria']:
             if filtro_oficina and filtro_oficina != 'todas':
                 query += " AND pe.OficinaId = ?"
                 params.append(filtro_oficina)
         else:
-            # Usuario normal solo ve su oficina
             query += " AND pe.OficinaId = ?"
             params.append(oficina_id_usuario)
         
-        # Aplicar filtro de material (búsqueda parcial)
         if filtro_material:
             query += " AND ep.NombreElemento LIKE ?"
             params.append(f'%{filtro_material}%')
         
-        # Aplicar filtro de solicitante (búsqueda parcial)
         if filtro_solicitante:
             query += " AND u.NombreUsuario LIKE ?"
             params.append(f'%{filtro_solicitante}%')
         
-        # Aplicar filtro de fechas
         if filtro_fecha_inicio:
             query += " AND CAST(pe.FechaPrestamo AS DATE) >= ?"
             params.append(filtro_fecha_inicio)
@@ -1060,15 +1007,10 @@ def reporte_prestamos():
             query += " AND CAST(pe.FechaPrestamo AS DATE) <= ?"
             params.append(filtro_fecha_fin)
         
-        # Ordenar
         query += " ORDER BY pe.FechaPrestamo DESC"
-        
-        print(f"📋 Consulta SQL: {query}")
-        print(f"📋 Parámetros: {params}")
         
         cursor.execute(query, params)
         
-        # Procesar resultados
         prestamos_raw = []
         for row in cursor.fetchall():
             prestamo = {
@@ -1093,13 +1035,11 @@ def reporte_prestamos():
             }
             prestamos_raw.append(prestamo)
         
-        # Filtrar por ATRASADO si es necesario (filtro post-consulta)
         if filtro_estado == 'ATRASADO':
             prestamos = [p for p in prestamos_raw if p['esta_atrasado']]
         else:
             prestamos = prestamos_raw
         
-        # Obtener oficinas para el filtro (solo para roles con acceso total)
         oficinas = []
         if rol_usuario in ['administrador', 'lider_inventario', 'aprobador', 'tesoreria']:
             cursor.execute("SELECT OficinaId, NombreOficina FROM Oficinas WHERE Activo = 1 ORDER BY NombreOficina")
@@ -1107,38 +1047,18 @@ def reporte_prestamos():
         
         conn.close()
         
-        # ====================================================================
-        # CALCULAR TODAS LAS ESTADÍSTICAS QUE ESPERA EL TEMPLATE
-        # ====================================================================
-        
         total_prestamos = len(prestamos)
         
-        # Contar por estados reales
         prestamos_activos = len([p for p in prestamos if p['estado'] == 'PRESTADO'])
         devueltos = len([p for p in prestamos if p['estado'] == 'DEVUELTO'])
         rechazados = len([p for p in prestamos if p['estado'] == 'RECHAZADO'])
         aprobados_parcial = len([p for p in prestamos if p['estado'] == 'APROBADO_PARCIAL'])
         
-        # Calcular atrasados (préstamos activos con fecha vencida)
         atrasados = len([p for p in prestamos if p['esta_atrasado']])
         
-        # Calcular cantidades
         cantidad_total_prestada = sum(p['cantidad'] for p in prestamos)
         cantidad_devuelta = sum(p['cantidad'] for p in prestamos if p['estado'] == 'DEVUELTO')
         
-        print(f"✅ Estadísticas calculadas:")
-        print(f"   Total préstamos: {total_prestamos}")
-        print(f"   Prestados activos: {prestamos_activos}")
-        print(f"   Devueltos: {devueltos}")
-        print(f"   Atrasados: {atrasados}")
-        print(f"   Rechazados: {rechazados}")
-        print(f"   Aprobados parcial: {aprobados_parcial}")
-        print(f"   Cantidad total prestada: {cantidad_total_prestada}")
-        print(f"   Cantidad devuelta: {cantidad_devuelta}")
-        
-        # ====================================================================
-        # FECHA ACTUAL PARA EL TEMPLATE (SOLUCIÓN AL ERROR DE DATETIME)
-        # ====================================================================
         fecha_hoy = datetime.now().date()
         
         return render_template('reportes/prestamos.html',
@@ -1158,15 +1078,11 @@ def reporte_prestamos():
                              filtro_fecha_inicio=filtro_fecha_inicio,
                              filtro_fecha_fin=filtro_fecha_fin,
                              oficinas=oficinas,
-                             hoy=fecha_hoy)  # ← SOLUCIÓN: Pasar fecha al template
+                             hoy=fecha_hoy)
                              
-    except Exception as e:
-        print(f"❌ Error generando reporte de préstamos: {e}")
-        import traceback
-        traceback.print_exc()
+    except Exception:
         flash('Error al generar el reporte de préstamos', 'danger')
         
-        # Fecha actual para el template en caso de error
         fecha_hoy = datetime.now().date()
         
         return render_template('reportes/prestamos.html',
@@ -1186,11 +1102,8 @@ def reporte_prestamos():
                              filtro_fecha_inicio='',
                              filtro_fecha_fin='',
                              oficinas=[],
-                             hoy=fecha_hoy)  # ← SOLUCIÓN: Pasar fecha al template
+                             hoy=fecha_hoy)
 
-# ============================================================================
-# RUTAS DE EXPORTACIÓN
-# ============================================================================
 
 @reportes_bp.route('/materiales/exportar/excel')
 def exportar_materiales_excel():
@@ -1201,7 +1114,7 @@ def exportar_materiales_excel():
     try:
         materiales = MaterialModel.obtener_todos() or []
         
-        # Aplicar filtro según permisos
+        # Aplicar filtro segÃƒÂºn permisos
         if not (session.get('rol') in ['administrador', 'lider_inventario']):
             materiales = filtrar_por_oficina_usuario(materiales, 'oficina_id')
 
@@ -1212,11 +1125,11 @@ def exportar_materiales_excel():
                 'Nombre': mat.get('nombre', ''),
                 'Valor Unitario': mat.get('valor_unitario', 0),
                 'Stock Actual': mat.get('cantidad', 0),
-                'Stock Mínimo': mat.get('stock_minimo', 0) if mat.get('stock_minimo') else 0,
+                'Stock MÃƒÂ­nimo': mat.get('stock_minimo', 0) if mat.get('stock_minimo') else 0,
                 'Valor Total': mat.get('valor_total', 0),
                 'Oficina': mat.get('oficina_nombre', ''),
                 'Creado por': mat.get('usuario_creador', ''),
-                'Fecha Creación': mat.get('fecha_creacion', '')
+                'Fecha CreaciÃƒÂ³n': mat.get('fecha_creacion', '')
             })
 
         df = pd.DataFrame(data)
@@ -1233,12 +1146,11 @@ def exportar_materiales_excel():
                          as_attachment=True,
                          download_name=filename)
     except Exception as e:
-        print(f"❌ Error exportando materiales a Excel: {e}")
         flash('Error al exportar el reporte de materiales a Excel', 'danger')
         return redirect('/reportes')
 
 # ============================================================================
-# FUNCIONES DE EXPORTACIÓN A PDF - VERSIONES MEJORADAS
+# FUNCIONES DE EXPORTACIÃƒâ€œN A PDF - VERSIONES MEJORADAS
 # ============================================================================
 
 @reportes_bp.route('/exportar/inventario-corporativo/pdf')
@@ -1261,7 +1173,7 @@ def exportar_inventario_corporativo_pdf():
             from reportlab.lib import colors
             from reportlab.lib.units import inch, cm
         except ImportError:
-            flash('La librería ReportLab no está instalada. Instálela con: pip install reportlab', 'danger')
+            flash('La librerÃƒÂ­a ReportLab no estÃƒÂ¡ instalada. InstÃƒÂ¡lela con: pip install reportlab', 'danger')
             return redirect('/reportes')
         
         from database import get_database_connection
@@ -1303,7 +1215,7 @@ def exportar_inventario_corporativo_pdf():
         # Crear PDF en memoria
         buffer = io.BytesIO()
         
-        # Usar landscape y ajustar márgenes para mejor uso del espacio
+        # Usar landscape y ajustar mÃƒÂ¡rgenes para mejor uso del espacio
         doc = SimpleDocTemplate(
             buffer,
             pagesize=landscape(letter),
@@ -1334,9 +1246,9 @@ def exportar_inventario_corporativo_pdf():
         # Preparar datos para la tabla
         data = []
         
-        # Título
+        # TÃƒÂ­tulo
         data.append([Paragraph('<b>REPORTE DE INVENTARIO CORPORATIVO</b>', title_style)])
-        data.append([Paragraph(f'Fecha de generación: {datetime.now().strftime("%d/%m/%Y %H:%M")}', subtitle_style)])
+        data.append([Paragraph(f'Fecha de generaciÃƒÂ³n: {datetime.now().strftime("%d/%m/%Y %H:%M")}', subtitle_style)])
         data.append([''])  # Espacio
         
         # Encabezados de tabla
@@ -1369,11 +1281,11 @@ def exportar_inventario_corporativo_pdf():
         data.append(['Valor Total Inventario:', f"${total_valor:,.2f}", '', '', '', '', '', '', ''])
         
         # Crear tabla
-        table = Table(data, repeatRows=4)  # Repetir encabezados en cada página
+        table = Table(data, repeatRows=4)  # Repetir encabezados en cada pÃƒÂ¡gina
         
         # Estilo de la tabla
         table_style = TableStyle([
-            ('SPAN', (0, 0), (8, 0)),  # Título
+            ('SPAN', (0, 0), (8, 0)),  # TÃƒÂ­tulo
             ('SPAN', (0, 1), (8, 1)),  # Fecha
             
             # Encabezados
@@ -1413,7 +1325,7 @@ def exportar_inventario_corporativo_pdf():
             1.5*cm,  # Cantidad
             2.0*cm,  # Valor Unitario
             2.0*cm,  # Valor Total
-            1.5*cm,  # Stock Mínimo
+            1.5*cm,  # Stock MÃƒÂ­nimo
             1.5*cm,  # Estado
             2.0*cm,  # Responsable
             2.0*cm   # Fecha
@@ -1429,7 +1341,6 @@ def exportar_inventario_corporativo_pdf():
         fecha_actual = datetime.now().strftime('%Y%m%d_%H%M%S')
         filename = f'reporte_inventario_corporativo_{fecha_actual}.pdf'
         
-        print(f"✅ PDF generado exitosamente: {total_materiales} registros, valor total: ${total_valor:,.2f}")
         
         return send_file(
             buffer,
@@ -1439,24 +1350,21 @@ def exportar_inventario_corporativo_pdf():
         )
         
     except Exception as e:
-        print(f"❌ Error exportando a PDF: {e}")
-        import traceback
-        traceback.print_exc()
         flash(f'Error al generar el PDF del inventario: {str(e)}', 'danger')
         return redirect('/reportes')
 
 @reportes_bp.route('/prestamos/exportar/pdf')
 def exportar_prestamos_pdf():
-    """Exporta el reporte de préstamos a PDF"""
+    """Exporta el reporte de prÃƒÂ©stamos a PDF"""
     if not _require_login():
         return redirect('/login')
     
     if not (can_access('prestamos', 'view') or can_access('prestamos', 'view_own')):
-        flash('No tiene permisos para exportar reportes de préstamos', 'warning')
+        flash('No tiene permisos para exportar reportes de prÃƒÂ©stamos', 'warning')
         return redirect('/reportes')
     
     try:
-        # Verificar si reportlab está instalado
+        # Verificar si reportlab estÃƒÂ¡ instalado
         try:
             from reportlab.lib.pagesizes import letter, landscape
             from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
@@ -1464,7 +1372,7 @@ def exportar_prestamos_pdf():
             from reportlab.lib import colors
             from reportlab.lib.units import inch, cm
         except ImportError:
-            flash('La librería ReportLab no está instalada. Instálela con: pip install reportlab', 'danger')
+            flash('La librerÃƒÂ­a ReportLab no estÃƒÂ¡ instalada. InstÃƒÂ¡lela con: pip install reportlab', 'danger')
             return redirect('/reportes')
         
         from database import get_database_connection
@@ -1473,7 +1381,7 @@ def exportar_prestamos_pdf():
         conn = get_database_connection()
         cursor = conn.cursor()
         
-        # Consulta para préstamos
+        # Consulta para prÃƒÂ©stamos
         query = """
         SELECT 
             pe.PrestamoId as ID,
@@ -1502,7 +1410,7 @@ def exportar_prestamos_pdf():
         
         # Verificar si hay datos
         if not resultados:
-            flash('No hay datos de préstamos para exportar', 'warning')
+            flash('No hay datos de prÃƒÂ©stamos para exportar', 'warning')
             return redirect('/reportes')
         
         # Crear PDF en memoria
@@ -1531,9 +1439,9 @@ def exportar_prestamos_pdf():
         # Preparar datos para la tabla
         data = []
         
-        # Título
-        data.append([Paragraph('<b>REPORTE DE PRÉSTAMOS</b>', title_style)])
-        data.append([Paragraph(f'Fecha de generación: {datetime.now().strftime("%d/%m/%Y %H:%M")}', 
+        # TÃƒÂ­tulo
+        data.append([Paragraph('<b>REPORTE DE PRÃƒâ€°STAMOS</b>', title_style)])
+        data.append([Paragraph(f'Fecha de generaciÃƒÂ³n: {datetime.now().strftime("%d/%m/%Y %H:%M")}', 
                                ParagraphStyle('Date', parent=styles['Normal'], fontSize=9, alignment=1))])
         data.append([''])  # Espacio
         
@@ -1544,21 +1452,21 @@ def exportar_prestamos_pdf():
         for row in resultados:
             data.append([str(value) if value is not None else '' for value in row])
         
-        # Estadísticas
+        # EstadÃƒÂ­sticas
         total_prestamos = len(resultados)
         prestamos_activos = len([r for r in resultados if r[7] == 'PRESTADO'])
         
         data.append([''])  # Espacio
-        data.append(['<b>ESTADÍSTICAS</b>', '', '', '', '', '', '', '', ''])
-        data.append(['Total Préstamos:', str(total_prestamos), '', '', '', '', '', '', ''])
-        data.append(['Préstamos Activos:', str(prestamos_activos), '', '', '', '', '', '', ''])
+        data.append(['<b>ESTADÃƒÂSTICAS</b>', '', '', '', '', '', '', '', ''])
+        data.append(['Total PrÃƒÂ©stamos:', str(total_prestamos), '', '', '', '', '', '', ''])
+        data.append(['PrÃƒÂ©stamos Activos:', str(prestamos_activos), '', '', '', '', '', '', ''])
         
         # Crear tabla
         table = Table(data, repeatRows=3)  # Repetir encabezados
         
-        # Estilo de la tabla - OPTIMIZADO PARA UNA PÁGINA
+        # Estilo de la tabla - OPTIMIZADO PARA UNA PÃƒÂGINA
         table_style = TableStyle([
-            ('SPAN', (0, 0), (-1, 0)),  # Título ocupa todas las columnas
+            ('SPAN', (0, 0), (-1, 0)),  # TÃƒÂ­tulo ocupa todas las columnas
             ('SPAN', (0, 1), (-1, 1)),  # Fecha ocupa todas las columnas
             
             ('BACKGROUND', (0, 2), (-1, 2), colors.HexColor('#4F81BD')),  # Encabezados
@@ -1568,11 +1476,11 @@ def exportar_prestamos_pdf():
             ('FONTSIZE', (0, 2), (-1, 2), 8),
             ('BOTTOMPADDING', (0, 2), (-1, 2), 6),
             
-            ('GRID', (0, 2), (-1, -5), 0.5, colors.gray),  # Hasta antes de estadísticas
+            ('GRID', (0, 2), (-1, -5), 0.5, colors.gray),  # Hasta antes de estadÃƒÂ­sticas
             ('FONTSIZE', (0, 3), (-1, -5), 7),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             
-            # Estadísticas
+            # EstadÃƒÂ­sticas
             ('FONTNAME', (0, -3), (1, -1), 'Helvetica-Bold'),
             ('ALIGN', (0, -3), (1, -1), 'LEFT'),
             ('BACKGROUND', (0, -3), (1, -1), colors.HexColor('#F2F2F2')),
@@ -1584,15 +1492,15 @@ def exportar_prestamos_pdf():
         
         table.setStyle(table_style)
         
-        # Ajustar ancho de columnas específicamente para préstamos
+        # Ajustar ancho de columnas especÃƒÂ­ficamente para prÃƒÂ©stamos
         col_widths = [
             1.0*cm,  # ID
             3.0*cm,  # Material
             2.5*cm,  # Solicitante
             2.0*cm,  # Oficina
             1.5*cm,  # Cantidad
-            2.0*cm,  # Fecha Préstamo
-            2.0*cm,  # Devolución Prevista
+            2.0*cm,  # Fecha PrÃƒÂ©stamo
+            2.0*cm,  # DevoluciÃƒÂ³n Prevista
             1.5*cm,  # Estado
             2.5*cm   # Evento
         ]
@@ -1615,8 +1523,7 @@ def exportar_prestamos_pdf():
         )
         
     except Exception as e:
-        print(f"❌ Error exportando préstamos a PDF: {e}")
-        flash(f'Error al generar el PDF de préstamos: {str(e)}', 'danger')
+        flash(f'Error al generar el PDF de prÃƒÂ©stamos: {str(e)}', 'danger')
         return redirect('/reportes')
 
 @reportes_bp.route('/materiales/exportar/pdf')
@@ -1630,7 +1537,7 @@ def exportar_materiales_pdf():
         return redirect('/reportes')
     
     try:
-        # Verificar si reportlab está instalado
+        # Verificar si reportlab estÃƒÂ¡ instalado
         try:
             from reportlab.lib.pagesizes import letter, landscape
             from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
@@ -1638,7 +1545,7 @@ def exportar_materiales_pdf():
             from reportlab.lib import colors
             from reportlab.lib.units import inch, cm
         except ImportError:
-            flash('La librería ReportLab no está instalada. Instálela con: pip install reportlab', 'danger')
+            flash('La librerÃƒÂ­a ReportLab no estÃƒÂ¡ instalada. InstÃƒÂ¡lela con: pip install reportlab', 'danger')
             return redirect('/reportes')
         
         from database import get_database_connection
@@ -1703,9 +1610,9 @@ def exportar_materiales_pdf():
         # Preparar datos para la tabla
         data = []
         
-        # Título
+        # TÃƒÂ­tulo
         data.append([Paragraph('<b>REPORTE DE MATERIALES</b>', title_style)])
-        data.append([Paragraph(f'Fecha de generación: {datetime.now().strftime("%d/%m/%Y %H:%M")}', 
+        data.append([Paragraph(f'Fecha de generaciÃƒÂ³n: {datetime.now().strftime("%d/%m/%Y %H:%M")}', 
                                ParagraphStyle('Date', parent=styles['Normal'], fontSize=9, alignment=1))])
         data.append([''])  # Espacio
         
@@ -1774,7 +1681,7 @@ def exportar_materiales_pdf():
             1.5*cm,  # Stock
             2.0*cm,  # Valor Unitario
             2.0*cm,  # Valor Total
-            1.5*cm,  # Stock Mínimo
+            1.5*cm,  # Stock MÃƒÂ­nimo
             1.5*cm,  # Estado
             2.5*cm,  # Responsable
             2.0*cm   # Fecha
@@ -1798,13 +1705,12 @@ def exportar_materiales_pdf():
         )
         
     except Exception as e:
-        print(f"❌ Error exportando materiales a PDF: {e}")
         flash(f'Error al generar el PDF de materiales: {str(e)}', 'danger')
         return redirect('/reportes')
 
 @reportes_bp.route('/material/<int:material_id>')
 def material_detalle(material_id):
-    """Detalle de material específico"""
+    """Detalle de material especÃƒÂ­fico"""
     if not _require_login():
         return redirect('/login')
     
@@ -1813,8 +1719,6 @@ def material_detalle(material_id):
         return redirect('/reportes')
     
     try:
-        from database import get_database_connection
-        
         # Obtener el material
         material = MaterialModel.obtener_por_id(material_id)
         if not material:
@@ -1827,57 +1731,10 @@ def material_detalle(material_id):
                 flash('No tiene permisos para ver este material', 'danger')
                 return redirect('/reportes/materiales')
         
-        # Obtener estadísticas del material
-        stats = SolicitudModel.obtener_estadisticas_por_material(material_id)
-        total_solicitudes = stats[0]
-        solicitudes_aprobadas = stats[1]
-        
-        # Obtener historial de solicitudes del material
-        conn = get_database_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            SELECT 
-                sm.SolicitudId as id,
-                sm.UsuarioSolicitante as usuario_nombre,
-                o.NombreOficina as oficina_nombre,
-                sm.CantidadSolicitada as cantidad_solicitada,
-                es.NombreEstado as estado,
-                sm.FechaSolicitud as fecha_solicitud,
-                sm.FechaAprobacion as fecha_aprobacion,
-                sm.Observacion as observacion
-            FROM SolicitudesMaterial sm
-            INNER JOIN Oficinas o ON sm.OficinaSolicitanteId = o.OficinaId
-            INNER JOIN EstadosSolicitud es ON sm.EstadoId = es.EstadoId
-            WHERE sm.MaterialId = ?
-            ORDER BY sm.FechaSolicitud DESC
-        """, (material_id,))
-        
-        solicitudes = []
-        for row in cursor.fetchall():
-            solicitudes.append({
-                'id': row[0],
-                'usuario_nombre': row[1],
-                'oficina_nombre': row[2],
-                'cantidad_solicitada': row[3],
-                'estado': row[4],
-                'fecha_solicitud': row[5],
-                'fecha_aprobacion': row[6],
-                'observacion': row[7]
-            })
-        
-        conn.close()
-        
         return render_template('reportes/material_detalle.html',
-                             material=material,
-                             solicitudes=solicitudes,
-                             total_solicitudes=total_solicitudes,
-                             solicitudes_aprobadas=solicitudes_aprobadas)
+                             material=material)
         
     except Exception as e:
-        print(f"⚠️ Error obteniendo detalle del material: {e}")
-        import traceback
-        traceback.print_exc()
         flash('Error al obtener el detalle del material', 'danger')
         return redirect('/reportes/materiales')
 
@@ -1897,7 +1754,7 @@ def exportar_inventario_corporativo_excel():
         
         conn = get_database_connection()
         
-        # CONSULTA CORREGIDA según tu estructura de base de datos
+        # CONSULTA CORREGIDA segÃƒÂºn tu estructura de base de datos
         query = """
         SELECT 
             o.NombreOficina,
@@ -1919,10 +1776,6 @@ def exportar_inventario_corporativo_excel():
         df = pd.read_sql_query(query, conn)
         conn.close()
         
-        print(f"✅ EXPORTANDO INVENTARIO CORPORATIVO: {len(df)} registros")
-        print(f"   - Fuente: Tabla Materiales (INVENTARIO CORPORATIVO)")
-        print(f"   - Oficinas incluidas: {df['NombreOficina'].nunique()}")
-        print(f"   - Valor total exportado: ${df['ValorTotal'].sum():,.2f}")
         
         # Crear archivo Excel en memoria
         output = BytesIO()
@@ -1936,19 +1789,19 @@ def exportar_inventario_corporativo_excel():
                 'Stock': 'sum',
                 'ValorTotal': 'sum'
             }).reset_index()
-            resumen_df.columns = ['Oficina', 'Ubicación', 'Cantidad Materiales', 'Stock Total', 'Valor Total Inventario']
+            resumen_df.columns = ['Oficina', 'UbicaciÃƒÂ³n', 'Cantidad Materiales', 'Stock Total', 'Valor Total Inventario']
             resumen_df['Valor Total Inventario'] = resumen_df['Valor Total Inventario'].round(2)
             resumen_df.to_excel(writer, sheet_name='Resumen por Oficina', index=False)
             
             # Hoja 3: Totales generales
             totales_data = {
-                'Métrica': [
+                'MÃƒÂ©trica': [
                     'Total Oficinas con Inventario',
                     'Total Materiales',
                     'Stock Total',
                     'Valor Total Inventario',
                     'Valor Promedio por Material',
-                    'Fecha de Exportación'
+                    'Fecha de ExportaciÃƒÂ³n'
                 ],
                 'Valor': [
                     resumen_df['Oficina'].nunique(),
@@ -1976,19 +1829,16 @@ def exportar_inventario_corporativo_excel():
         )
         
     except Exception as e:
-        print(f"❌ Error exportando inventario corporativo: {e}")
-        import traceback
-        traceback.print_exc()
         flash('Error al exportar el inventario corporativo', 'danger')
         return redirect('/reportes')
 
 # ============================================================================
-# EXPORTACIÓN POR OFICINA
+# EXPORTACIÃƒâ€œN POR OFICINA
 # ============================================================================
 
 @reportes_bp.route('/exportar/oficina/<int:oficina_id>/<string:formato>')
 def exportar_oficina_inventario(oficina_id, formato):
-    """Exporta el inventario de una oficina específica"""
+    """Exporta el inventario de una oficina especÃƒÂ­fica"""
     if not _require_login():
         return redirect('/login')
     
@@ -2000,15 +1850,15 @@ def exportar_oficina_inventario(oficina_id, formato):
     try:
         from database import get_database_connection
         
-        # Obtener parámetros - CORREGIDO
+        # Obtener parÃƒÂ¡metros - CORREGIDO
         incluir_materiales = request.args.get('materiales', '1') == '1'
         incluir_movimientos = request.args.get('movimientos', '1') == '1'
         incluir_totales = request.args.get('totales', '1') == '1'
-        # incluir_solicitudes no se usa en la consulta SQL, se eliminó
+        # incluir_solicitudes no se usa en la consulta SQL, se eliminÃƒÂ³
         
         conn = get_database_connection()
         
-        # Obtener información de la oficina - CORREGIDO
+        # Obtener informaciÃƒÂ³n de la oficina - CORREGIDO
         cursor = conn.cursor()
         cursor.execute("""
             SELECT OficinaId, NombreOficina, Ubicacion, Region, Estado
@@ -2091,7 +1941,7 @@ def exportar_oficina_inventario(oficina_id, formato):
                     if row[0]:  # Solo si hay fecha
                         movimiento = {
                             'fecha': row[0],
-                            'accion': row[1] or 'Asignación',
+                            'accion': row[1] or 'AsignaciÃƒÂ³n',
                             'cantidad': row[2] or 1,
                             'usuario_nombre': row[3] or 'Sistema',
                             'observaciones': row[4] or '',
@@ -2100,9 +1950,9 @@ def exportar_oficina_inventario(oficina_id, formato):
                         movimientos.append(movimiento)
                         
             except Exception as mov_error:
-                print(f"⚠️ Error obteniendo movimientos corporativos: {mov_error}")
+                pass
                 
-            # También buscar en movimientos regulares
+            # TambiÃƒÂ©n buscar en movimientos regulares
             try:
                 cursor.execute("""
                     SELECT TOP 10
@@ -2133,7 +1983,7 @@ def exportar_oficina_inventario(oficina_id, formato):
                         movimientos.append(movimiento)
                         
             except Exception as mov_error2:
-                print(f"⚠️ Error obteniendo movimientos regulares: {mov_error2}")
+                pass
         
         conn.close()
         
@@ -2142,10 +1992,10 @@ def exportar_oficina_inventario(oficina_id, formato):
         valor_total_inventario = sum(m.get('valor_total', 0) for m in materiales)
         total_movimientos = len(movimientos)
         
-        # Ordenar movimientos por fecha (más reciente primero)
+        # Ordenar movimientos por fecha (mÃƒÂ¡s reciente primero)
         movimientos.sort(key=lambda x: x.get('fecha', datetime.min), reverse=True)
         
-        # Exportar según formato
+        # Exportar segÃƒÂºn formato
         if formato.lower() == 'excel':
             return _exportar_oficina_excel(oficina, materiales, movimientos,
                                           total_materiales, valor_total_inventario, 
@@ -2159,13 +2009,10 @@ def exportar_oficina_inventario(oficina_id, formato):
                                         total_materiales, valor_total_inventario,
                                         total_movimientos, incluir_totales)
         else:
-            flash('Formato de exportación no válido', 'danger')
+            flash('Formato de exportaciÃƒÂ³n no vÃƒÂ¡lido', 'danger')
             return redirect('/reportes')
             
     except Exception as e:
-        print(f"❌ Error exportando inventario de oficina: {e}")
-        import traceback
-        traceback.print_exc()
         flash('Error al exportar el inventario de la oficina', 'danger')
         return redirect('/reportes')
 
@@ -2180,11 +2027,11 @@ def _exportar_oficina_excel(oficina, materiales, movimientos, total_materiales,
         data_frames = []
         sheet_names = []
         
-        # Hoja 1: Información de la oficina
+        # Hoja 1: InformaciÃƒÂ³n de la oficina
         oficina_info = {
-            'Campo': ['Nombre Oficina', 'Ubicación', 'Región', 'Estado', 'ID Oficina', 
+            'Campo': ['Nombre Oficina', 'UbicaciÃƒÂ³n', 'RegiÃƒÂ³n', 'Estado', 'ID Oficina', 
                      'Total Materiales', 'Valor Total Inventario', 'Total Movimientos',
-                     'Fecha Exportación'],
+                     'Fecha ExportaciÃƒÂ³n'],
             'Valor': [oficina['nombre'], oficina['ubicacion'], oficina['region'], 
                      oficina['estado'], oficina['id'], total_materiales, 
                      f"${valor_total_inventario:,.2f}", total_movimientos,
@@ -2192,7 +2039,7 @@ def _exportar_oficina_excel(oficina, materiales, movimientos, total_materiales,
         }
         df_oficina = pd.DataFrame(oficina_info)
         data_frames.append(df_oficina)
-        sheet_names.append('Información Oficina')
+        sheet_names.append('InformaciÃƒÂ³n Oficina')
         
         # Hoja 2: Materiales del inventario
         if materiales:
@@ -2207,15 +2054,15 @@ def _exportar_oficina_excel(oficina, materiales, movimientos, total_materiales,
                 materiales_data.append({
                     'ID': mat['id'],
                     'Nombre': mat['nombre'],
-                    'Descripción': mat['descripcion'],
-                    'Categoría': mat['categoria'],
+                    'DescripciÃƒÂ³n': mat['descripcion'],
+                    'CategorÃƒÂ­a': mat['categoria'],
                     'Valor Unitario': f"${mat['valor_unitario']:,.2f}",
                     'Cantidad': mat['cantidad'],
                     'Valor Total': f"${mat['valor_total']:,.2f}",
-                    'Stock Mínimo': mat['stock_minimo'],
+                    'Stock MÃƒÂ­nimo': mat['stock_minimo'],
                     'Estado': 'Activo' if mat['activo'] else 'Inactivo',
                     'Responsable': mat['usuario_creador'],
-                    'Fecha Creación': fecha_str
+                    'Fecha CreaciÃƒÂ³n': fecha_str
                 })
             
             df_materiales = pd.DataFrame(materiales_data)
@@ -2234,7 +2081,7 @@ def _exportar_oficina_excel(oficina, materiales, movimientos, total_materiales,
                 
                 movimientos_data.append({
                     'Fecha': fecha_str,
-                    'Acción': mov['accion'],
+                    'AcciÃƒÂ³n': mov['accion'],
                     'Material': mov['material_nombre'],
                     'Cantidad': mov['cantidad'],
                     'Usuario': mov['usuario_nombre'],
@@ -2281,7 +2128,6 @@ def _exportar_oficina_excel(oficina, materiales, movimientos, total_materiales,
         )
         
     except Exception as e:
-        print(f"❌ Error generando Excel de oficina: {e}")
         flash('Error al generar el archivo Excel', 'danger')
         return redirect('/reportes')
 
@@ -2290,9 +2136,9 @@ def _exportar_oficina_pdf(oficina, materiales, solicitudes, movimientos, total_m
     """Exporta a PDF el inventario de una oficina"""
     try:
         # Por ahora, redirigir a Excel hasta que implementemos PDF
-        flash('La exportación a PDF estará disponible próximamente. Usando Excel por ahora.', 'info')
+        flash('La exportaciÃƒÂ³n a PDF estarÃƒÂ¡ disponible prÃƒÂ³ximamente. Usando Excel por ahora.', 'info')
         
-        # Crear parámetros para redirección a Excel
+        # Crear parÃƒÂ¡metros para redirecciÃƒÂ³n a Excel
         from urllib.parse import urlencode
         params = {
             'materiales': '1' if materiales else '0',
@@ -2305,7 +2151,6 @@ def _exportar_oficina_pdf(oficina, materiales, solicitudes, movimientos, total_m
         return redirect(f"/reportes/oficinas/{oficina_id_val}/inventario/excel?" + urlencode(params))
         
     except Exception as e:
-        print(f"❌ Error generando PDF de oficina: {e}")
         flash('Error al generar el PDF', 'danger')
         return redirect('/reportes')
 
@@ -2319,18 +2164,18 @@ def _exportar_oficina_csv(oficina, materiales, solicitudes, movimientos, total_m
         # Crear contenido CSV
         output = StringIO()
         
-        # Encabezado con información de la oficina
+        # Encabezado con informaciÃƒÂ³n de la oficina
         output.write(f"Inventario Corporativo - {oficina['nombre']}\n")
-        output.write(f"Ubicación: {oficina['ubicacion']}\n")
+        output.write(f"UbicaciÃƒÂ³n: {oficina['ubicacion']}\n")
         output.write(f"Director: {oficina['director']}\n")
-        output.write(f"Fecha Exportación: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        output.write(f"Fecha ExportaciÃƒÂ³n: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
         output.write(f"Total Materiales: {total_materiales}\n")
         output.write(f"Valor Total Inventario: ${valor_total_inventario:,.2f}\n")
         output.write(f"Total Solicitudes: {total_solicitudes}\n")
         output.write(f"Total Movimientos: {total_movimientos}\n")
         output.write("\n")
         
-        # Sección de materiales
+        # SecciÃƒÂ³n de materiales
         if materiales:
             output.write("=== MATERIALES DEL INVENTARIO ===\n")
             df_materiales = pd.DataFrame(materiales)
@@ -2339,12 +2184,12 @@ def _exportar_oficina_csv(oficina, materiales, solicitudes, movimientos, total_m
             df_materiales.to_csv(output, index=False)
             output.write("\n")
         
-        # Sección de movimientos
+        # SecciÃƒÂ³n de movimientos
         if movimientos:
             output.write("=== HISTORIAL DE MOVIMIENTOS ===\n")
             df_movimientos = pd.DataFrame(movimientos)
             df_movimientos = df_movimientos[['fecha', 'accion', 'material_nombre', 'cantidad', 'usuario_nombre']]
-            df_movimientos.columns = ['Fecha', 'Acción', 'Material', 'Cantidad', 'Usuario']
+            df_movimientos.columns = ['Fecha', 'AcciÃƒÂ³n', 'Material', 'Cantidad', 'Usuario']
             df_movimientos.to_csv(output, index=False)
         
         # Convertir a bytes
@@ -2365,17 +2210,16 @@ def _exportar_oficina_csv(oficina, materiales, solicitudes, movimientos, total_m
         )
         
     except Exception as e:
-        print(f"❌ Error generando CSV de oficina: {e}")
         flash('Error al generar el archivo CSV', 'danger')
         return redirect('/reportes')
 
 # ============================================================================
-# FUNCIÓN ADICIONAL PARA DEPURAR DATOS DE OFICINA
+# FUNCIÃƒâ€œN ADICIONAL PARA DEPURAR DATOS DE OFICINA
 # ============================================================================
 
 @reportes_bp.route('/debug/oficina/<int:oficina_id>')
 def debug_oficina_data(oficina_id):
-    """Endpoint para depurar datos de una oficina específica"""
+    """Endpoint para depurar datos de una oficina especÃƒÂ­fica"""
     if not _require_login():
         return redirect('/login')
     
@@ -2385,7 +2229,7 @@ def debug_oficina_data(oficina_id):
         conn = get_database_connection()
         cursor = conn.cursor()
         
-        # Obtener información básica de la oficina
+        # Obtener informaciÃƒÂ³n bÃƒÂ¡sica de la oficina
         cursor.execute("""
             SELECT OficinaId, NombreOficina, Ubicacion, Region, Estado 
             FROM Oficinas 
@@ -2416,7 +2260,7 @@ def debug_oficina_data(oficina_id):
         
         conn.close()
         
-        # Preparar respuesta JSON para depuración
+        # Preparar respuesta JSON para depuraciÃƒÂ³n
         debug_info = {
             'oficina': {
                 'id': oficina[0] if oficina else None,
@@ -2461,7 +2305,7 @@ def material_historial(material_id):
         conn = get_database_connection()
         cursor = conn.cursor()
         
-        # Primero obtener información básica del material
+        # Primero obtener informaciÃƒÂ³n bÃƒÂ¡sica del material
         cursor.execute("""
             SELECT m.MaterialId, m.NombreElemento, m.Descripcion, m.Categoria,
                    m.ValorUnitario, m.CantidadDisponible, m.StockMinimo,
@@ -2513,9 +2357,9 @@ def material_historial(material_id):
                 'observaciones': row[5]
             })
         
-        # Buscar en tabla de préstamos
+        # Buscar en tabla de prÃƒÂ©stamos
         cursor.execute("""
-            SELECT pe.FechaPrestamo as Fecha, 'Préstamo' as Accion,
+            SELECT pe.FechaPrestamo as Fecha, 'PrÃƒÂ©stamo' as Accion,
                    pe.CantidadPrestada as Cantidad,
                    o.NombreOficina as Oficina,
                    u.NombreUsuario as Usuario,
@@ -2548,16 +2392,15 @@ def material_historial(material_id):
         })
         
     except Exception as e:
-        print(f"❌ Error obteniendo historial del material: {e}")
         return jsonify({'error': str(e)})
 
 # ============================================================================
-# API PARA DETALLE DE PRÉSTAMOS - FUNCIÓN CORREGIDA
+# API PARA DETALLE DE PRÃƒâ€°STAMOS - FUNCIÃƒâ€œN CORREGIDA
 # ============================================================================
 
 @reportes_bp.route('/api/prestamos/<int:prestamo_id>/detalle')
 def api_prestamo_detalle(prestamo_id):
-    """API para obtener detalle de un préstamo específico - VERSIÓN CORREGIDA"""
+    """API para obtener detalle de un prÃƒÂ©stamo especÃƒÂ­fico - VERSIÃƒâ€œN CORREGIDA"""
     if not _require_login():
         return jsonify({'success': False, 'message': 'No autenticado'}), 401
     
@@ -2567,7 +2410,7 @@ def api_prestamo_detalle(prestamo_id):
         conn = get_database_connection()
         cursor = conn.cursor()
         
-        # Obtener información detallada del préstamo - CONSULTA CORREGIDA
+        # Obtener informaciÃƒÂ³n detallada del prÃƒÂ©stamo - CONSULTA CORREGIDA
         cursor.execute("""
             SELECT 
                 pe.PrestamoId,
@@ -2614,7 +2457,7 @@ def api_prestamo_detalle(prestamo_id):
         
         if not prestamo_data:
             conn.close()
-            return jsonify({'success': False, 'message': 'Préstamo no encontrado o inactivo'}), 404
+            return jsonify({'success': False, 'message': 'PrÃƒÂ©stamo no encontrado o inactivo'}), 404
         
         # Convertir a diccionario
         column_names = [column[0] for column in cursor.description]
@@ -2658,21 +2501,18 @@ def api_prestamo_detalle(prestamo_id):
         })
         
     except Exception as e:
-        print(f"❌ Error obteniendo detalle del préstamo: {e}")
-        import traceback
-        traceback.print_exc()
         return jsonify({
             'success': False,
             'message': f'Error interno del servidor: {str(e)}'
         }), 500
 
 # ============================================================================
-# API PARA REGISTRAR DEVOLUCIÓN DE PRÉSTAMO
+# API PARA REGISTRAR DEVOLUCIÃƒâ€œN DE PRÃƒâ€°STAMO
 # ============================================================================
 
 @reportes_bp.route('/api/prestamos/<int:prestamo_id>/devolver', methods=['POST'])
 def api_prestamo_devolver(prestamo_id):
-    """API para registrar devolución de un préstamo"""
+    """API para registrar devoluciÃƒÂ³n de un prÃƒÂ©stamo"""
     if not _require_login():
         return jsonify({'success': False, 'message': 'No autenticado'}), 401
     
@@ -2686,7 +2526,7 @@ def api_prestamo_devolver(prestamo_id):
         conn = get_database_connection()
         cursor = conn.cursor()
         
-        # Verificar que el préstamo existe y está activo
+        # Verificar que el prÃƒÂ©stamo existe y estÃƒÂ¡ activo
         cursor.execute("""
             SELECT Estado, ElementoId, CantidadPrestada 
             FROM PrestamosElementos 
@@ -2696,18 +2536,18 @@ def api_prestamo_devolver(prestamo_id):
         prestamo = cursor.fetchone()
         if not prestamo:
             conn.close()
-            return jsonify({'success': False, 'message': 'Préstamo no encontrado o inactivo'}), 404
+            return jsonify({'success': False, 'message': 'PrÃƒÂ©stamo no encontrado o inactivo'}), 404
         
         estado, elemento_id, cantidad = prestamo
         
         if estado != 'PRESTADO':
             conn.close()
-            return jsonify({'success': False, 'message': 'El préstamo no está en estado PRESTADO'}), 400
+            return jsonify({'success': False, 'message': 'El prÃƒÂ©stamo no estÃƒÂ¡ en estado PRESTADO'}), 400
         
         # Obtener usuario actual
         usuario_nombre = session.get('nombre_usuario', 'Sistema')
         
-        # Registrar devolución
+        # Registrar devoluciÃƒÂ³n
         cursor.execute("""
             UPDATE PrestamosElementos 
             SET Estado = 'DEVUELTO',
@@ -2722,7 +2562,7 @@ def api_prestamo_devolver(prestamo_id):
         cursor.execute("""
             INSERT INTO PrestamosHistorialEstados 
             (PrestamoId, EstadoAnterior, EstadoNuevo, UsuarioCambio, FechaCambio, Observaciones, TipoAccion)
-            VALUES (?, ?, ?, ?, GETDATE(), 'Devolución registrada', 'DEVOLUCION')
+            VALUES (?, ?, ?, ?, GETDATE(), 'DevoluciÃƒÂ³n registrada', 'DEVOLUCION')
         """, (prestamo_id, 'PRESTADO', 'DEVUELTO', usuario_nombre))
         
         # Actualizar stock del elemento
@@ -2737,14 +2577,11 @@ def api_prestamo_devolver(prestamo_id):
         
         return jsonify({
             'success': True,
-            'message': 'Devolución registrada exitosamente'
+            'message': 'DevoluciÃƒÂ³n registrada exitosamente'
         })
         
     except Exception as e:
-        print(f"❌ Error registrando devolución del préstamo: {e}")
-        import traceback
-        traceback.print_exc()
         return jsonify({
             'success': False,
-            'message': f'Error al registrar la devolución: {str(e)}'
+            'message': f'Error al registrar la devoluciÃƒÂ³n: {str(e)}'
         }), 500
