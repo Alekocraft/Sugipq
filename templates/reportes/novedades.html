@@ -3,6 +3,48 @@
 {% block styles %}
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
 <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.1/css/buttons.bootstrap5.min.css">
+<style>
+    .table th {
+        white-space: nowrap;
+        font-weight: 600;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-bottom: 2px solid #dee2e6;
+        padding: 0.75rem 0.5rem;
+    }
+    
+    .table td {
+        vertical-align: middle;
+        padding: 0.5rem;
+        font-size: 0.85rem;
+    }
+    
+    .table tbody tr:hover {
+        background-color: rgba(111, 66, 193, 0.05);
+    }
+    
+    .table tbody tr:hover .badge {
+        transform: scale(1.05);
+        transition: transform 0.2s;
+    }
+    
+    .filtro-rapido {
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .filtro-rapido:hover {
+        transform: scale(1.05);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    
+    .filtro-rapido.active {
+        transform: scale(1.1);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        font-weight: bold;
+    }
+</style>
 {% endblock %}
 
 {% block content %}
@@ -39,19 +81,19 @@
                 <div class="card-body">
                     <div class="row text-center">
                         <div class="col-md-3 border-end">
-                            <h4 class="fw-bold mb-0 text-primary">{{ total_novedades }}</h4>
+                            <h4 class="fw-bold mb-0 text-primary">{{ total_novedades|default(0) }}</h4>
                             <small class="text-muted">Total Novedades</small>
                         </div>
                         <div class="col-md-3 border-end">
-                            <h4 class="fw-bold mb-0 text-warning">{{ pendientes }}</h4>
+                            <h4 class="fw-bold mb-0 text-warning">{{ pendientes|default(0) }}</h4>
                             <small class="text-muted">Pendientes</small>
                         </div>
                         <div class="col-md-3 border-end">
-                            <h4 class="fw-bold mb-0 text-info">{{ en_proceso }}</h4>
+                            <h4 class="fw-bold mb-0 text-info">{{ en_proceso|default(0) }}</h4>
                             <small class="text-muted">En Proceso</small>
                         </div>
                         <div class="col-md-3">
-                            <h4 class="fw-bold mb-0 text-success">{{ resueltas }}</h4>
+                            <h4 class="fw-bold mb-0 text-success">{{ resueltas|default(0) }}</h4>
                             <small class="text-muted">Resueltas</small>
                         </div>
                     </div>
@@ -73,21 +115,26 @@
                 <div class="col-md-6">
                     <label class="form-label small fw-semibold text-muted">Estado</label>
                     <div class="d-flex flex-wrap gap-2">
-                        <span class="badge bg-warning filtro-rapido" style="cursor: pointer;" data-estado="pendiente">
-                            <i class="fas fa-clock me-1"></i>Pendientes ({{ pendientes }})
+                        <span class="badge bg-warning filtro-rapido active" data-estado="">
+                            <i class="fas fa-list me-1"></i>Todas ({{ total_novedades|default(0) }})
                         </span>
-                        <span class="badge bg-info filtro-rapido" style="cursor: pointer;" data-estado="en_proceso">
-                            <i class="fas fa-spinner me-1"></i>En Proceso ({{ en_proceso }})
+                        <span class="badge bg-warning filtro-rapido" data-estado="pendiente">
+                            <i class="fas fa-clock me-1"></i>Pendientes ({{ pendientes|default(0) }})
                         </span>
-                        <span class="badge bg-success filtro-rapido" style="cursor: pointer;" data-estado="resuelto">
-                            <i class="fas fa-check me-1"></i>Resueltas ({{ resueltas }})
+                        <span class="badge bg-info filtro-rapido" data-estado="en_proceso">
+                            <i class="fas fa-spinner me-1"></i>En Proceso ({{ en_proceso|default(0) }})
                         </span>
-                        <span class="badge bg-secondary filtro-rapido" style="cursor: pointer;" data-estado="">
-                            <i class="fas fa-list me-1"></i>Todas ({{ total_novedades }})
+                        <span class="badge bg-success filtro-rapido" data-estado="resuelto">
+                            <i class="fas fa-check me-1"></i>Resueltas ({{ resueltas|default(0) }})
                         </span>
                     </div>
                 </div>
                 
+                <div class="col-md-6 text-end">
+                    <button id="limpiar-filtros" class="btn btn-sm btn-outline-secondary mt-4">
+                        <i class="fas fa-eraser me-1"></i>Limpiar Filtros
+                    </button>
+                </div>
             </div>
             <hr class="my-3">
             <div class="row g-3">
@@ -127,7 +174,7 @@
             <div class="d-flex justify-content-between align-items-center">
                 <h6 class="mb-0 fw-semibold">
                     <i class="fas fa-list me-1"></i>Lista de Novedades
-                    <span class="badge bg-light text-dark ms-2">{{ total_novedades }}</span>
+                    <span class="badge bg-light text-dark ms-2" id="contador-resultados">{{ total_novedades|default(0) }}</span>
                 </h6>
                 <div class="d-flex gap-2">
                     <button class="btn btn-light btn-sm" onclick="exportarExcel()">
@@ -140,27 +187,27 @@
             </div>
         </div>
         <div class="card-body p-0">
-            <div class="table-responsive" style="max-height: 600px; overflow: auto;">
+            <div class="table-responsive">
                 <table id="tabla-novedades" class="table table-hover table-sm align-middle mb-0">
-                    <thead class="table-light sticky-top">
+                    <thead class="table-light">
                         <tr>
                             <th class="ps-3">ID</th>
                             <th>Fecha</th>
                             <th>Tipo</th>
                             <th>Descripción</th>
-                            
                             <th class="text-center">Estado</th>
                             <th>Reportado por</th>
-                                                        
                         </tr>
                     </thead>
                     <tbody>
                         {% for novedad in novedades %}
                         <tr>
                             <td class="ps-3 fw-semibold small">#{{ novedad.id }}</td>
-                            <td class="small">{{ novedad.fecha_reporte.strftime('%d/%m/%Y') }}</td>
+                            <td class="small" data-fecha="{{ novedad.fecha_reporte.strftime('%Y-%m-%d') }}">
+                                {{ novedad.fecha_reporte.strftime('%d/%m/%Y') }}
+                            </td>
                             <td>
-                                <span class="badge small py-1 px-2" style="background-color: {{ novedad.color_tipo }};">
+                                <span class="badge small py-1 px-2" style="background-color: {{ novedad.color_tipo|default('#6c757d') }};">
                                     {{ novedad.tipo }}
                                 </span>
                             </td>
@@ -174,8 +221,7 @@
                                 </small>
                                 {% endif %}
                             </td>
-                            
-                            <td class="text-center">
+                            <td class="text-center" data-estado="{{ novedad.estado }}">
                                 {% if novedad.estado == 'pendiente' %}
                                 <span class="badge bg-warning text-dark small py-1 px-2">Pendiente</span>
                                 {% elif novedad.estado == 'en_proceso' %}
@@ -187,8 +233,6 @@
                                 {% endif %}
                             </td>
                             <td class="small">{{ novedad.reportante_nombre }}</td>
-                            
-                            
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -198,6 +242,7 @@
     </div>
 
     <!-- Novedades recientes (cards) -->
+    {% if novedades_recientes %}
     <div class="card border-0 shadow-sm mt-4">
         <div class="card-header bg-light py-3">
             <h6 class="mb-0 fw-semibold">
@@ -211,7 +256,7 @@
                     <div class="card h-100 border-start border-4 border-primary">
                         <div class="card-body py-3">
                             <div class="d-flex justify-content-between align-items-start mb-2">
-                                <span class="badge" style="background-color: {{ novedad.color_tipo }};">{{ novedad.tipo }}</span>
+                                <span class="badge" style="background-color: {{ novedad.color_tipo|default('#6c757d') }};">{{ novedad.tipo }}</span>
                                 <span class="badge {% if novedad.estado == 'pendiente' %}bg-warning text-dark{% elif novedad.estado == 'en_proceso' %}bg-info{% else %}bg-success{% endif %}">
                                     {{ novedad.estado|replace('_', ' ')|title }}
                                 </span>
@@ -230,24 +275,172 @@
             </div>
         </div>
     </div>
+    {% endif %}
 </div>
 {% endblock %}
 
 {% block scripts %}
-<!-- Incluir las librerías para exportación -->
+<!-- jQuery (necesario para DataTables) -->
+<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+
+<!-- DataTables -->
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+
+<!-- Librerías para exportación -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 
 <script>
+let tabla;
+
+$(document).ready(function() {
+    // Inicializar DataTable
+    tabla = $('#tabla-novedades').DataTable({
+        language: {
+            url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json',
+            search: "Buscar:",
+            lengthMenu: "Mostrar _MENU_ registros",
+            info: "Mostrando _START_ a _END_ de _TOTAL_ novedades",
+            infoEmpty: "No hay novedades",
+            infoFiltered: "(filtrado de _MAX_ novedades totales)",
+            zeroRecords: "No se encontraron novedades",
+            emptyTable: "No hay novedades disponibles"
+        },
+        pageLength: 25,
+        lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Todas"]],
+        order: [[0, 'desc']], // Ordenar por ID descendente
+        columnDefs: [
+            { orderable: true, targets: [0, 1, 4, 5] }, // ID, Fecha, Estado, Reportante
+            { orderable: false, targets: [2, 3] }  // Tipo, Descripción
+        ],
+        drawCallback: function() {
+            actualizarContador();
+        }
+    });
+
+    // ============================================================================
+    // FILTROS RÁPIDOS POR ESTADO
+    // ============================================================================
+    $('.filtro-rapido').click(function() {
+        const estado = $(this).data('estado');
+        
+        // Actualizar estilos visuales
+        $('.filtro-rapido').removeClass('active');
+        $(this).addClass('active');
+        
+        // Aplicar filtro en DataTables
+        if (estado === '') {
+            // Mostrar todas
+            tabla.column(4).search('').draw();
+        } else {
+            // Filtrar por estado específico
+            tabla.column(4).search(estado).draw();
+        }
+    });
+
+    // ============================================================================
+    // FILTROS DE FECHA
+    // ============================================================================
+    $('#fecha-desde, #fecha-hasta').on('change', function() {
+        $.fn.dataTable.ext.search.push(
+            function(settings, data, dataIndex) {
+                const fechaDesde = $('#fecha-desde').val();
+                const fechaHasta = $('#fecha-hasta').val();
+                const fechaRegistro = $(tabla.row(dataIndex).node()).find('td[data-fecha]').data('fecha');
+                
+                if (!fechaDesde && !fechaHasta) return true;
+                
+                if (fechaDesde && !fechaHasta) {
+                    return fechaRegistro >= fechaDesde;
+                }
+                
+                if (!fechaDesde && fechaHasta) {
+                    return fechaRegistro <= fechaHasta;
+                }
+                
+                return fechaRegistro >= fechaDesde && fechaRegistro <= fechaHasta;
+            }
+        );
+        tabla.draw();
+        $.fn.dataTable.ext.search.pop();
+    });
+
+    // ============================================================================
+    // FILTRO POR TIPO
+    // ============================================================================
+    $('#filtro-tipo').on('change', function() {
+        const tipo = $(this).val();
+        tabla.column(2).search(tipo).draw();
+    });
+
+    // ============================================================================
+    // FILTRO POR REPORTANTE
+    // ============================================================================
+    $('#filtro-reportante').on('change', function() {
+        const reportante = $(this).val();
+        tabla.column(5).search(reportante).draw();
+    });
+
+    // ============================================================================
+    // LIMPIAR FILTROS
+    // ============================================================================
+    $('#limpiar-filtros').on('click', function() {
+        // Limpiar campos de formulario
+        $('#fecha-desde').val('');
+        $('#fecha-hasta').val('');
+        $('#filtro-tipo').val('');
+        $('#filtro-reportante').val('');
+        
+        // Limpiar filtros de DataTables
+        tabla.search('').columns().search('').draw();
+        
+        // Resetear filtros rápidos
+        $('.filtro-rapido').removeClass('active');
+        $('.filtro-rapido[data-estado=""]').addClass('active');
+        
+        mostrarNotificacion('✅ Filtros limpiados', 'success');
+    });
+});
+
+// ============================================================================
+// ACTUALIZAR CONTADOR DE RESULTADOS
+// ============================================================================
+function actualizarContador() {
+    const info = tabla.page.info();
+    $('#contador-resultados').text(info.recordsDisplay);
+}
+
+// ============================================================================
+// EXPORTAR A EXCEL
+// ============================================================================
 function exportarExcel() {
     try {
-        const tabla = document.getElementById('tabla-novedades');
+        const tablaOriginal = document.getElementById('tabla-novedades');
         const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.table_to_sheet(tabla);
+        
+        // Obtener solo las filas visibles (filtradas)
+        const filasVisibles = tabla.rows({ search: 'applied' }).nodes();
+        const tablaFiltrada = tablaOriginal.cloneNode(true);
+        const tbody = tablaFiltrada.querySelector('tbody');
+        tbody.innerHTML = '';
+        
+        filasVisibles.each(function(fila) {
+            const filaClonada = fila.cloneNode(true);
+            // Limpiar badges y dejar solo el texto
+            filaClonada.querySelectorAll('.badge').forEach(badge => {
+                badge.replaceWith(badge.textContent);
+            });
+            tbody.appendChild(filaClonada);
+        });
+        
+        const ws = XLSX.utils.table_to_sheet(tablaFiltrada);
         XLSX.utils.book_append_sheet(wb, ws, 'Novedades');
         
-        XLSX.writeFile(wb, `Reporte_Novedades_${new Date().toISOString().split('T')[0]}.xlsx`);
+        const fecha = new Date().toISOString().split('T')[0];
+        XLSX.writeFile(wb, `Reporte_Novedades_${fecha}.xlsx`);
+        
         mostrarNotificacion('✅ Excel exportado correctamente', 'success');
     } catch (error) {
         console.error('Error en exportación Excel:', error);
@@ -255,6 +448,9 @@ function exportarExcel() {
     }
 }
 
+// ============================================================================
+// EXPORTAR A PDF
+// ============================================================================
 function exportarPDF() {
     try {
         const { jsPDF } = window.jspdf;
@@ -268,16 +464,36 @@ function exportarPDF() {
         // Subtítulo
         doc.setFontSize(10);
         doc.setTextColor(100, 100, 100);
-        doc.text(`Generado: ${new Date().toLocaleDateString('es-ES', { 
+        const fecha = new Date().toLocaleDateString('es-ES', { 
             day: '2-digit', 
             month: '2-digit', 
             year: 'numeric' 
-        })}`, 14, 22);
-        doc.text(`Total novedades: {{ total_novedades }}`, 14, 28);
+        });
+        doc.text(`Generado: ${fecha}`, 14, 22);
+        
+        const info = tabla.page.info();
+        doc.text(`Total novedades: ${info.recordsDisplay}`, 14, 28);
+
+        // Obtener datos filtrados
+        const datosTabla = [];
+        const filasVisibles = tabla.rows({ search: 'applied' }).nodes();
+        
+        filasVisibles.each(function(fila) {
+            const celdas = $(fila).find('td');
+            datosTabla.push([
+                celdas.eq(0).text().trim(),  // ID
+                celdas.eq(1).text().trim(),  // Fecha
+                celdas.eq(2).text().trim(),  // Tipo
+                celdas.eq(3).text().trim(),  // Descripción
+                celdas.eq(4).text().trim(),  // Estado
+                celdas.eq(5).text().trim()   // Reportante
+            ]);
+        });
 
         // Tabla
         doc.autoTable({
-            html: '#tabla-novedades',
+            head: [['ID', 'Fecha', 'Tipo', 'Descripción', 'Estado', 'Reportado por']],
+            body: datosTabla,
             startY: 35,
             theme: 'grid',
             headStyles: { 
@@ -291,12 +507,12 @@ function exportarPDF() {
                 cellPadding: 3
             },
             columnStyles: {
-                0: { cellWidth: 25 },  // ID
-                1: { cellWidth: 30 },  // Fecha
-                2: { cellWidth: 40 },  // Tipo
-                3: { cellWidth: 90 },  // Descripción
-                4: { cellWidth: 35, halign: 'center' },  // Estado
-                5: { cellWidth: 50 }   // Reportado por
+                0: { cellWidth: 20 },   // ID
+                1: { cellWidth: 25 },   // Fecha
+                2: { cellWidth: 35 },   // Tipo
+                3: { cellWidth: 95 },   // Descripción
+                4: { cellWidth: 30, halign: 'center' },  // Estado
+                5: { cellWidth: 45 }    // Reportado por
             },
             styles: { 
                 overflow: 'linebreak',
@@ -305,7 +521,9 @@ function exportarPDF() {
             margin: { left: 10, right: 10 }
         });
 
-        doc.save(`Reporte_Novedades_${new Date().toISOString().split('T')[0]}.pdf`);
+        const fechaArchivo = new Date().toISOString().split('T')[0];
+        doc.save(`Reporte_Novedades_${fechaArchivo}.pdf`);
+        
         mostrarNotificacion('✅ PDF exportado correctamente', 'success');
     } catch (error) {
         console.error('Error en exportación PDF:', error);
@@ -313,6 +531,9 @@ function exportarPDF() {
     }
 }
 
+// ============================================================================
+// NOTIFICACIONES
+// ============================================================================
 function mostrarNotificacion(mensaje, tipo) {
     const toastHTML = `
         <div class="position-fixed top-0 end-0 p-3" style="z-index: 1060">
@@ -341,74 +562,32 @@ function mostrarNotificacion(mensaje, tipo) {
     }, 3000);
 }
 
-// Filtros y funcionalidad
-$(document).ready(function() {
-    // Filtros rápidos por estado
-    $('.filtro-rapido').click(function() {
-        var estado = $(this).data('estado');
-        $('.filtro-rapido').removeClass('active').css('transform', 'scale(1)');
-        $(this).addClass('active').css('transform', 'scale(1.05)');
-    });
-
-    
-
-    // Cambiar estado de novedad via API
-    window.cambiarEstadoNovedad = function(id, nuevoEstado) {
-        var confirmacion = confirm('¿Está seguro de cambiar el estado de esta novedad?');
-        if (confirmacion) {
-            fetch('/api/novedades/' + id + '/estado', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ estado: nuevoEstado })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    location.reload();
-                } else {
-                    alert('Error: ' + data.message);
-                }
-            })
-            .catch(error => {
-                alert('Error al cambiar el estado de la novedad');
-            });
-        }
-    };
-});
+// ============================================================================
+// CAMBIAR ESTADO DE NOVEDAD (API)
+// ============================================================================
+window.cambiarEstadoNovedad = function(id, nuevoEstado) {
+    if (confirm('¿Está seguro de cambiar el estado de esta novedad?')) {
+        fetch('/api/novedades/' + id + '/estado', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ estado: nuevoEstado })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                mostrarNotificacion('✅ Estado actualizado correctamente', 'success');
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                mostrarNotificacion('❌ Error: ' + data.message, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            mostrarNotificacion('❌ Error al cambiar el estado', 'error');
+        });
+    }
+};
 </script>
-
-<style>
-    .table th {
-        white-space: nowrap;
-        font-weight: 600;
-        font-size: 0.75rem;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        border-bottom: 2px solid #dee2e6;
-        padding: 0.75rem 0.5rem;
-    }
-    
-    .table td {
-        vertical-align: middle;
-        padding: 0.5rem;
-        font-size: 0.85rem;
-    }
-    
-    .table tbody tr:hover {
-        background-color: rgba(111, 66, 193, 0.05);
-    }
-    
-    .table tbody tr:hover .badge {
-        transform: scale(1.05);
-        transition: transform 0.2s;
-    }
-    
-    .filtro-rapido, 
-    
-    .filtro-rapido:hover, 
-    
-    .filtro-rapido.active, 
-</style>
 {% endblock %}
