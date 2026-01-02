@@ -57,7 +57,7 @@ class PrestamosModel:
                     MaterialId, UsuarioSolicitanteId, OficinaId, CantidadPrestada,
                     FechaDevolucionPrevista, Evento, Observaciones, UsuarioPrestador,
                     Activo, FechaPrestamo, Estado
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, GETDATE(), 'PRESTADO')
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, GETDATE(), 'PENDIENTE')
             """
             cursor.execute(query, (
                 material_id, usuario_solicitante_id, oficina_id, cantidad_prestada,
@@ -77,11 +77,32 @@ class PrestamosModel:
     
     @staticmethod
     def registrar_devolucion(prestamo_id, observaciones=None):
+        """
+        Registra la devolucion de un prestamo
+        Solo puede devolver prestamos APROBADOS o APROBADO_PARCIAL
+        """
         conn = get_database_connection()
         if not conn:
             return False
         try:
             cursor = conn.cursor()
+            
+            # Verificar estado actual
+            cursor.execute("""
+                SELECT Estado FROM PrestamosMaterial 
+                WHERE PrestamoId = ? AND Activo = 1
+            """, (prestamo_id,))
+            
+            row = cursor.fetchone()
+            if not row:
+                return False
+            
+            estado_actual = row[0]
+            if estado_actual not in ['APROBADO', 'APROBADO_PARCIAL']:
+                print(f"No se puede devolver prestamo en estado: {estado_actual}")
+                return False
+            
+            # Registrar devolucion
             query = """
                 UPDATE PrestamosMaterial 
                 SET Estado = 'DEVUELTO', 
@@ -89,7 +110,7 @@ class PrestamosModel:
                     Observaciones = ISNULL(Observaciones, '') + ' ' + ISNULL(?, '')
                 WHERE PrestamoId = ? AND Activo = 1
             """
-            cursor.execute(query, (observaciones, prestamo_id))
+            cursor.execute(query, (observaciones or 'Devuelto', prestamo_id))
             conn.commit()
             return cursor.rowcount > 0
         except Exception as e:
@@ -120,6 +141,144 @@ class PrestamosModel:
         except Exception as e:
             print(f"Error obteniendo usuarios: {e}")
             return []
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
+
+    @staticmethod
+    def aprobar(prestamo_id, usuario_aprobador, observaciones=None):
+        """Aprueba un prestamo completamente"""
+        conn = get_database_connection()
+        if not conn:
+            return False
+        try:
+            cursor = conn.cursor()
+            
+            # Verificar estado actual
+            cursor.execute("""
+                SELECT Estado FROM PrestamosMaterial 
+                WHERE PrestamoId = ? AND Activo = 1
+            """, (prestamo_id,))
+            
+            row = cursor.fetchone()
+            if not row or row[0] != 'PENDIENTE':
+                return False
+            
+            # Aprobar
+            query = """
+                UPDATE PrestamosMaterial 
+                SET Estado = 'APROBADO',
+                    UsuarioAprobador = ?,
+                    FechaAprobacion = GETDATE(),
+                    Observaciones = ISNULL(Observaciones, '') + ' Aprobado: ' + ISNULL(?, '')
+                WHERE PrestamoId = ? AND Activo = 1
+            """
+            cursor.execute(query, (usuario_aprobador, observaciones or 'Aprobado', prestamo_id))
+            conn.commit()
+            return cursor.rowcount > 0
+        except Exception as e:
+            print(f"Error aprobando prestamo: {e}")
+            if conn:
+                conn.rollback()
+            return False
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
+
+    @staticmethod
+    def rechazar(prestamo_id, usuario_rechazador, motivo):
+        """Rechaza un prestamo"""
+        conn = get_database_connection()
+        if not conn:
+            return False
+        try:
+            cursor = conn.cursor()
+            
+            # Verificar estado actual
+            cursor.execute("""
+                SELECT Estado FROM PrestamosMaterial 
+                WHERE PrestamoId = ? AND Activo = 1
+            """, (prestamo_id,))
+            
+            row = cursor.fetchone()
+            if not row or row[0] != 'PENDIENTE':
+                return False
+            
+            # Rechazar
+            query = """
+                UPDATE PrestamosMaterial 
+                SET Estado = 'RECHAZADO',
+                    UsuarioRechazador = ?,
+                    FechaRechazo = GETDATE(),
+                    Observaciones = ISNULL(Observaciones, '') + ' Rechazado: ' + ?
+                WHERE PrestamoId = ? AND Activo = 1
+            """
+            cursor.execute(query, (usuario_rechazador, motivo, prestamo_id))
+            conn.commit()
+            return cursor.rowcount > 0
+        except Exception as e:
+            print(f"Error rechazando prestamo: {e}")
+            if conn:
+                conn.rollback()
+            return False
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
+
+    @staticmethod
+    def aprobar_parcial(prestamo_id, usuario_aprobador, cantidad_aprobada, observaciones=None):
+        """Aprueba un prestamo parcialmente"""
+        conn = get_database_connection()
+        if not conn:
+            return False
+        try:
+            cursor = conn.cursor()
+            
+            # Verificar estado y cantidad
+            cursor.execute("""
+                SELECT Estado, CantidadPrestada FROM PrestamosMaterial 
+                WHERE PrestamoId = ? AND Activo = 1
+            """, (prestamo_id,))
+            
+            row = cursor.fetchone()
+            if not row or row[0] != 'PENDIENTE':
+                return False
+            
+            cantidad_solicitada = row[1]
+            if cantidad_aprobada >= cantidad_solicitada or cantidad_aprobada <= 0:
+                return False
+            
+            # Aprobar parcialmente
+            query = """
+                UPDATE PrestamosMaterial 
+                SET Estado = 'APROBADO_PARCIAL',
+                    CantidadPrestada = ?,
+                    UsuarioAprobador = ?,
+                    FechaAprobacion = GETDATE(),
+                    Observaciones = ISNULL(Observaciones, '') + ' Aprobado parcial: ' + 
+                                   CAST(? AS VARCHAR) + ' de ' + CAST(? AS VARCHAR) + ' unidades'
+                WHERE PrestamoId = ? AND Activo = 1
+            """
+            cursor.execute(query, (
+                cantidad_aprobada, 
+                usuario_aprobador, 
+                cantidad_aprobada, 
+                cantidad_solicitada, 
+                prestamo_id
+            ))
+            conn.commit()
+            return cursor.rowcount > 0
+        except Exception as e:
+            print(f"Error aprobando parcialmente prestamo: {e}")
+            if conn:
+                conn.rollback()
+            return False
         finally:
             if cursor:
                 cursor.close()

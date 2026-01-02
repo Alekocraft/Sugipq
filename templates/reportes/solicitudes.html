@@ -1,4 +1,4 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 {% block title %}Reporte de Solicitudes{% endblock %}
 {% block content %}
 <div class="container-fluid fade-in">
@@ -9,14 +9,11 @@
             </h1>
             <p class="text-muted small">Historial y estado de solicitudes</p>
         </div>
-        <div>
-            <a href="/reportes" class="btn btn-outline-secondary btn-sm">
-                <i class="fas fa-arrow-left me-1"></i>Volver
-            </a>
-        </div>
+        <a href="/reportes" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-arrow-left me-1"></i>Volver a Reportes
+        </a>
     </div>
 
-    <!-- Información de acceso -->
     <div class="alert alert-info mb-4">
         <strong><i class="fas fa-info-circle me-1"></i>Vista filtrada:</strong>
         {% if session.rol in ['administrador', 'lider_inventario'] %}
@@ -26,15 +23,14 @@
         {% endif %}
     </div>
 
-    <!-- Filtros -->
-    <div class="card border-light mb-4">
-        <div class="card-header bg-primary text-white py-3">
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-light py-3">
             <h6 class="mb-0 fw-semibold">
-                <i class="fas fa-filter me-1"></i>Filtros de Búsqueda
+                <i class="fas fa-filter me-1"></i>Filtros
             </h6>
         </div>
         <div class="card-body">
-            <form method="GET" class="row g-2">
+            <form method="GET" class="row g-3">
                 <div class="col-md-3">
                     <label class="form-label small fw-semibold">Estado</label>
                     <select name="estado" id="estado" class="form-select form-select-sm">
@@ -67,63 +63,58 @@
                            value="{{ request.args.get('solicitante', '') }}"
                            placeholder="Nombre del solicitante">
                 </div>
-                <div class="col-md-12 mt-2">
-                    <div class="d-flex flex-wrap gap-2">
+                <div class="col-md-12">
+                    <div class="d-flex gap-2">
                         <button type="submit" class="btn btn-primary btn-sm">
                             <i class="fas fa-search me-1"></i>Aplicar Filtros
                         </button>
                         <a href="/reportes/solicitudes" class="btn btn-outline-secondary btn-sm">
                             <i class="fas fa-times me-1"></i>Limpiar
                         </a>
-                        <button onclick="exportarExcel()" class="btn btn-success btn-sm">
-                            <i class="fas fa-file-excel me-1"></i>Excel
-                        </button>
-                        <button onclick="exportarPDF()" class="btn btn-danger btn-sm">
-                            <i class="fas fa-file-pdf me-1"></i>PDF
-                        </button>
                     </div>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- Resumen de Estados -->
     <div class="row mb-4">
         <div class="col-md-12">
             <div class="card border-0 shadow-sm">
-                <div class="card-header bg-info text-white py-3">
-                    <h6 class="mb-0 fw-semibold">
-                        <i class="fas fa-chart-bar me-1"></i>Resumen por Estados
-                        {% if filtro_estado != 'todos' or filtro_oficina != 'todas' or request.args.get('material') or request.args.get('solicitante') %}
-                        <small class="text-warning">(Filtros aplicados)</small>
-                        {% endif %}
-                    </h6>
+                <div class="card-header bg-primary text-white py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0 fw-semibold">
+                            <i class="fas fa-chart-bar me-1"></i>Resumen General
+                            {% if filtro_estado != 'todos' or filtro_oficina != 'todas' or request.args.get('material') or request.args.get('solicitante') %}
+                            <small class="text-warning ms-2">(Filtros aplicados)</small>
+                            {% endif %}
+                        </h6>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-light btn-sm" onclick="exportarExcel()" title="Exportar a Excel" data-bs-toggle="tooltip">
+                                <i class="fas fa-file-excel text-success me-1"></i>Excel
+                            </button>
+                            <button class="btn btn-light btn-sm" onclick="exportarPDF()" title="Exportar a PDF" data-bs-toggle="tooltip">
+                                <i class="fas fa-file-pdf text-danger me-1"></i>PDF
+                            </button>
+                        </div>
+                    </div>
                 </div>
                 <div class="card-body">
                     <div class="row text-center">
-                        <div class="col-md-3">
-                            <div class="p-3 border rounded cursor-pointer" onclick="aplicarFiltroEstado('todos')">
-                                <h4 class="fw-bold text-primary mb-1">{{ total_solicitudes }}</h4>
-                                <small class="text-muted">Total Filtrado</small>
-                            </div>
+                        <div class="col-md-3 border-end">
+                            <h4 class="fw-bold mb-0 text-primary">{{ total_solicitudes }}</h4>
+                            <small class="text-muted">Total Filtrado</small>
+                        </div>
+                        <div class="col-md-3 border-end">
+                            <h4 class="fw-bold mb-0 text-warning">{{ solicitudes_pendientes }}</h4>
+                            <small class="text-muted">Pendientes</small>
+                        </div>
+                        <div class="col-md-3 border-end">
+                            <h4 class="fw-bold mb-0 text-success">{{ solicitudes_aprobadas }}</h4>
+                            <small class="text-muted">Aprobadas</small>
                         </div>
                         <div class="col-md-3">
-                            <div class="p-3 border rounded bg-warning text-white cursor-pointer" onclick="aplicarFiltroEstado('pendiente')">
-                                <h4 class="fw-bold mb-1">{{ solicitudes_pendientes }}</h4>
-                                <small>Pendientes</small>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="p-3 border rounded bg-success text-white cursor-pointer" onclick="aplicarFiltroEstado('aprobada')">
-                                <h4 class="fw-bold mb-1">{{ solicitudes_aprobadas }}</h4>
-                                <small>Aprobadas</small>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="p-3 border rounded bg-danger text-white cursor-pointer" onclick="aplicarFiltroEstado('rechazada')">
-                                <h4 class="fw-bold mb-1">{{ solicitudes_rechazadas }}</h4>
-                                <small>Rechazadas</small>
-                            </div>
+                            <h4 class="fw-bold mb-0 text-danger">{{ solicitudes_rechazadas }}</h4>
+                            <small class="text-muted">Rechazadas</small>
                         </div>
                     </div>
                 </div>
@@ -131,23 +122,19 @@
         </div>
     </div>
 
-    <!-- Lista de Solicitudes -->
     <div class="card border-0 shadow-sm">
-        <div class="card-header bg-primary text-white py-3">
+        <div class="card-header bg-success text-white py-3">
             <div class="d-flex justify-content-between align-items-center">
                 <h6 class="mb-0 fw-semibold">
-                    <i class="fas fa-list me-1"></i>Lista de Solicitudes
+                    <i class="fas fa-list me-1"></i>Detalle de Solicitudes
                     <span class="badge bg-light text-dark ms-2">{{ solicitudes|length }}</span>
                 </h6>
-                {% if filtro_estado != 'todos' or filtro_oficina != 'todas' %}
-                <small class="text-warning">Filtrado</small>
-                {% endif %}
             </div>
         </div>
         <div class="card-body p-0">
-            <div class="table-responsive">
+            <div class="table-responsive" style="max-height: 600px; overflow: auto;">
                 <table id="tablaSolicitudes" class="table table-hover table-sm align-middle mb-0">
-                    <thead class="table-light">
+                    <thead class="table-light sticky-top">
                         <tr>
                             <th class="ps-3">ID</th>
                             <th>Material</th>
@@ -182,16 +169,12 @@
                             </td>
                             <td class="text-center">
                                 <span class="badge bg-primary small py-1 px-2">{{ solicitud.cantidad_solicitada }}</span>
-                                {% if solicitud.cantidad_aprobada and solicitud.cantidad_aprobada > 0 %}
-                                <br>
-                                <small class="text-success small">Aprob: {{ solicitud.cantidad_aprobada }}</small>
-                                {% endif %}
                             </td>
                             <td class="small">{{ solicitante_nombre }}</td>
                             <td class="small">{{ oficina_nombre }}</td>
                             <td class="small">
                                 {% if fecha_solicitud != 'N/A' %}
-                                {{ fecha_solicitud.strftime('%d/%m/%Y %H:%M') }}
+                                {{ fecha_solicitud.strftime('%d/%m/%Y') }}
                                 {% else %}
                                 <span class="text-muted">N/A</span>
                                 {% endif %}
@@ -215,11 +198,8 @@
                             <td colspan="7" class="text-center py-5">
                                 <div class="d-flex flex-column align-items-center">
                                     <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
-                                    <h6 class="text-muted">No se encontraron solicitudes</h6>
-                                    <p class="text-muted small">No hay solicitudes con los filtros aplicados</p>
-                                    <a href="/reportes/solicitudes" class="btn btn-primary btn-sm mt-2">
-                                        <i class="fas fa-eye me-1"></i>Mostrar todas
-                                    </a>
+                                    <h6 class="text-muted">No hay solicitudes</h6>
+                                    <p class="text-muted small">No se encontraron solicitudes con los filtros aplicados</p>
                                 </div>
                             </td>
                         </tr>
@@ -231,7 +211,6 @@
     </div>
 </div>
 
-<!-- Incluir las librerías para exportación -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
@@ -244,14 +223,13 @@ function exportarExcel() {
         const ws = XLSX.utils.table_to_sheet(tabla);
         XLSX.utils.book_append_sheet(wb, ws, 'Solicitudes');
         
-        // Obtener parámetros de filtro para el nombre del archivo
         const oficina = document.getElementById('oficina').value;
         const estado = document.getElementById('estado').value;
+        const nombreOficina = document.getElementById('oficina').options[document.getElementById('oficina').selectedIndex].text;
         
         let nombreArchivo = `Reporte_Solicitudes_${new Date().toISOString().split('T')[0]}`;
         
         if (oficina !== 'todas') {
-            const nombreOficina = document.getElementById('oficina').options[document.getElementById('oficina').selectedIndex].text;
             nombreArchivo += `_${nombreOficina.replace(/\s+/g, '_')}`;
         }
         
@@ -272,17 +250,14 @@ function exportarPDF() {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF('landscape');
 
-        // Obtener parámetros de filtro
         const oficina = document.getElementById('oficina').value;
         const estado = document.getElementById('estado').value;
         const nombreOficina = document.getElementById('oficina').options[document.getElementById('oficina').selectedIndex].text;
         
-        // Título
         doc.setFontSize(16);
         doc.setTextColor(40, 40, 40);
         doc.text('Reporte de Solicitudes - Sistema de Gestión', 14, 15);
         
-        // Subtítulo
         doc.setFontSize(10);
         doc.setTextColor(100, 100, 100);
         doc.text(`Generado: ${new Date().toLocaleDateString('es-ES', { 
@@ -291,7 +266,7 @@ function exportarPDF() {
             year: 'numeric' 
         })}`, 14, 22);
         
-        let infoFiltros = `Total solicitudes: {{ solicitudes|length }}`;
+        let infoFiltros = `Total solicitudes: {{ total_solicitudes }}`;
         if (oficina !== 'todas') {
             infoFiltros += ` | Oficina: ${nombreOficina}`;
         }
@@ -301,13 +276,12 @@ function exportarPDF() {
         
         doc.text(infoFiltros, 14, 28);
 
-        // Tabla
         doc.autoTable({
             html: '#tablaSolicitudes',
             startY: 35,
             theme: 'grid',
             headStyles: { 
-                fillColor: [13, 110, 253], // Azul primario
+                fillColor: [34, 139, 34],
                 textColor: [255, 255, 255],
                 fontSize: 9,
                 fontStyle: 'bold'
@@ -317,13 +291,13 @@ function exportarPDF() {
                 cellPadding: 3
             },
             columnStyles: {
-                0: { cellWidth: 20 }, // ID
-                1: { cellWidth: 50 }, // Material
-                2: { cellWidth: 25, halign: 'center' }, // Cantidad
-                3: { cellWidth: 40 }, // Solicitante
-                4: { cellWidth: 40 }, // Oficina
-                5: { cellWidth: 35 }, // Fecha
-                6: { cellWidth: 25, halign: 'center' } // Estado
+                0: { cellWidth: 20 },
+                1: { cellWidth: 50 },
+                2: { cellWidth: 25, halign: 'center' },
+                3: { cellWidth: 40 },
+                4: { cellWidth: 40 },
+                5: { cellWidth: 35 },
+                6: { cellWidth: 25, halign: 'center' }
             },
             styles: { 
                 overflow: 'linebreak',
@@ -349,7 +323,6 @@ function exportarPDF() {
 }
 
 function mostrarNotificacion(mensaje, tipo) {
-    // Crear toast simple
     const toastHTML = `
         <div class="position-fixed top-0 end-0 p-3" style="z-index: 1060">
             <div class="toast align-items-center text-white bg-${tipo === 'success' ? 'success' : 'danger'} border-0 show" role="alert">
@@ -364,12 +337,10 @@ function mostrarNotificacion(mensaje, tipo) {
         </div>
     `;
     
-    // Insertar en el DOM
     const div = document.createElement('div');
     div.innerHTML = toastHTML;
     document.body.appendChild(div.firstElementChild);
     
-    // Auto-eliminar después de 3 segundos
     setTimeout(() => {
         const toastElement = document.querySelector('.toast');
         if (toastElement) {
@@ -419,21 +390,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Añadir tooltips a los botones
-    const excelBtn = document.querySelector('button[onclick="exportarExcel()"]');
-    const pdfBtn = document.querySelector('button[onclick="exportarPDF()"]');
-    
-    if (excelBtn) {
-        excelBtn.setAttribute('title', 'Exportar a Excel');
-        excelBtn.setAttribute('data-bs-toggle', 'tooltip');
-    }
-    
-    if (pdfBtn) {
-        pdfBtn.setAttribute('title', 'Exportar a PDF');
-        pdfBtn.setAttribute('data-bs-toggle', 'tooltip');
-    }
-    
-    // Inicializar tooltips de Bootstrap
     const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
     tooltipTriggerList.map(function (tooltipTriggerEl) {
         return new bootstrap.Tooltip(tooltipTriggerEl);
@@ -442,6 +398,12 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <style>
+    .sticky-top {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+
     .table th {
         white-space: nowrap;
         font-weight: 600;
@@ -480,16 +442,6 @@ document.addEventListener('DOMContentLoaded', function() {
     .table tbody tr:hover .badge {
         transform: scale(1.05);
         transition: transform 0.2s;
-    }
-    
-    .cursor-pointer {
-        cursor: pointer;
-        transition: all 0.2s ease;
-    }
-    
-    .cursor-pointer:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     }
 </style>
 {% endblock %}

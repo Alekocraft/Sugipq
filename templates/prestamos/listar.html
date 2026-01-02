@@ -1,23 +1,23 @@
 {% extends "base.html" %}
-{% block title %}Préstamos de Material - Sistema de Gestión{% endblock %}
+{% block title %}Prestamos de Material - Sistema de Gestion{% endblock %}
 
 {% block content %}
 <div class="container-fluid fade-in">
     <div class="row mb-4">
         <div class="col-md-12">
             <h1 class="fw-bold mb-3">
-                <i class="fas fa-exchange-alt me-2"></i>Préstamos de Material
+                <i class="fas fa-exchange-alt me-2"></i>Prestamos de Material
             </h1>
-            <p class="text-muted mb-0">Control y seguimiento de préstamos de material</p>
+            <p class="text-muted mb-0">Control y seguimiento de prestamos de material</p>
         </div>
     </div>
 
     <div class="alert alert-info mb-4">
-        <strong>📊 Vista de préstamos:</strong>
+        <strong>📊 Vista de prestamos:</strong>
         {% if session.rol in ['administrador', 'lider_inventario'] %}
-        Mostrando préstamos de TODAS las oficinas (acceso total)
+        Mostrando prestamos de TODAS las oficinas (acceso total)
         {% else %}
-        Mostrando préstamos únicamente de su oficina: <strong>{{ session.oficina_nombre }}</strong>
+        Mostrando prestamos unicamente de su oficina: <strong>{{ session.oficina_nombre }}</strong>
         {% endif %}
     </div>
 
@@ -29,7 +29,7 @@
                         <h5 class="mb-0">Acciones</h5>
                         <div class="d-flex gap-2">
                             <a href="/prestamos/crear" class="btn btn-primary d-flex align-items-center">
-                                <i class="fas fa-plus me-2"></i>Nuevo Préstamo
+                                <i class="fas fa-plus me-2"></i>Nuevo Prestamo
                             </a>
                             <button class="btn btn-success d-flex align-items-center" onclick="exportarExcelPrestamos()">
                                 <i class="fas fa-file-excel me-2"></i>Exportar Excel
@@ -48,21 +48,23 @@
         <div class="col-md-12">
             <div class="card">
                 <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0">📊 Resumen General de Préstamos</h5>
+                    <h5 class="mb-0">📊 Resumen General de Prestamos</h5>
                 </div>
                 <div class="card-body">
                     <div class="row text-center">
                         <div class="col-md-3 border-end">
                             <h4 class="fw-bold mb-0 text-primary" id="total-prestamos">{{ prestamos|length }}</h4>
-                            <small class="text-muted">Total Préstamos</small>
+                            <small class="text-muted">Total Prestamos</small>
                         </div>
                         <div class="col-md-3 border-end">
-                            <!-- Cambiado de 'PRESTADO' a 'PENDIENTE' -->
                             <h4 class="fw-bold mb-0 text-warning" id="pendientes">{{ prestamos|selectattr('estado', 'equalto', 'PENDIENTE')|list|length }}</h4>
                             <small class="text-muted">Pendientes</small>
                         </div>
                         <div class="col-md-3 border-end">
-                            <h4 class="fw-bold mb-0 text-success" id="aprobados">{{ prestamos|selectattr('estado', 'equalto', 'APROBADO')|list|length }}</h4>
+                            <h4 class="fw-bold mb-0 text-success" id="aprobados">
+                                {{ (prestamos|selectattr('estado', 'equalto', 'APROBADO')|list|length) + 
+                                   (prestamos|selectattr('estado', 'equalto', 'APROBADO_PARCIAL')|list|length) }}
+                            </h4>
                             <small class="text-muted">Aprobados</small>
                         </div>
                         <div class="col-md-3">
@@ -75,25 +77,24 @@
         </div>
     </div>
 
-    <!-- Sección de Filtros Actualizada -->
+    <!-- Seccion de Filtros Actualizada -->
     <div class="row mb-4">
         <div class="col-md-12">
             <div class="card">
                 <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0"><i class="fas fa-filter me-2"></i>Filtros de Búsqueda Avanzados</h5>
+                    <h5 class="mb-0"><i class="fas fa-filter me-2"></i>Filtros de Busqueda Avanzados</h5>
                 </div>
                 <div class="card-body">
                     <form method="GET" action="{{ url_for('reportes.reporte_solicitudes') }}" class="row g-3">
                         <div class="col-md-2">
                             <label class="form-label">Estado</label>
-                            <select name="estado" class="form-select">
-                                <option value="todos" {% if filtro_estado == 'todos' %}selected{% endif %}>Todos</option>
-                                <option value="pendiente" {% if filtro_estado == 'pendiente' %}selected{% endif %}>Pendiente</option>
-                                <option value="aprobada" {% if filtro_estado == 'aprobada' %}selected{% endif %}>Aprobada</option>
-                                <option value="rechazada" {% if filtro_estado == 'rechazada' %}selected{% endif %}>Rechazada</option>
-                                <option value="parcial" {% if filtro_estado == 'parcial' %}selected{% endif %}>Parcial</option>
-                                <option value="completada" {% if filtro_estado == 'completada' %}selected{% endif %}>Completada</option>
-                                <option value="devuelta" {% if filtro_estado == 'devuelta' %}selected{% endif %}>Devuelta</option>
+                            <select name="estado" class="form-select" id="filtro-estado">
+                                <option value="">Todos los estados</option>
+                                <option value="PENDIENTE">Pendiente</option>
+                                <option value="APROBADO">Aprobado</option>
+                                <option value="APROBADO_PARCIAL">Aprobado Parcial</option>
+                                <option value="RECHAZADO">Rechazado</option>
+                                <option value="DEVUELTO">Devuelto</option>
                             </select>
                         </div>
                         
@@ -112,17 +113,17 @@
                         {% endif %}
                         
                         <div class="col-md-2">
-                            <label class="form-label">Material (búsqueda parcial)</label>
+                            <label class="form-label">Material (busqueda parcial)</label>
                             <input type="text" name="material" class="form-control" 
-                                   placeholder="Ej: lápiz, papel" 
+                                   placeholder="Ej: lapiz, papel" 
                                    value="{{ filtro_material }}">
                             <small class="form-text text-muted">Buscar por parte del nombre</small>
                         </div>
                         
                         <div class="col-md-2">
-                            <label class="form-label">Solicitante (búsqueda parcial)</label>
+                            <label class="form-label">Solicitante (busqueda parcial)</label>
                             <input type="text" name="solicitante" class="form-control" 
-                                   placeholder="Ej: Juan, María" 
+                                   placeholder="Ej: Juan, Maria" 
                                    value="{{ filtro_solicitante }}">
                             <small class="form-text text-muted">Buscar por parte del nombre</small>
                         </div>
@@ -147,7 +148,7 @@
                                 <i class="fas fa-times me-2"></i>Limpiar Filtros
                             </a>
                             
-                            <!-- Botón de exportación -->
+                            <!-- Boton de exportacion -->
                             <a href="{{ url_for('reportes.exportar_solicitudes_excel', 
                                               estado=filtro_estado, 
                                               oficina=filtro_oficina,
@@ -169,7 +170,7 @@
         <div class="col-md-12">
             <div class="card">
                 <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0"><i class="fas fa-list me-2"></i>Lista de Préstamos</h5>
+                    <h5 class="mb-0"><i class="fas fa-list me-2"></i>Lista de Prestamos</h5>
                     <span class="badge bg-light text-dark rounded-pill" id="total-registros">{{ prestamos|length }} registros</span>
                 </div>
                 <div class="card-body">
@@ -224,26 +225,39 @@
                                         <small class="text-muted">{{ r.fecha_prevista.strftime('%Y-%m-%d %H:%M') if r.fecha_prevista }}</small>
                                     </td>
                                     <td>
-                                        <span class="badge rounded-pill fw-normal py-2 px-3 estado-badge estado-{{ r.estado|lower|replace(' ', '-') }}">
-                                            <i class="fas {{
-                                                'fa-check-circle' if r.estado == 'APROBADO'
-                                                else 'fa-clock' if r.estado == 'PENDIENTE'
-                                                else 'fa-times-circle' if r.estado == 'RECHAZADO'
-                                                else 'fa-check-double' if r.estado == 'APROBADO_PARCIAL'
-                                                else 'fa-undo' if r.estado == 'DEVUELTO'
-                                                else 'fa-question-circle'
-                                            }} me-1"></i>
-                                            {{ r.estado }}
-                                        </span>
+                                        {% if r.estado == 'PENDIENTE' %}
+                                            <span class="badge bg-warning text-dark py-2 px-3" style="font-size: 0.85rem;">
+                                                <i class="fas fa-clock me-1"></i>PENDIENTE
+                                            </span>
+                                        {% elif r.estado == 'APROBADO' %}
+                                            <span class="badge bg-success py-2 px-3" style="font-size: 0.85rem;">
+                                                <i class="fas fa-check me-1"></i>APROBADO
+                                            </span>
+                                        {% elif r.estado == 'APROBADO_PARCIAL' %}
+                                            <span class="badge bg-info py-2 px-3" style="font-size: 0.85rem;">
+                                                <i class="fas fa-check-double me-1"></i>APROBADO PARCIAL
+                                            </span>
+                                        {% elif r.estado == 'RECHAZADO' %}
+                                            <span class="badge bg-danger py-2 px-3" style="font-size: 0.85rem;">
+                                                <i class="fas fa-times me-1"></i>RECHAZADO
+                                            </span>
+                                        {% elif r.estado == 'DEVUELTO' %}
+                                            <span class="badge bg-secondary py-2 px-3" style="font-size: 0.85rem;">
+                                                <i class="fas fa-undo me-1"></i>DEVUELTO
+                                            </span>
+                                        {% else %}
+                                            <span class="badge bg-dark py-2 px-3" style="font-size: 0.85rem;">
+                                                {{ r.estado }}
+                                            </span>
+                                        {% endif %}
                                     </td>
 
                                     {% if can_view_actions() %}
                                     <td class="text-center">
                                         <div class="btn-group btn-group-sm" role="group">
-                                            <!-- Cambiado de 'PRESTADO' a 'PENDIENTE' -->
                                             {% if r.estado == 'PENDIENTE' %}
                                             <button type="button" class="btn btn-outline-success" onclick="aprobarPrestamo({{ r.id }})"
-                                                    title="Aprobar Préstamo">
+                                                    title="Aprobar Prestamo">
                                                 <i class="fas fa-check"></i>
                                             </button>
                                             <button type="button" class="btn btn-outline-warning"
@@ -253,13 +267,13 @@
                                             </button>
                                             <button type="button" class="btn btn-outline-danger"
                                                     onclick="mostrarModalRechazar({{ r.id }})"
-                                                    title="Rechazar Préstamo">
+                                                    title="Rechazar Prestamo">
                                                 <i class="fas fa-times"></i>
                                             </button>
                                             {% elif r.estado in ['APROBADO', 'APROBADO_PARCIAL'] %}
                                             <button type="button" class="btn btn-outline-info"
                                                     onclick="mostrarModalDevolucion({{ r.id }})"
-                                                    title="Registrar Devolución">
+                                                    title="Registrar Devolucion">
                                                 <i class="fas fa-undo"></i>
                                             </button>
                                             {% else %}
@@ -276,10 +290,10 @@
                                     <td colspan="{% if can_view_actions() %}11{% else %}10{% endif %}" class="text-center py-5">
                                         <div class="d-flex flex-column align-items-center">
                                             <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
-                                            <h5 class="text-muted">No se encontraron préstamos</h5>
-                                            <p class="text-muted">No hay préstamos que coincidan con los criterios de búsqueda</p>
+                                            <h5 class="text-muted">No se encontraron prestamos</h5>
+                                            <p class="text-muted">No hay prestamos que coincidan con los criterios de busqueda</p>
                                             <a href="/prestamos/crear" class="btn btn-primary mt-2">
-                                                <i class="fas fa-plus me-2"></i>Crear primer préstamo
+                                                <i class="fas fa-plus me-2"></i>Crear primer prestamo
                                             </a>
                                         </div>
                                     </td>
@@ -309,8 +323,8 @@
                         <i class="fas fa-exclamation-triangle fa-2x text-warning"></i>
                     </div>
                     <div class="flex-grow-1 ms-3">
-                        <h6 class="mb-1">¿Está seguro de que desea aprobar parcialmente este préstamo?</h6>
-                        <p class="mb-0 text-muted">Solo se aprobará la cantidad especificada.</p>
+                        <h6 class="mb-1">¿Esta seguro de que desea aprobar parcialmente este prestamo?</h6>
+                        <p class="mb-0 text-muted">Solo se aprobara la cantidad especificada.</p>
                     </div>
                 </div>
                 <form id="formAprobarParcial">
@@ -321,7 +335,7 @@
                                min="1" required>
                         <div class="form-text">
                             <i class="fas fa-info-circle me-1"></i>
-                            Cantidad máxima disponible: <span id="max_cantidad" class="fw-semibold">0</span>
+                            Cantidad maxima disponible: <span id="max_cantidad" class="fw-semibold">0</span>
                         </div>
                     </div>
                 </form>
@@ -343,7 +357,7 @@
         <div class="modal-content">
             <div class="modal-header bg-danger text-white">
                 <h5 class="modal-title" id="rechazarModalLabel">
-                    <i class="fas fa-times-circle me-2"></i>Rechazar Préstamo
+                    <i class="fas fa-times-circle me-2"></i>Rechazar Prestamo
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
@@ -353,19 +367,19 @@
                         <i class="fas fa-exclamation-triangle fa-2x text-danger"></i>
                     </div>
                     <div class="flex-grow-1 ms-3">
-                        <h6 class="mb-1">¿Está seguro de que desea rechazar este préstamo?</h6>
-                        <p class="mb-0 text-muted">Esta acción no se puede deshacer.</p>
+                        <h6 class="mb-1">¿Esta seguro de que desea rechazar este prestamo?</h6>
+                        <p class="mb-0 text-muted">Esta accion no se puede deshacer.</p>
                     </div>
                 </div>
                 <form id="formRechazar">
                     <input type="hidden" id="rechazar_prestamo_id">
                     <div class="mb-3">
-                        <label for="observacion" class="form-label fw-semibold">Observación <span class="text-danger">*</span></label>
+                        <label for="observacion" class="form-label fw-semibold">Observacion <span class="text-danger">*</span></label>
                         <textarea class="form-control" id="observacion" name="observacion" rows="3"
-                                  placeholder="Ingrese la razón del rechazo..." required></textarea>
+                                  placeholder="Ingrese la razon del rechazo..." required></textarea>
                         <div class="form-text">
                             <i class="fas fa-info-circle me-1"></i>
-                            Esta observación será registrada en el historial del préstamo.
+                            Esta observacion sera registrada en el historial del prestamo.
                         </div>
                     </div>
                 </form>
@@ -387,7 +401,7 @@
         <div class="modal-content">
             <div class="modal-header bg-info text-white">
                 <h5 class="modal-title" id="devolucionModalLabel">
-                    <i class="fas fa-undo me-2"></i>Registrar Devolución
+                    <i class="fas fa-undo me-2"></i>Registrar Devolucion
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
@@ -397,19 +411,19 @@
                         <i class="fas fa-question-circle fa-2x text-info"></i>
                     </div>
                     <div class="flex-grow-1 ms-3">
-                        <h6 class="mb-1">¿Está seguro de que desea registrar la devolución de este préstamo?</h6>
-                        <p class="mb-0 text-muted">El material será marcado como devuelto.</p>
+                        <h6 class="mb-1">¿Esta seguro de que desea registrar la devolucion de este prestamo?</h6>
+                        <p class="mb-0 text-muted">El material sera marcado como devuelto.</p>
                     </div>
                 </div>
                 <form id="formDevolucion">
                     <input type="hidden" id="devolucion_prestamo_id">
                     <div class="mb-3">
-                        <label for="observacion_devolucion" class="form-label fw-semibold">Observación (opcional)</label>
+                        <label for="observacion_devolucion" class="form-label fw-semibold">Observacion (opcional)</label>
                         <textarea class="form-control" id="observacion_devolucion" name="observacion" rows="3"
-                                  placeholder="Ingrese una observación sobre la devolución..."></textarea>
+                                  placeholder="Ingrese una observacion sobre la devolucion..."></textarea>
                         <div class="form-text">
                             <i class="fas fa-info-circle me-1"></i>
-                            Esta observación será registrada en el historial del préstamo.
+                            Esta observacion sera registrada en el historial del prestamo.
                         </div>
                     </div>
                 </form>
@@ -419,7 +433,7 @@
                     <i class="fas fa-times me-2"></i>Cancelar
                 </button>
                 <button type="button" class="btn btn-info" onclick="registrarDevolucion()">
-                    <i class="fas fa-undo me-2"></i>Registrar Devolución
+                    <i class="fas fa-undo me-2"></i>Registrar Devolucion
                 </button>
             </div>
         </div>
@@ -451,7 +465,6 @@
         font-size: 0.75rem;
     }
     
-    /* Cambiado de 'estado-prestado' a 'estado-pendiente' */
     .estado-pendiente {
         background-color: #fff3cd;
         color: #856404;
@@ -485,11 +498,11 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 
 <script>
-    // Función: aprobarPrestamo
-    // Propósito: Aprobar completamente un préstamo pendiente
-    // Parámetros: prestamoId - ID del préstamo a aprobar
+    // Funcion: aprobarPrestamo
+    // Proposito: Aprobar completamente un prestamo pendiente
+    // Parametros: prestamoId - ID del prestamo a aprobar
     function aprobarPrestamo(prestamoId) {
-        if (confirm('¿Está seguro de que desea aprobar este préstamo?')) {
+        if (confirm('¿Esta seguro de que desea aprobar este prestamo?')) {
             fetch(`/prestamos/${prestamoId}/aprobar`, {
                 method: 'POST',
                 headers: {
@@ -500,21 +513,21 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    mostrarNotificacion('Préstamo aprobado correctamente', 'success');
+                    mostrarNotificacion('Prestamo aprobado correctamente', 'success');
                     actualizarEstadoPrestamo(prestamoId, data.estado);
                 } else {
-                    mostrarNotificacion('Error al aprobar el préstamo: ' + data.message, 'error');
+                    mostrarNotificacion('Error al aprobar el prestamo: ' + data.message, 'error');
                 }
             })
             .catch(error => {
-                mostrarNotificacion('Error al aprobar el préstamo', 'error');
+                mostrarNotificacion('Error al aprobar el prestamo', 'error');
             });
         }
     }
 
-    // Función: mostrarModalAprobarParcial
-    // Propósito: Mostrar modal para aprobación parcial de préstamo
-    // Parámetros: prestamoId - ID del préstamo, cantidadMaxima - cantidad máxima disponible
+    // Funcion: mostrarModalAprobarParcial
+    // Proposito: Mostrar modal para aprobacion parcial de prestamo
+    // Parametros: prestamoId - ID del prestamo, cantidadMaxima - cantidad maxima disponible
     function mostrarModalAprobarParcial(prestamoId, cantidadMaxima) {
         document.getElementById('aprobar_parcial_prestamo_id').value = prestamoId;
         document.getElementById('cantidad_aprobada').value = cantidadMaxima;
@@ -525,14 +538,14 @@
         modal.show();
     }
 
-    // Función: aprobarParcial
-    // Propósito: Aprobar parcialmente un préstamo con cantidad específica
+    // Funcion: aprobarParcial
+    // Proposito: Aprobar parcialmente un prestamo con cantidad especifica
     function aprobarParcial() {
         const prestamoId = document.getElementById('aprobar_parcial_prestamo_id').value;
         const cantidadAprobada = document.getElementById('cantidad_aprobada').value;
         
         if (!cantidadAprobada || cantidadAprobada <= 0) {
-            mostrarNotificacion('Por favor ingrese una cantidad válida', 'error');
+            mostrarNotificacion('Por favor ingrese una cantidad valida', 'error');
             return;
         }
         
@@ -547,7 +560,7 @@
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                mostrarNotificacion('Préstamo aprobado parcialmente', 'success');
+                mostrarNotificacion('Prestamo aprobado parcialmente', 'success');
                 actualizarEstadoPrestamo(prestamoId, data.estado);
                 const modal = bootstrap.Modal.getInstance(document.getElementById('aprobarParcialModal'));
                 modal.hide();
@@ -560,9 +573,9 @@
         });
     }
 
-    // Función: mostrarModalRechazar
-    // Propósito: Mostrar modal para rechazar un préstamo
-    // Parámetros: prestamoId - ID del préstamo a rechazar
+    // Funcion: mostrarModalRechazar
+    // Proposito: Mostrar modal para rechazar un prestamo
+    // Parametros: prestamoId - ID del prestamo a rechazar
     function mostrarModalRechazar(prestamoId) {
         document.getElementById('rechazar_prestamo_id').value = prestamoId;
         document.getElementById('observacion').value = '';
@@ -571,14 +584,14 @@
         modal.show();
     }
 
-    // Función: rechazarPrestamo
-    // Propósito: Rechazar un préstamo con observación obligatoria
+    // Funcion: rechazarPrestamo
+    // Proposito: Rechazar un prestamo con observacion obligatoria
     function rechazarPrestamo() {
         const prestamoId = document.getElementById('rechazar_prestamo_id').value;
         const observacion = document.getElementById('observacion').value.trim();
         
         if (!observacion) {
-            mostrarNotificacion('Por favor ingrese una observación', 'error');
+            mostrarNotificacion('Por favor ingrese una observacion', 'error');
             return;
         }
         
@@ -593,22 +606,22 @@
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                mostrarNotificacion('Préstamo rechazado correctamente', 'success');
+                mostrarNotificacion('Prestamo rechazado correctamente', 'success');
                 actualizarEstadoPrestamo(prestamoId, data.estado);
                 const modal = bootstrap.Modal.getInstance(document.getElementById('rechazarModal'));
                 modal.hide();
             } else {
-                mostrarNotificacion('Error al rechazar el préstamo: ' + data.message, 'error');
+                mostrarNotificacion('Error al rechazar el prestamo: ' + data.message, 'error');
             }
         })
         .catch(error => {
-            mostrarNotificacion('Error al rechazar el préstamo', 'error');
+            mostrarNotificacion('Error al rechazar el prestamo', 'error');
         });
     }
 
-    // Función: mostrarModalDevolucion
-    // Propósito: Mostrar modal para registrar devolución de préstamo
-    // Parámetros: prestamoId - ID del préstamo a devolver
+    // Funcion: mostrarModalDevolucion
+    // Proposito: Mostrar modal para registrar devolucion de prestamo
+    // Parametros: prestamoId - ID del prestamo a devolver
     function mostrarModalDevolucion(prestamoId) {
         document.getElementById('devolucion_prestamo_id').value = prestamoId;
         document.getElementById('observacion_devolucion').value = '';
@@ -617,8 +630,8 @@
         modal.show();
     }
 
-    // Función: registrarDevolucion
-    // Propósito: Registrar la devolución de un préstamo aprobado
+    // Funcion: registrarDevolucion
+    // Proposito: Registrar la devolucion de un prestamo aprobado
     function registrarDevolucion() {
         const prestamoId = document.getElementById('devolucion_prestamo_id').value;
         const observacion = document.getElementById('observacion_devolucion').value.trim();
@@ -634,56 +647,69 @@
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                mostrarNotificacion('Devolución registrada correctamente', 'success');
+                mostrarNotificacion('Devolucion registrada correctamente', 'success');
                 actualizarEstadoPrestamo(prestamoId, data.estado);
                 const modal = bootstrap.Modal.getInstance(document.getElementById('devolucionModal'));
                 modal.hide();
             } else {
-                mostrarNotificacion('Error al registrar la devolución: ' + data.message, 'error');
+                mostrarNotificacion('Error al registrar la devolucion: ' + data.message, 'error');
             }
         })
         .catch(error => {
-            mostrarNotificacion('Error al registrar la devolución', 'error');
+            mostrarNotificacion('Error al registrar la devolucion', 'error');
         });
     }
 
-    // Función: actualizarEstadoPrestamo
-    // Propósito: Actualizar la interfaz visual después de cambiar estado
-    // Parámetros: prestamoId - ID del préstamo, nuevoEstado - nuevo estado a mostrar
+    // Funcion: actualizarEstadoPrestamo
+    // Proposito: Actualizar la interfaz visual despues de cambiar estado
+    // Parametros: prestamoId - ID del prestamo, nuevoEstado - nuevo estado a mostrar
     function actualizarEstadoPrestamo(prestamoId, nuevoEstado) {
         const fila = document.getElementById(`prestamo-${prestamoId}`);
         if (!fila) return;
         
         fila.setAttribute('data-estado', nuevoEstado);
         
-        const estadoBadge = fila.querySelector('.estado-badge');
-        const icono = fila.querySelector('.estado-badge i');
+        const estadoTd = fila.querySelector('td:nth-child(10)');
         
-        estadoBadge.className = `badge rounded-pill fw-normal py-2 px-3 estado-badge estado-${nuevoEstado.toLowerCase().replace(' ', '-')}`;
+        // Actualizar badge con nuevos estilos mejorados
+        let nuevoBadge = '';
+        if (nuevoEstado === 'PENDIENTE') {
+            nuevoBadge = `<span class="badge bg-warning text-dark py-2 px-3" style="font-size: 0.85rem;">
+                            <i class="fas fa-clock me-1"></i>PENDIENTE
+                          </span>`;
+        } else if (nuevoEstado === 'APROBADO') {
+            nuevoBadge = `<span class="badge bg-success py-2 px-3" style="font-size: 0.85rem;">
+                            <i class="fas fa-check me-1"></i>APROBADO
+                          </span>`;
+        } else if (nuevoEstado === 'APROBADO_PARCIAL') {
+            nuevoBadge = `<span class="badge bg-info py-2 px-3" style="font-size: 0.85rem;">
+                            <i class="fas fa-check-double me-1"></i>APROBADO PARCIAL
+                          </span>`;
+        } else if (nuevoEstado === 'RECHAZADO') {
+            nuevoBadge = `<span class="badge bg-danger py-2 px-3" style="font-size: 0.85rem;">
+                            <i class="fas fa-times me-1"></i>RECHAZADO
+                          </span>`;
+        } else if (nuevoEstado === 'DEVUELTO') {
+            nuevoBadge = `<span class="badge bg-secondary py-2 px-3" style="font-size: 0.85rem;">
+                            <i class="fas fa-undo me-1"></i>DEVUELTO
+                          </span>`;
+        } else {
+            nuevoBadge = `<span class="badge bg-dark py-2 px-3" style="font-size: 0.85rem;">
+                            ${nuevoEstado}
+                          </span>`;
+        }
         
-        // Cambiado de 'PRESTADO' a 'PENDIENTE' en el mapa de iconos
-        const iconosMap = {
-            'PENDIENTE': 'fa-clock',
-            'APROBADO': 'fa-check-circle',
-            'RECHAZADO': 'fa-times-circle',
-            'APROBADO_PARCIAL': 'fa-check-double',
-            'DEVUELTO': 'fa-undo'
-        };
-        
-        icono.className = `fas ${iconosMap[nuevoEstado] || 'fa-question-circle'} me-1`;
-        
-        estadoBadge.innerHTML = `${icono.outerHTML} ${nuevoEstado}`;
+        estadoTd.innerHTML = nuevoBadge;
         
         const accionesTd = fila.querySelector('td.text-center');
         if (accionesTd) {
             let nuevosBotones = '';
             
-            // Cambiado de 'PRESTADO' a 'PENDIENTE'
             if (nuevoEstado === 'PENDIENTE') {
                 nuevosBotones = `
                     <div class="btn-group btn-group-sm" role="group">
                         <button type="button" class="btn btn-outline-success" onclick="aprobarPrestamo(${prestamoId})"
-                                title="Aprobar Préstamo">
+                                title="Aprobar Prestamo">
                             <i class="fas fa-check"></i>
                         </button>
                         <button type="button" class="btn btn-outline-warning"
@@ -693,7 +719,7 @@
                         </button>
                         <button type="button" class="btn btn-outline-danger"
                                 onclick="mostrarModalRechazar(${prestamoId})"
-                                title="Rechazar Préstamo">
+                                title="Rechazar Prestamo">
                             <i class="fas fa-times"></i>
                         </button>
                     </div>
@@ -703,7 +729,7 @@
                     <div class="btn-group btn-group-sm" role="group">
                         <button type="button" class="btn btn-outline-info"
                                 onclick="mostrarModalDevolucion(${prestamoId})"
-                                title="Registrar Devolución">
+                                title="Registrar Devolucion">
                             <i class="fas fa-undo"></i>
                         </button>
                     </div>
@@ -718,8 +744,8 @@
         actualizarContadores();
     }
 
-    // Función: actualizarContadores
-    // Propósito: Actualizar los contadores de resumen en tiempo real
+    // Funcion: actualizarContadores
+    // Proposito: Actualizar los contadores de resumen en tiempo real
     function actualizarContadores() {
         const filas = document.querySelectorAll('#prestamos-body tr');
         let total = 0;
@@ -732,7 +758,6 @@
             total++;
             
             switch(estado) {
-                // Cambiado de 'PRESTADO' a 'PENDIENTE'
                 case 'PENDIENTE':
                     pendientes++;
                     break;
@@ -755,23 +780,23 @@
         document.getElementById('total-registros').textContent = `${total} registros`;
     }
 
-    // Función: exportarExcelPrestamos
-    // Propósito: Exportar tabla de préstamos a formato Excel
+    // Funcion: exportarExcelPrestamos
+    // Proposito: Exportar tabla de prestamos a formato Excel
     function exportarExcelPrestamos() {
         try {
             const tabla = document.getElementById('tablaPrestamos');
             const wb = XLSX.utils.book_new();
             const ws = XLSX.utils.table_to_sheet(tabla);
-            XLSX.utils.book_append_sheet(wb, ws, 'Préstamos');
-            XLSX.writeFile(wb, `Reporte_Préstamos_${new Date().toISOString().split('T')[0]}.xlsx`);
-            mostrarNotificacion('Exportación a Excel completada', 'success');
+            XLSX.utils.book_append_sheet(wb, ws, 'Prestamos');
+            XLSX.writeFile(wb, `Reporte_Prestamos_${new Date().toISOString().split('T')[0]}.xlsx`);
+            mostrarNotificacion('Exportacion a Excel completada', 'success');
         } catch (error) {
             mostrarNotificacion('Error al exportar a Excel', 'error');
         }
     }
 
-    // Función: exportarPDFPrestamos
-    // Propósito: Exportar tabla de préstamos a formato PDF
+    // Funcion: exportarPDFPrestamos
+    // Proposito: Exportar tabla de prestamos a formato PDF
     function exportarPDFPrestamos() {
         try {
             const { jsPDF } = window.jspdf;
@@ -783,10 +808,10 @@
             const devueltos = document.getElementById('devueltos').textContent;
 
             doc.setFontSize(16);
-            doc.text('Reporte de Préstamos - Sistema de Gestión', 14, 15);
+            doc.text('Reporte de Prestamos - Sistema de Gestion', 14, 15);
             doc.setFontSize(10);
             doc.text(`Generado el: ${new Date().toLocaleDateString()}`, 14, 22);
-            doc.text(`Total de préstamos: ${totalPrestamos}`, 14, 29);
+            doc.text(`Total de prestamos: ${totalPrestamos}`, 14, 29);
             doc.text(`Pendientes: ${pendientes} | Aprobados: ${aprobados} | Devueltos: ${devueltos}`, 14, 36);
 
             doc.autoTable({
@@ -797,16 +822,16 @@
                 styles: { fontSize: 8 }
             });
 
-            doc.save(`Reporte_Préstamos_${new Date().toISOString().split('T')[0]}.pdf`);
-            mostrarNotificacion('Exportación a PDF completada', 'success');
+            doc.save(`Reporte_Prestamos_${new Date().toISOString().split('T')[0]}.pdf`);
+            mostrarNotificacion('Exportacion a PDF completada', 'success');
         } catch (error) {
             mostrarNotificacion('Error al exportar a PDF', 'error');
         }
     }
 
-    // Función: mostrarNotificacion
-    // Propósito: Mostrar notificación toast al usuario
-    // Parámetros: mensaje - texto a mostrar, tipo - 'success' o 'error'
+    // Funcion: mostrarNotificacion
+    // Proposito: Mostrar notificacion toast al usuario
+    // Parametros: mensaje - texto a mostrar, tipo - 'success' o 'error'
     function mostrarNotificacion(mensaje, tipo) {
         const toast = document.createElement('div');
         toast.className = `toast align-items-center text-white bg-${tipo === 'success' ? 'success' : 'danger'} border-0 position-fixed`;

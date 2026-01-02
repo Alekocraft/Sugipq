@@ -50,7 +50,6 @@
     <Content Include="templates\inventario_corporativo\reportes.html" />
     <Content Include="templates\materials\crear.html" />
     <Content Include="templates\materials\listar.html" />
-    <Content Include="templates\oficinas\detalle.html" />
     <Content Include="templates\oficinas\listar.html" />
     <Content Include="templates\reportes\index.html" />
     <Content Include="templates\reportes\inventario.html" />
