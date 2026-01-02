@@ -639,28 +639,6 @@ def crear_solicitud_backup():
     )
 
 # ============================================================================
-# RUTAS DE OFICINAS (BACKUP)
-# ============================================================================
-
-@app.route('/oficinas')
-def listar_oficinas_backup():
-    """Ruta de respaldo para listar oficinas"""
-    if 'usuario_id' not in session:
-        return redirect('/auth/login')
-    
-    if not has_gestion_completa():
-        flash('No tiene permisos para ver oficinas', 'danger')
-        return redirect('/dashboard')
-    
-    try:
-        oficinas = OficinaModel.obtener_todas() or []
-        return render_template('oficinas/index.html', oficinas=oficinas)
-    except Exception as e:
-        logger.error(f"Error listando oficinas: {e}")
-        flash('Error cargando oficinas', 'danger')
-        return redirect('/dashboard')
-
-# ============================================================================
 # RUTAS DE USUARIOS (BACKUP)
 # ============================================================================
 
