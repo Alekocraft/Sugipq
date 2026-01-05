@@ -605,16 +605,30 @@ def reporte_novedades():
         total_novedades = len(novedades)
         
         # Contar por estado
-        estados = {'pendiente': 0, 'en_proceso': 0, 'resuelto': 0}
+        # Contar por estado (estados reales de la BD: registrada, resuelta, aceptada, rechazada)
+        estados = {
+            'registrada': 0,    # Pendiente
+            'en_proceso': 0,    # En proceso (si existe)
+            'resuelta': 0,      # Resuelta
+            'aceptada': 0,      # Aceptada
+            'rechazada': 0      # Rechazada
+        }
         for novedad in novedades:
-            estado = novedad.get('estado', 'pendiente')
-            if estado == 'pendiente':
-                estados['pendiente'] += 1
-            elif estado == 'en_proceso':
-                estados['en_proceso'] += 1
-            elif estado == 'resuelto':
-                estados['resuelto'] += 1
-        
+            estado = novedad.get('estado', '').lower().strip()
+            if estado in estados:
+                estados[estado] += 1
+            else:
+                # Si el estado no está en nuestro diccionario, intentar mapearlo
+                if 'registrada' in estado or 'pendiente' in estado:
+                    estados['registrada'] += 1
+                elif 'proceso' in estado:
+                    estados['en_proceso'] += 1
+                elif 'resuelta' in estado or 'resuelto' in estado:
+                    estados['resuelta'] += 1
+                elif 'aceptada' in estado or 'aceptado' in estado:
+                    estados['aceptada'] += 1
+                elif 'rechazada' in estado or 'rechazado' in estado:
+                    estados['rechazada'] += 1
         # Contar por prioridad
         prioridades = {'alta': 0, 'media': 0, 'baja': 0}
         for novedad in novedades:
@@ -640,9 +654,12 @@ def reporte_novedades():
         return render_template('reportes/novedades.html',
                              novedades=novedades,
                              total_novedades=total_novedades,
-                             pendientes=estados['pendiente'],
+                             registradas=estados['registrada'],
+                             pendientes=estados['registrada'],  # Alias para compatibilidad
                              en_proceso=estados['en_proceso'],
-                             resueltas=estados['resuelto'],
+                             resueltas=estados['resuelta'],
+                             aceptadas=estados['aceptada'],
+                             rechazadas=estados['rechazada'],
                              prioridad_alta=prioridades['alta'],
                              prioridad_media=prioridades['media'],
                              prioridad_baja=prioridades['baja'],
@@ -657,9 +674,12 @@ def reporte_novedades():
         return render_template('reportes/novedades.html',
                              novedades=[],
                              total_novedades=0,
-                             pendientes=0,
+                             registradas=0,
+                             pendientes=0,  # Alias para compatibilidad
                              en_proceso=0,
                              resueltas=0,
+                             aceptadas=0,
+                             rechazadas=0,
                              prioridad_alta=0,
                              prioridad_media=0,
                              prioridad_baja=0,
@@ -924,6 +944,7 @@ def reporte_prestamos():
                 'id': row[0],
                 'elemento_id': row[1],
                 'material': row[2],
+                'material_nombre': row[2],  # Alias para compatibilidad con template
                 'usuario_solicitante_id': row[3],
                 'solicitante_nombre': row[4],
                 'oficina_id': row[5],
@@ -932,7 +953,9 @@ def reporte_prestamos():
                 'valor_unitario': float(row[15] or 0),
                 'subtotal': float(row[16] or 0),
                 'fecha': row[8],
+                'fecha_prestamo': row[8],  # Nombre correcto para el template
                 'fecha_prevista': row[9],
+                'fecha_devolucion_prevista': row[9],  # Nombre correcto para el template
                 'fecha_devolucion_real': row[10],
                 'estado': row[11],
                 'evento': row[12],
@@ -1626,6 +1649,8 @@ def material_detalle(material_id):
         return redirect('/reportes')
     
     try:
+        from database import get_database_connection
+        
         # Obtener el material
         material = MaterialModel.obtener_por_id(material_id)
         if not material:
@@ -1638,11 +1663,99 @@ def material_detalle(material_id):
                 flash('No tiene permisos para ver este material', 'danger')
                 return redirect('/reportes/materiales')
         
+        # Obtener historial de solicitudes para este material
+        conn = get_database_connection()
+        cursor = conn.cursor()
+        
+        # Asegurar que material_id es un int
+        material_id_int = int(material_id)
+        
+        print(f"🔍 DEBUG: Buscando solicitudes para MaterialId = {material_id_int}")
+        print(f"🔍 DEBUG: Material obtenido: {material.get('nombre', 'N/A')}")
+        
+        # QUERY MEJORADO con mejor manejo
+        query = """
+            SELECT 
+                s.SolicitudId,
+                s.UsuarioSolicitante,
+                u.NombreUsuario as UsuarioNombre,
+                s.OficinaSolicitanteId,
+                o.NombreOficina as OficinaNombre,
+                s.CantidadSolicitada,
+                s.FechaSolicitud,
+                s.FechaAprobacion,
+                s.EstadoId,
+                e.NombreEstado,
+                s.Observacion
+            FROM SolicitudesMaterial s
+            LEFT JOIN Usuarios u ON s.UsuarioSolicitante = u.CorreoElectronico
+            INNER JOIN Oficinas o ON s.OficinaSolicitanteId = o.OficinaId
+            INNER JOIN EstadosSolicitud e ON s.EstadoId = e.EstadoId
+            WHERE s.MaterialId = ?
+            ORDER BY s.FechaSolicitud DESC
+        """
+        
+        try:
+            cursor.execute(query, (material_id_int,))
+            
+            solicitudes = []
+            rows = cursor.fetchall()
+            print(f"✅ DEBUG: Se encontraron {len(rows)} solicitudes en la BD")
+            
+            if len(rows) == 0:
+                # Verificar si el MaterialId existe
+                cursor.execute("SELECT COUNT(*) FROM Materiales WHERE MaterialId = ?", (material_id_int,))
+                count_mat = cursor.fetchone()[0]
+                print(f"🔍 DEBUG: ¿MaterialId {material_id_int} existe en Materiales? {count_mat > 0}")
+                
+                # Verificar si hay solicitudes para cualquier material
+                cursor.execute("SELECT COUNT(*) FROM SolicitudesMaterial WHERE MaterialId = ?", (material_id_int,))
+                count_sol = cursor.fetchone()[0]
+                print(f"🔍 DEBUG: Solicitudes directas encontradas: {count_sol}")
+            
+            for row in rows:
+                estado_nombre = row[9] if row[9] else 'Pendiente'
+                solicitud = {
+                    'id': row[0],
+                    'usuario_solicitante': row[1],
+                    'usuario_nombre': row[2] or row[1],  # Usar email si no hay nombre
+                    'oficina_id': row[3],
+                    'oficina_nombre': row[4],
+                    'cantidad_solicitada': row[5],
+                    'fecha_solicitud': row[6],
+                    'fecha_aprobacion': row[7],
+                    'estado_id': row[8],
+                    'estado': estado_nombre.lower(),
+                    'observacion': row[10]
+                }
+                solicitudes.append(solicitud)
+                print(f"  📋 Solicitud {row[0]}: Estado={estado_nombre}, Cantidad={row[5]}")
+            
+        except Exception as query_error:
+            print(f"❌ ERROR en query de solicitudes: {str(query_error)}")
+            import traceback
+            traceback.print_exc()
+            solicitudes = []
+        
+        conn.close()
+        
+        # Calcular estadísticas
+        total_solicitudes = len(solicitudes)
+        solicitudes_aprobadas = len([s for s in solicitudes if 'aprobada' in s['estado'].lower()])
+        
+        print(f"DEBUG: Total solicitudes = {total_solicitudes}, Aprobadas = {solicitudes_aprobadas}")
+        
         return render_template('reportes/material_detalle.html',
-                             material=material)
+                             material=material,
+                             solicitudes=solicitudes,
+                             total_solicitudes=total_solicitudes,
+                             solicitudes_aprobadas=solicitudes_aprobadas)
         
     except Exception as e:
-        flash('Error al obtener el detalle del material', 'danger')
+        print(f"❌ Error en material_detalle: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        flash(f'Error al obtener el detalle del material: {str(e)}', 'danger')
         return redirect('/reportes/materiales')
 
 @reportes_bp.route('/exportar/inventario-corporativo/excel')
