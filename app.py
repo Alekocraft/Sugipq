@@ -1,4 +1,4 @@
-﻿# app/app.py - Archivo principal unificado
+﻿# app/app.py
 
 import os
 import logging
@@ -157,6 +157,7 @@ try:
     from blueprints.reportes import reportes_bp
     from blueprints.api import api_bp
     from blueprints.usuarios import usuarios_bp
+    from certificado_route import certificado_bp  # ← LÍNEA AGREGADA
     logger.info("Blueprints principales cargados correctamente")
 except ImportError as e:
     logger.error(f"Error cargando blueprints principales: {e}")
@@ -404,7 +405,6 @@ def utility_processor():
 # REGISTRO DE BLUEPRINTS
 # ============================================================================
 
- 
 app.register_blueprint(auth_bp, name='auth_bp')
 app.register_blueprint(materiales_bp)
 app.register_blueprint(solicitudes_bp, url_prefix='/solicitudes')
@@ -413,6 +413,8 @@ app.register_blueprint(aprobadores_bp)
 app.register_blueprint(reportes_bp)
 app.register_blueprint(api_bp)
 app.register_blueprint(usuarios_bp)
+app.register_blueprint(certificado_bp)  # ← LÍNEA AGREGADA
+logger.info("Blueprint de certificados registrado")  # ← LÍNEA AGREGADA
 
 # Registrar blueprints opcionales
 app.register_blueprint(prestamos_bp, url_prefix='/prestamos')

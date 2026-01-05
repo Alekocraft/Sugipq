@@ -33,10 +33,6 @@ def listar_aprobadores():
         return redirect(url_for('dashboard'))
 
     try:
-        # 🔴 PROBLEMA: Esto está mal - busca en tabla Usuarios
-        # aprobadores = UsuarioModel.obtener_aprobadores()
-        
-        # 🟢 SOLUCIÓN: Usar el nuevo método que busca en tabla Aprobadores
         aprobadores = UsuarioModel.obtener_aprobadores_desde_tabla()
         
         # Log para debugging

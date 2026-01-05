@@ -702,7 +702,7 @@ def reporte_oficinas():
         conn = get_database_connection()
         cursor = conn.cursor()
         
-        # Obtener oficinas - COLUMNAS CORRECTAS
+        
         cursor.execute("""
             SELECT 
                 OficinaId,
@@ -838,7 +838,7 @@ def reporte_oficinas():
                              total_materiales=total_materiales,
                              total_solicitudes=total_solicitudes,
                              total_movimientos=total_movimientos,
-                             valor_total=valor_total)  # ✅ VARIABLE CORRECTA
+                             valor_total=valor_total)
     
     except Exception as e:
         flash(f'Error al generar el reporte de oficinas: {str(e)}', 'danger')
@@ -944,7 +944,7 @@ def reporte_prestamos():
                 'id': row[0],
                 'elemento_id': row[1],
                 'material': row[2],
-                'material_nombre': row[2],  # Alias para compatibilidad con template
+                'material_nombre': row[2],  
                 'usuario_solicitante_id': row[3],
                 'solicitante_nombre': row[4],
                 'oficina_id': row[5],
@@ -953,9 +953,9 @@ def reporte_prestamos():
                 'valor_unitario': float(row[15] or 0),
                 'subtotal': float(row[16] or 0),
                 'fecha': row[8],
-                'fecha_prestamo': row[8],  # Nombre correcto para el template
+                'fecha_prestamo': row[8],  
                 'fecha_prevista': row[9],
-                'fecha_devolucion_prevista': row[9],  # Nombre correcto para el template
+                'fecha_devolucion_prevista': row[9],  
                 'fecha_devolucion_real': row[10],
                 'estado': row[11],
                 'evento': row[12],
@@ -1228,8 +1228,8 @@ def exportar_inventario_corporativo_pdf():
             
             # Datos
             ('GRID', (0, 3), (8, -5), 0.5, colors.grey),
-            ('ALIGN', (2, 4), (4, -5), 'RIGHT'),  # Cantidad y valores alineados a la derecha
-            ('ALIGN', (0, 4), (1, -5), 'LEFT'),   # Oficina y Material alineados a la izquierda
+            ('ALIGN', (2, 4), (4, -5), 'RIGHT'),   
+            ('ALIGN', (0, 4), (1, -5), 'LEFT'),    
             ('FONTSIZE', (0, 4), (8, -5), 7),
             ('VALIGN', (0, 0), (8, -1), 'MIDDLE'),
             
@@ -1718,7 +1718,7 @@ def material_detalle(material_id):
                 solicitud = {
                     'id': row[0],
                     'usuario_solicitante': row[1],
-                    'usuario_nombre': row[2] or row[1],  # Usar email si no hay nombre
+                    'usuario_nombre': row[2] or row[1],   
                     'oficina_id': row[3],
                     'oficina_nombre': row[4],
                     'cantidad_solicitada': row[5],
@@ -1937,12 +1937,11 @@ def exportar_oficina_inventario(oficina_id, formato):
                 }
                 materiales.append(material)
         
-        # Obtener movimientos/historial - CORREGIDO
+        
         movimientos = []
         if incluir_movimientos:
             try:
-                # Buscar movimientos del inventario corporativo
-                # Primero en AsignacionesCorporativasHistorial
+                
                 cursor.execute("""
                     SELECT TOP 15
                         ach.Fecha,
@@ -1958,7 +1957,7 @@ def exportar_oficina_inventario(oficina_id, formato):
                 """, (oficina_id,))
                 
                 for row in cursor.fetchall():
-                    if row[0]:  # Solo si hay fecha
+                    if row[0]:   
                         movimiento = {
                             'fecha': row[0],
                             'accion': row[1] or 'Asignación',
@@ -1972,7 +1971,7 @@ def exportar_oficina_inventario(oficina_id, formato):
             except Exception as mov_error:
                 pass
                 
-            # También buscar en movimientos regulares
+            
             try:
                 cursor.execute("""
                     SELECT TOP 10
@@ -1991,7 +1990,7 @@ def exportar_oficina_inventario(oficina_id, formato):
                 """, (oficina_id,))
                 
                 for row in cursor.fetchall():
-                    if row[0]:  # Solo si hay fecha
+                    if row[0]:  
                         movimiento = {
                             'fecha': row[0],
                             'accion': row[1] or 'Movimiento',
@@ -2411,9 +2410,9 @@ def material_historial(material_id):
     except Exception as e:
         return jsonify({'error': str(e)})
 
-# ============================================================================
-# API PARA DETALLE DE PRÉSTAMOS - FUNCIÓN CORREGIDA
-# ============================================================================
+# ==============================
+# API PARA DETALLE DE PRÉSTAMOS 
+# ==============================
 
 @reportes_bp.route('/api/prestamos/<int:prestamo_id>/detalle')
 def api_prestamo_detalle(prestamo_id):
@@ -2697,295 +2696,3 @@ def reporte_inventario_corporativo():
                              total_pendientes=0,
                              valor_total=0)
 
-
-# ============================================================================
-# AGREGAR RUTA PARA GENERAR CERTIFICADO PDF - VERSIÓN CORREGIDA FINAL
-# ============================================================================
-
-@reportes_bp.route('/certificado/<int:asignacion_id>')
-def generar_certificado(asignacion_id):
-    """Genera un certificado PDF para una asignación confirmada"""
-    if not _require_login():
-        return redirect('/login')
-    
-    try:
-        from database import get_database_connection
-        from reportlab.lib.pagesizes import letter
-        from reportlab.lib import colors
-        from reportlab.lib.units import inch
-        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-        from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
-        from io import BytesIO
-        from datetime import datetime
-        
-        conn = get_database_connection()
-        cursor = conn.cursor()
-        
-        # Obtener información de la asignación CONFIRMADA con columnas REALES
-        cursor.execute("""
-            SELECT 
-                a.AsignacionId,
-                a.ProductoId,
-                p.NombreProducto,
-                p.CodigoUnico,
-                p.Descripcion as NumeroSerie,
-                CAST(NULL AS NVARCHAR(100)) as NombreCategoria,
-                p.FechaCreacion as FechaAdquisicion,
-                p.ValorUnitario as ValorCompra,
-                a.OficinaId,
-                o.NombreOficina,
-                o.Ubicacion,
-                a.UsuarioADNombre,
-                a.UsuarioADEmail,
-                a.FechaAsignacion,
-                a.Estado,
-                a.FechaConfirmacion,
-                a.UsuarioConfirmacion,
-                a.Observaciones,
-                a.UsuarioAsignador,
-                a.FechaAsignacion as FechaCreacion
-            FROM Asignaciones a
-            INNER JOIN ProductosCorporativos p ON a.ProductoId = p.ProductoId
-            INNER JOIN Oficinas o ON a.OficinaId = o.OficinaId
-            WHERE a.AsignacionId = ? AND UPPER(LTRIM(RTRIM(a.Estado))) = 'CONFIRMADO' AND a.Activo = 1
-        """, (asignacion_id,))
-        
-        row = cursor.fetchone()
-        
-        if not row:
-            conn.close()
-            flash('Asignación no encontrada o no confirmada', 'warning')
-            return redirect('/reportes/oficinas')
-        
-        # Convertir a diccionario
-        asignacion = {
-            'AsignacionId': row[0],
-            'ProductoId': row[1],
-            'NombreProducto': row[2],
-            'CodigoUnico': row[3],
-            'NumeroSerie': row[4],
-            'NombreCategoria': row[5] or 'Sin categoría',
-            'FechaAdquisicion': row[6],
-            'ValorCompra': row[7],
-            'OficinaId': row[8],
-            'NombreOficina': row[9],
-            'Ubicacion': row[10],
-            'UsuarioNombre': row[11],
-            'UsuarioEmail': row[12],
-            'FechaAsignacion': row[13],
-            'Estado': row[14],
-            'FechaConfirmacion': row[15],
-            'UsuarioConfirmacion': row[16],
-            'Observaciones': row[17],
-            'AsignadoPorNombre': row[18],
-            'FechaCreacion': row[19]
-        }
-        
-        conn.close()
-        
-        # Generar el PDF
-        buffer = BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=letter,
-                              rightMargin=0.75*inch, leftMargin=0.75*inch,
-                              topMargin=0.75*inch, bottomMargin=0.75*inch)
-        
-        elements = []
-        styles = getSampleStyleSheet()
-        
-        # Estilos personalizados
-        title_style = ParagraphStyle(
-            'CustomTitle',
-            parent=styles['Heading1'],
-            fontSize=20,
-            textColor=colors.HexColor('#0d6efd'),
-            spaceAfter=30,
-            alignment=TA_CENTER,
-            fontName='Helvetica-Bold'
-        )
-        
-        subtitle_style = ParagraphStyle(
-            'CustomSubtitle',
-            parent=styles['Heading2'],
-            fontSize=14,
-            textColor=colors.HexColor('#198754'),
-            spaceAfter=12,
-            spaceBefore=20,
-            fontName='Helvetica-Bold'
-        )
-        
-        normal_style = ParagraphStyle(
-            'CustomNormal',
-            parent=styles['Normal'],
-            fontSize=10,
-            alignment=TA_JUSTIFY,
-            spaceAfter=12
-        )
-        
-        # ENCABEZADO
-        elements.append(Spacer(1, 0.5*inch))
-        
-        title = Paragraph("CERTIFICADO DE ASIGNACIÓN DE ACTIVO", title_style)
-        elements.append(title)
-        
-        cert_info = f"<b>Certificado No.:</b> {asignacion['AsignacionId']:06d} | <b>Fecha:</b> {datetime.now().strftime('%d/%m/%Y %H:%M')}"
-        elements.append(Paragraph(cert_info, normal_style))
-        elements.append(Spacer(1, 0.3*inch))
-        
-        # INFORMACIÓN DEL COLABORADOR
-        elements.append(Paragraph("INFORMACIÓN DEL COLABORADOR", subtitle_style))
-        
-        colaborador_data = [
-            ['Nombre Completo:', asignacion['UsuarioNombre'] or 'N/A'],
-            ['Email:', asignacion['UsuarioEmail'] or 'N/A'],
-            ['Oficina:', f"{asignacion['NombreOficina']} - {asignacion['Ubicacion']}" if asignacion['NombreOficina'] else 'N/A']
-        ]
-        
-        colaborador_table = Table(colaborador_data, colWidths=[2*inch, 4.5*inch])
-        colaborador_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#e9ecef')),
-            ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#212529')),
-            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
-            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 9),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-            ('TOPPADDING', (0, 0), (-1, -1), 8),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#dee2e6')),
-        ]))
-        
-        elements.append(colaborador_table)
-        elements.append(Spacer(1, 0.3*inch))
-        
-        # INFORMACIÓN DEL ACTIVO
-        elements.append(Paragraph("INFORMACIÓN DEL ACTIVO", subtitle_style))
-        
-        activo_data = [
-            ['Producto:', asignacion['NombreProducto'] or 'N/A'],
-            ['Categoría:', asignacion['NombreCategoria']],
-            ['Código Único:', asignacion['CodigoUnico'] or 'N/A'],
-            ['Número de Serie:', asignacion['NumeroSerie'] or 'N/A'],
-            ['Valor:', f"${asignacion['ValorCompra']:,.2f}" if asignacion['ValorCompra'] else 'N/A'],
-        ]
-        
-        activo_table = Table(activo_data, colWidths=[2*inch, 4.5*inch])
-        activo_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#e9ecef')),
-            ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#212529')),
-            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
-            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 9),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-            ('TOPPADDING', (0, 0), (-1, -1), 8),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#dee2e6')),
-        ]))
-        
-        elements.append(activo_table)
-        elements.append(Spacer(1, 0.3*inch))
-        
-        # INFORMACIÓN DE LA ASIGNACIÓN
-        elements.append(Paragraph("INFORMACIÓN DE LA ASIGNACIÓN", subtitle_style))
-        
-        fecha_asignacion = asignacion['FechaAsignacion'].strftime('%d/%m/%Y %H:%M') if asignacion['FechaAsignacion'] else 'N/A'
-        fecha_confirmacion = asignacion['FechaConfirmacion'].strftime('%d/%m/%Y %H:%M') if asignacion['FechaConfirmacion'] else 'N/A'
-        
-        asignacion_data = [
-            ['Estado:', 'CONFIRMADO'],
-            ['Fecha de Asignación:', fecha_asignacion],
-            ['Asignado por:', asignacion['AsignadoPorNombre'] or 'Sistema'],
-            ['Fecha de Confirmación:', fecha_confirmacion],
-            ['Confirmado por:', asignacion['UsuarioConfirmacion'] or asignacion['UsuarioNombre'] or 'N/A'],
-        ]
-        
-        asignacion_table = Table(asignacion_data, colWidths=[2*inch, 4.5*inch])
-        asignacion_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#e9ecef')),
-            ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#212529')),
-            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
-            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 9),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-            ('TOPPADDING', (0, 0), (-1, -1), 8),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#dee2e6')),
-        ]))
-        
-        elements.append(asignacion_table)
-        
-        # OBSERVACIONES
-        if asignacion['Observaciones']:
-            elements.append(Spacer(1, 0.3*inch))
-            elements.append(Paragraph("OBSERVACIONES", subtitle_style))
-            
-            obs_data = [['Observaciones:', asignacion['Observaciones']]]
-            
-            obs_table = Table(obs_data, colWidths=[2*inch, 4.5*inch])
-            obs_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#e9ecef')),
-                ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#212529')),
-                ('ALIGN', (0, 0), (0, -1), 'LEFT'),
-                ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, -1), 9),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-                ('TOPPADDING', (0, 0), (-1, -1), 8),
-                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#dee2e6')),
-                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ]))
-            
-            elements.append(obs_table)
-        
-        # TÉRMINOS Y CONDICIONES
-        elements.append(Spacer(1, 0.4*inch))
-        elements.append(Paragraph("TÉRMINOS Y CONDICIONES", subtitle_style))
-        
-        terminos_text = """
-        El colaborador se compromete a:
-        <br/>• Hacer uso responsable del activo asignado.
-        <br/>• Reportar inmediatamente cualquier daño, pérdida o mal funcionamiento.
-        <br/>• Devolver el activo cuando sea requerido por la empresa o al finalizar la relación laboral.
-        <br/>• No realizar modificaciones no autorizadas al equipo.
-        <br/>• Mantener el activo en buenas condiciones de uso y funcionamiento.
-        <br/><br/>
-        La empresa se reserva el derecho de solicitar la devolución del activo en cualquier momento.
-        El activo sigue siendo propiedad de la empresa y debe ser usado exclusivamente para fines laborales.
-        """
-        
-        elements.append(Paragraph(terminos_text, normal_style))
-        
-        # PIE DE PÁGINA
-        elements.append(Spacer(1, 0.5*inch))
-        
-        footer_text = f"""
-        <br/><br/>
-        _________________________________<br/>
-        <b>{asignacion['UsuarioNombre']}</b><br/>
-        Firma del Colaborador
-        """
-        
-        footer_style = ParagraphStyle(
-            'Footer',
-            parent=styles['Normal'],
-            fontSize=9,
-            alignment=TA_CENTER
-        )
-        
-        elements.append(Paragraph(footer_text, footer_style))
-        
-        # Generar el PDF
-        doc.build(elements)
-        
-        buffer.seek(0)
-        
-        filename = f"Certificado_Asignacion_{asignacion['AsignacionId']:06d}.pdf"
-        
-        return send_file(
-            buffer,
-            mimetype='application/pdf',
-            as_attachment=True,
-            download_name=filename
-        )
-        
-    except Exception as e:
-        print(f"Error al generar certificado: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        flash(f'Error al generar el certificado: {str(e)}', 'danger')
-        return redirect('/reportes/oficinas')

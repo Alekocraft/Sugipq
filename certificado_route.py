@@ -1,66 +1,135 @@
-"""
-Ruta para generar certificado PDF de asignaci�n de inventario corporativo
-Agregar esta ruta a tu archivo de rutas principal (por ejemplo, reportes_routes.py o app.py)
+﻿"""
+Blueprint para generar certificados PDF de asignación de inventario corporativo
+con diseño Quálitas
 """
 
-from flask import send_file, session
+from flask import Blueprint, send_file, session
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
 from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_JUSTIFY
+from reportlab.pdfgen import canvas as pdf_canvas
 from io import BytesIO
 from datetime import datetime
 import os
 
-# Esta funci�n debe agregarse a tu archivo de rutas de reportes
-@app.route('/reportes/certificado/<int:asignacion_id>')
+# Importar funciones necesarias
+from database import get_database_connection
+from utils.auth import login_required
+
+# Crear el Blueprint
+certificado_bp = Blueprint('certificado', __name__, url_prefix='/reportes')
+
+# Colores corporativos de Quálitas
+QUALITAS_PURPLE = colors.HexColor('#7B2D8E')
+QUALITAS_CYAN = colors.HexColor('#00B2E3')
+QUALITAS_PINK = colors.HexColor('#E91E8C')
+QUALITAS_GRAY = colors.HexColor('#58595B')
+
+def add_header_footer(canvas, doc):
+    """
+    Función para agregar encabezado y pie de página con diseño Quálitas
+    """
+    canvas.saveState()
+    
+    # LOGO GRANDE QUE OCUPE TODA LA PARTE SUPERIOR
+    logo_path = 'static/images/qualitas_logo.png'
+    if os.path.exists(logo_path):
+        try:
+            # TAMAÑO MÁXIMO - que ocupe casi todo el ancho de la página
+            logo_width = letter[0] - 1.5*inch  # Ancho de página menos márgenes
+            logo_height = 1.2*inch  # Altura significativa
+            
+            # Centrar horizontalmente
+            logo_x = (letter[0] - logo_width) / 2  # Centrado
+            logo_y = letter[1] - 1.3*inch  # Posicionado en la parte superior
+            
+            canvas.drawImage(logo_path, logo_x, logo_y, 
+                            width=logo_width, height=logo_height, 
+                            preserveAspectRatio=True, mask='auto')
+            
+            print(f"✅ Logo dibujado: {logo_width:.2f} x {logo_height:.2f} pulgadas")
+            print(f"✅ Posición: ({logo_x:.2f}, {logo_y:.2f})")
+            
+        except Exception as e:
+            print(f"❌ No se pudo cargar el logo: {e}")
+            # Dibujar rectángulo como fallback
+            canvas.setFillColor(QUALITAS_PURPLE)
+            canvas.rect(0.75*inch, letter[1] - 1.3*inch, letter[0] - 1.5*inch, 1.0*inch, fill=1)
+            canvas.setFillColor(colors.white)
+            canvas.setFont('Helvetica-Bold', 18)
+            canvas.drawCentredString(letter[0]/2, letter[1] - 1.0*inch, "QUÁLITAS SEGUROS")
+    
+    # Línea decorativa inferior - más gruesa
+    canvas.setStrokeColor(QUALITAS_PURPLE)
+    canvas.setLineWidth(4)
+    line_y = 0.5*inch
+    canvas.line(0.5*inch, line_y, letter[0] - 0.5*inch, line_y)
+    
+    # Texto del pie de página
+    canvas.setFont('Helvetica', 8)
+    canvas.setFillColor(QUALITAS_GRAY)
+    footer_text = "Para uso exclusivo de Quálitas Compañía de Seguros Colombia S.A. Prohibida la reproducción total o parcial de la información contenida en este documento."
+    text_width = canvas.stringWidth(footer_text, 'Helvetica', 8)
+    canvas.drawString((letter[0] - text_width) / 2, 0.3*inch, footer_text)
+    
+    canvas.restoreState()
+
+@certificado_bp.route('/certificado/<int:asignacion_id>')
 @login_required
 def generar_certificado(asignacion_id):
     """
-    Genera un certificado PDF para una asignaci�n confirmada
+    Genera un certificado PDF para una asignación confirmada con diseño Quálitas
     """
+    
+    # 🔍 PRINT DE DIAGNÓSTICO
+    print("=" * 80)
+    print("🎨 CÓDIGO NUEVO QUÁLITAS EJECUTÁNDOSE")
+    print(f"📋 Generando certificado para asignación ID: {asignacion_id}")
+    print("=" * 80)
+    
     try:
-        conn = get_db_connection()
+        conn = get_database_connection()
         cursor = conn.cursor()
         
-        # Obtener informaci�n completa de la asignaci�n
+        # Obtener información completa de la asignación INCLUYENDO TOKEN
         query = """
         SELECT 
             a.AsignacionId,
             a.FechaAsignacion,
             a.FechaConfirmacion,
-            a.EstadoAsignacion,
-            a.ObservacionesAsignacion,
-            a.ObservacionesConfirmacion,
+            a.Estado,
+            a.Observaciones,
             p.ProductoId,
             p.NombreProducto,
             p.CodigoUnico,
-            p.NumeroSerie,
-            p.ValorCompra,
-            p.Descripcion as DescripcionProducto,
-            c.NombreCategoria,
+            p.Descripcion,
+            p.ValorUnitario,
             o.NombreOficina,
-            o.Ciudad,
-            o.Direccion,
-            uad.UsuarioADId,
-            uad.NombreCompleto as UsuarioNombre,
-            uad.Email as UsuarioEmail,
-            uad.Documento as UsuarioDocumento,
-            uad.Cargo as UsuarioCargo,
-            u_asigna.nombre as AsignadoPorNombre,
-            u_asigna.email as AsignadoPorEmail,
-            u_confirma.nombre as ConfirmadoPorNombre,
-            u_confirma.email as ConfirmadoPorEmail
-        FROM AsignacionesProducto a
-        INNER JOIN Productos p ON a.ProductoId = p.ProductoId
-        LEFT JOIN Categorias c ON p.CategoriaId = c.CategoriaId
+            o.Ubicacion,
+            a.UsuarioADNombre,
+            a.UsuarioADEmail,
+            a.UsuarioAsignador,
+            a.UsuarioConfirmacion,
+            t.TokenId,
+            t.TokenHash,
+            t.UsuarioEmail AS TokenEmail,
+            t.FechaCreacion AS TokenFechaCreacion,
+            t.FechaExpiracion AS TokenFechaExpiracion,
+            t.Utilizado AS TokenUtilizado,
+            t.FechaUtilizacion AS TokenFechaUtilizacion,
+            t.UsuarioConfirmacion AS TokenUsuarioConfirmacion,
+            t.DireccionIP AS TokenDireccionIP,
+            t.UserAgent AS TokenUserAgent
+        FROM Asignaciones a
+        INNER JOIN ProductosCorporativos p ON a.ProductoId = p.ProductoId
         LEFT JOIN Oficinas o ON a.OficinaId = o.OficinaId
-        LEFT JOIN UsuariosAD uad ON a.UsuarioADId = uad.UsuarioADId
-        LEFT JOIN usuarios u_asigna ON a.AsignadoPor = u_asigna.id
-        LEFT JOIN usuarios u_confirma ON a.ConfirmadoPor = u_confirma.id
-        WHERE a.AsignacionId = ?
+        LEFT JOIN TokensConfirmacionAsignacion t ON a.AsignacionId = t.AsignacionId
+        WHERE a.AsignacionId = ? 
+          AND UPPER(LTRIM(RTRIM(a.Estado))) = 'CONFIRMADO' 
+          AND a.Activo = 1
         """
         
         cursor.execute(query, (asignacion_id,))
@@ -68,7 +137,8 @@ def generar_certificado(asignacion_id):
         
         if not row:
             conn.close()
-            return "Asignaci�n no encontrada", 404
+            print("❌ Asignación no encontrada")
+            return "Asignación no encontrada", 404
         
         # Convertir a diccionario
         asignacion = dict(zip([column[0] for column in cursor.description], row))
@@ -77,232 +147,311 @@ def generar_certificado(asignacion_id):
         rol = session.get('rol')
         oficina_id = session.get('oficina_id')
         
-        # Solo administradores, l�deres de inventario o usuarios de la misma oficina pueden ver
+        # Solo administradores, líderes de inventario o usuarios de la misma oficina pueden ver
         if rol not in ['administrador', 'lider_inventario']:
-            if asignacion['OficinaId'] != oficina_id:
+            if asignacion.get('OficinaId') != oficina_id:
                 conn.close()
+                print("❌ Usuario sin permisos")
                 return "No tiene permisos para ver este certificado", 403
         
         conn.close()
         
+        print(f"✅ Datos obtenidos para: {asignacion.get('UsuarioADNombre', 'N/A')}")
+        
         # Generar el PDF
         buffer = BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=letter, 
-                              rightMargin=0.75*inch, leftMargin=0.75*inch,
-                              topMargin=0.75*inch, bottomMargin=0.75*inch)
-        
-        # Contenedor de elementos
-        elements = []
-        
-        # Estilos
-        styles = getSampleStyleSheet()
-        
-        # Estilo personalizado para el t�tulo
-        title_style = ParagraphStyle(
-            'CustomTitle',
-            parent=styles['Heading1'],
-            fontSize=20,
-            textColor=colors.HexColor('#0d6efd'),
-            spaceAfter=30,
-            alignment=TA_CENTER,
-            fontName='Helvetica-Bold'
+        doc = SimpleDocTemplate(
+            buffer, 
+            pagesize=letter, 
+            rightMargin=0.75*inch, 
+            leftMargin=0.75*inch,
+            topMargin=1.4*inch,  # Margen para el logo grande
+            bottomMargin=0.75*inch
         )
         
-        # Estilo para subt�tulos
+        elements = []
+        styles = getSampleStyleSheet()
+        
+        # Estilo para el título principal - MÁS PEQUEÑO (igual a subtítulos)
+        title_style = ParagraphStyle(
+            'QualitasTitle',
+            parent=styles['Heading1'],
+            fontSize=14,  # REDUCIDO de 22 a 14 (igual que subtítulos)
+            textColor=QUALITAS_PURPLE,
+            spaceAfter=15,
+            spaceBefore=15,
+            alignment=TA_CENTER,
+            fontName='Helvetica-Bold',
+            leading=16
+        )
+        
+        # Estilo para subtítulos
         subtitle_style = ParagraphStyle(
-            'CustomSubtitle',
+            'QualitasSubtitle',
             parent=styles['Heading2'],
-            fontSize=14,
-            textColor=colors.HexColor('#198754'),
+            fontSize=14,  # Mantenido en 14
+            textColor=QUALITAS_CYAN,
             spaceAfter=12,
             spaceBefore=20,
-            fontName='Helvetica-Bold'
+            fontName='Helvetica-Bold',
+            leading=16
         )
         
         # Estilo para texto normal
         normal_style = ParagraphStyle(
-            'CustomNormal',
+            'QualitasNormal',
             parent=styles['Normal'],
             fontSize=10,
             alignment=TA_JUSTIFY,
-            spaceAfter=12
+            spaceAfter=8,
+            textColor=QUALITAS_GRAY,
+            leading=12
         )
         
-        # ENCABEZADO
-        elements.append(Spacer(1, 0.5*inch))
+        # Estilo para información destacada
+        info_style = ParagraphStyle(
+            'QualitasInfo',
+            parent=styles['Normal'],
+            fontSize=10,
+            alignment=TA_CENTER,
+            spaceAfter=8,
+            textColor=QUALITAS_GRAY,
+            leading=12
+        )
         
-        # T�tulo del certificado
-        title = Paragraph("CERTIFICADO DE ASIGNACI�N DE ACTIVO", title_style)
+        # ========== CONTENIDO DEL DOCUMENTO ==========
+        
+        # Título del certificado - AHORA MÁS PEQUEÑO
+        title = Paragraph("CERTIFICADO DE ASIGNACIÓN<br/>DE ACTIVO CORPORATIVO", title_style)
         elements.append(title)
+        elements.append(Spacer(1, 0.05*inch))
         
-        # N�mero de certificado y fecha
-        cert_info = f"<b>Certificado No.:</b> {asignacion['AsignacionId']:06d} | <b>Fecha:</b> {datetime.now().strftime('%d/%m/%Y %H:%M')}"
-        elements.append(Paragraph(cert_info, normal_style))
-        elements.append(Spacer(1, 0.3*inch))
+        # Número de certificado y fecha
+        cert_info = f"""
+        Certificado del elemento ID No.: {asignacion['AsignacionId']:06d} | 
+        Fecha de Emisión: {datetime.now().strftime('%d/%m/%Y %H:%M')}
+        """
+        elements.append(Paragraph(cert_info, info_style))
+        elements.append(Spacer(1, 0.2*inch))
         
-        # INFORMACI�N DEL COLABORADOR
-        elements.append(Paragraph("INFORMACI�N DEL COLABORADOR", subtitle_style))
+        # ========== INFORMACIÓN DEL COLABORADOR ==========
+        elements.append(Paragraph("INFORMACIÓN DEL COLABORADOR", subtitle_style))
         
         colaborador_data = [
-            ['Nombre Completo:', asignacion['UsuarioNombre'] or 'N/A'],
-            ['Documento:', asignacion['UsuarioDocumento'] or 'N/A'],
-            ['Email:', asignacion['UsuarioEmail'] or 'N/A'],
-            ['Cargo:', asignacion['UsuarioCargo'] or 'N/A'],
-            ['Oficina:', f"{asignacion['NombreOficina']} - {asignacion['Ciudad']}" if asignacion['NombreOficina'] else 'N/A']
+            ['Nombre Completo:', asignacion.get('UsuarioADNombre', 'N/A')],
+            ['Documento de Identidad:', 'N/A'],
+            ['Correo Electrónico:', asignacion.get('UsuarioADEmail', 'N/A')],
+            ['Cargo:', 'N/A'],
+            ['Oficina:', f"{asignacion.get('NombreOficina', '')} - {asignacion.get('Ubicacion', '')}" if asignacion.get('NombreOficina') else 'N/A']
         ]
         
-        colaborador_table = Table(colaborador_data, colWidths=[2*inch, 4.5*inch])
+        colaborador_table = Table(colaborador_data, colWidths=[2.2*inch, 4.3*inch])
         colaborador_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#e9ecef')),
-            ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#212529')),
-            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#F8F9FA')),
+            ('TEXTCOLOR', (0, 0), (0, -1), QUALITAS_PURPLE),
+            ('TEXTCOLOR', (1, 0), (1, -1), QUALITAS_GRAY),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
             ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
             ('TOPPADDING', (0, 0), (-1, -1), 8),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#dee2e6')),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#DEE2E6')),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ]))
         
         elements.append(colaborador_table)
-        elements.append(Spacer(1, 0.3*inch))
+        elements.append(Spacer(1, 0.2*inch))
         
-        # INFORMACI�N DEL ACTIVO
-        elements.append(Paragraph("INFORMACI�N DEL ACTIVO", subtitle_style))
+        # ========== INFORMACIÓN DEL ACTIVO ==========
+        elements.append(Paragraph("INFORMACIÓN DEL ACTIVO ASIGNADO", subtitle_style))
         
         activo_data = [
-            ['Producto:', asignacion['NombreProducto'] or 'N/A'],
-            ['Categor�a:', asignacion['NombreCategoria'] or 'N/A'],
-            ['C�digo �nico:', asignacion['CodigoUnico'] or 'N/A'],
-            ['N�mero de Serie:', asignacion['NumeroSerie'] or 'N/A'],
-            ['Valor de Compra:', f"${asignacion['ValorCompra']:,.2f}" if asignacion['ValorCompra'] else 'N/A'],
+            ['Producto:', asignacion.get('NombreProducto', 'N/A')],
+            ['Categoría:', 'N/A'],
+            ['Código Único:', asignacion.get('CodigoUnico', 'N/A')],
+            ['Descripción/Serie:', asignacion.get('Descripcion', 'N/A')],
+            ['Valor de Compra:', f"${asignacion.get('ValorUnitario', 0):,.2f} COP" if asignacion.get('ValorUnitario') else 'N/A'],
         ]
         
-        if asignacion['DescripcionProducto']:
-            activo_data.append(['Descripci�n:', asignacion['DescripcionProducto']])
-        
-        activo_table = Table(activo_data, colWidths=[2*inch, 4.5*inch])
+        activo_table = Table(activo_data, colWidths=[2.2*inch, 4.3*inch])
         activo_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#e9ecef')),
-            ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#212529')),
-            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#F8F9FA')),
+            ('TEXTCOLOR', (0, 0), (0, -1), QUALITAS_PURPLE),
+            ('TEXTCOLOR', (1, 0), (1, -1), QUALITAS_GRAY),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
             ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
             ('TOPPADDING', (0, 0), (-1, -1), 8),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#dee2e6')),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#DEE2E6')),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ]))
         
         elements.append(activo_table)
-        elements.append(Spacer(1, 0.3*inch))
+        elements.append(Spacer(1, 0.2*inch))
         
-        # INFORMACI�N DE LA ASIGNACI�N
-        elements.append(Paragraph("INFORMACI�N DE LA ASIGNACI�N", subtitle_style))
+        # ========== DETALLES DE LA ASIGNACIÓN ==========
+        elements.append(Paragraph("DETALLES DE LA ASIGNACIÓN", subtitle_style))
         
-        fecha_asignacion = asignacion['FechaAsignacion'].strftime('%d/%m/%Y %H:%M') if asignacion['FechaAsignacion'] else 'N/A'
-        fecha_confirmacion = asignacion['FechaConfirmacion'].strftime('%d/%m/%Y %H:%M') if asignacion['FechaConfirmacion'] else 'N/A'
+        fecha_asignacion = asignacion['FechaAsignacion'].strftime('%d/%m/%Y %H:%M') if asignacion.get('FechaAsignacion') else 'N/A'
+        fecha_confirmacion = asignacion['FechaConfirmacion'].strftime('%d/%m/%Y %H:%M') if asignacion.get('FechaConfirmacion') else 'N/A'
+        fecha_utilizacion_token = asignacion['TokenFechaUtilizacion'].strftime('%d/%m/%Y %H:%M:%S') if asignacion.get('TokenFechaUtilizacion') else 'N/A'
         
         asignacion_data = [
             ['Estado:', 'CONFIRMADO'],
-            ['Fecha de Asignaci�n:', fecha_asignacion],
-            ['Asignado por:', asignacion['AsignadoPorNombre'] or 'N/A'],
-            ['Fecha de Confirmaci�n:', fecha_confirmacion],
-            ['Confirmado por:', asignacion['ConfirmadoPorNombre'] or asignacion['UsuarioNombre'] or 'N/A'],
+            ['Fecha de Asignación:', fecha_asignacion],
+            ['Asignado por:', asignacion.get('UsuarioAsignador', 'N/A')],
+            ['Fecha de Confirmación:', fecha_confirmacion],
+            ['Confirmado por:', asignacion.get('UsuarioConfirmacion') or asignacion.get('UsuarioADNombre', 'N/A')],
+            ['Token de Confirmación:', f"Hash: {asignacion.get('TokenHash', 'N/A')[:20]}..." if asignacion.get('TokenHash') else 'N/A'],
+            ['Fecha Utilización Token:', fecha_utilizacion_token],
+            ['IP de Confirmación:', asignacion.get('TokenDireccionIP', 'N/A')],
         ]
         
-        asignacion_table = Table(asignacion_data, colWidths=[2*inch, 4.5*inch])
+        asignacion_table = Table(asignacion_data, colWidths=[2.2*inch, 4.3*inch])
         asignacion_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#e9ecef')),
-            ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#212529')),
-            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#F8F9FA')),
+            ('TEXTCOLOR', (0, 0), (0, -1), QUALITAS_PURPLE),
+            ('TEXTCOLOR', (1, 0), (1, -1), QUALITAS_GRAY),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
             ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
             ('TOPPADDING', (0, 0), (-1, -1), 8),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#dee2e6')),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#DEE2E6')),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ]))
         
         elements.append(asignacion_table)
         
-        # OBSERVACIONES
-        if asignacion['ObservacionesAsignacion'] or asignacion['ObservacionesConfirmacion']:
-            elements.append(Spacer(1, 0.3*inch))
+        # ========== OBSERVACIONES ==========
+        if asignacion.get('Observaciones'):
+            elements.append(Spacer(1, 0.2*inch))
             elements.append(Paragraph("OBSERVACIONES", subtitle_style))
             
-            obs_data = []
-            if asignacion['ObservacionesAsignacion']:
-                obs_data.append(['Asignaci�n:', asignacion['ObservacionesAsignacion']])
-            if asignacion['ObservacionesConfirmacion']:
-                obs_data.append(['Confirmaci�n:', asignacion['ObservacionesConfirmacion']])
+            obs_data = [['Observaciones:', asignacion.get('Observaciones', '')]]
             
-            obs_table = Table(obs_data, colWidths=[2*inch, 4.5*inch])
+            obs_table = Table(obs_data, colWidths=[2.2*inch, 4.3*inch])
             obs_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#e9ecef')),
-                ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#212529')),
-                ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+                ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#F8F9FA')),
+                ('TEXTCOLOR', (0, 0), (0, -1), QUALITAS_PURPLE),
+                ('TEXTCOLOR', (1, 0), (1, -1), QUALITAS_GRAY),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
                 ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, -1), 9),
+                ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 0), (-1, -1), 10),
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
                 ('TOPPADDING', (0, 0), (-1, -1), 8),
-                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#dee2e6')),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#DEE2E6')),
                 ('VALIGN', (0, 0), (-1, -1), 'TOP'),
             ]))
             
             elements.append(obs_table)
         
-        # T�RMINOS Y CONDICIONES
-        elements.append(Spacer(1, 0.4*inch))
-        elements.append(Paragraph("T�RMINOS Y CONDICIONES", subtitle_style))
+        # ========== TÉRMINOS Y CONDICIONES ==========
+        elements.append(Spacer(1, 0.25*inch))
+        elements.append(Paragraph("TÉRMINOS Y CONDICIONES", subtitle_style))
         
         terminos_text = """
         El colaborador se compromete a:
-        <br/>� Hacer uso responsable del activo asignado.
-        <br/>� Reportar inmediatamente cualquier da�o, p�rdida o mal funcionamiento.
-        <br/>� Devolver el activo cuando sea requerido por la empresa o al finalizar la relaci�n laboral.
-        <br/>� No realizar modificaciones no autorizadas al equipo.
-        <br/>� Mantener el activo en buenas condiciones de uso y funcionamiento.
-        <br/><br/>
-        La empresa se reserva el derecho de solicitar la devoluci�n del activo en cualquier momento.
-        El activo sigue siendo propiedad de la empresa y debe ser usado exclusivamente para fines laborales.
+        • Hacer uso responsable y apropiado del activo asignado exclusivamente para actividades laborales.
+        • Reportar inmediatamente cualquier daño, pérdida, robo o mal funcionamiento del equipo.
+        • Devolver el activo cuando sea requerido por la empresa o al finalizar la relación laboral.
+        • No realizar modificaciones, reparaciones o instalaciones no autorizadas al equipo.
+        • Mantener el activo en buenas condiciones de uso, funcionamiento y seguridad.
+        • Cumplir con las políticas de seguridad de la información de la empresa.
+        La empresa se reserva el derecho de:
+        • Solicitar la devolución del activo en cualquier momento.
+        • Realizar inspecciones periódicas del estado y uso del activo.
+        • Aplicar las sanciones correspondientes en caso de uso indebido o daño por negligencia.
+        
+        El activo permanece como propiedad de la empresa y debe ser utilizado exclusivamente para fines laborales.
+        La pérdida, daño o uso indebido del activo podrá generar responsabilidades económicas y/o disciplinarias
+        según lo establecido en el reglamento interno de trabajo.
         """
         
         elements.append(Paragraph(terminos_text, normal_style))
         
-        # PIE DE P�GINA
-        elements.append(Spacer(1, 0.5*inch))
+        # ========== FIRMA ELECTRÓNICA ==========
+        elements.append(Spacer(1, 0.3*inch))
         
-        footer_text = f"""
-        <br/><br/>
-        _________________________________<br/>
-        <b>{asignacion['UsuarioNombre']}</b><br/>
-        {asignacion['UsuarioDocumento']}<br/>
-        Firma del Colaborador
+        # Información de validación de firma electrónica según TOKEN
+        fecha_hora_actual = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+        
+        # Determinar quién confirmó (basado en token o asignación)
+        usuario_confirmacion = asignacion.get('TokenUsuarioConfirmacion') or asignacion.get('UsuarioConfirmacion') or asignacion.get('UsuarioADNombre', 'N/A')
+        email_confirmacion = asignacion.get('TokenEmail', asignacion.get('UsuarioADEmail', 'N/A'))
+        
+        firma_data = [
+            [asignacion.get('UsuarioADNombre', 'N/A'), usuario_confirmacion],
+            ['Colaborador Receptor', 'Colaborador Confirmador'],
+            [f"Fecha Recepción: {fecha_asignacion}", f"Fecha Confirmación: {fecha_utilizacion_token if fecha_utilizacion_token != 'N/A' else fecha_confirmacion}"],
+            [f"Email: {asignacion.get('UsuarioADEmail', 'N/A')}", f"Email: {email_confirmacion}"],
+            ['', f"Token ID: {asignacion.get('TokenId', 'N/A')}"],
+        ]
+        
+        firma_table = Table(firma_data, colWidths=[3.25*inch, 3.25*inch])
+        firma_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, 0), 11),
+            ('FONTSIZE', (0, 1), (-1, -1), 9),
+            ('TEXTCOLOR', (0, 0), (-1, -1), QUALITAS_GRAY),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ]))
+        
+        elements.append(firma_table)
+        
+        # ========== VALIDACIÓN DE FIRMA ELECTRÓNICA ==========
+        elements.append(Spacer(1, 0.15*inch))
+        
+        validacion_text = f"""
+        Validación de Firma Electrónica:
+        • Token de confirmación generado: {asignacion.get('TokenFechaCreacion').strftime('%d/%m/%Y %H:%M:%S') if asignacion.get('TokenFechaCreacion') else 'N/A'}
+        • Hash del token: {asignacion.get('TokenHash', 'N/A')}
+        • Este certificado ha sido firmado electrónicamente mediante el sistema de gestión de inventario de Quálitas.
+        • La firma electrónica tiene validez legal conforme a la Ley 527 de 1999 de Colombia.
+        • Documento generado automáticamente por el sistema el {fecha_hora_actual}
         """
         
-        footer_style = ParagraphStyle(
-            'Footer',
+        elements.append(Paragraph(validacion_text, ParagraphStyle(
+            'ValidacionStyle',
             parent=styles['Normal'],
-            fontSize=9,
-            alignment=TA_CENTER
-        )
+            fontSize=8,
+            alignment=TA_CENTER,
+            spaceAfter=5,
+            textColor=QUALITAS_GRAY,
+            leading=10
+        )))
         
-        elements.append(Paragraph(footer_text, footer_style))
+        # Generar el PDF con encabezado y pie de página
+        doc.build(elements, onFirstPage=add_header_footer, onLaterPages=add_header_footer)
         
-        # Generar el PDF
-        doc.build(elements)
-        
-        # Preparar para env�o
         buffer.seek(0)
         
         # Nombre del archivo
-        filename = f"Certificado_Asignacion_{asignacion['AsignacionId']:06d}_{asignacion['UsuarioNombre'].replace(' ', '_')}.pdf"
+        nombre_usuario = asignacion.get('UsuarioADNombre', 'Usuario').replace(' ', '_')
+        nombre_archivo = f"Certificado_Asignacion_{asignacion['AsignacionId']:06d}_{nombre_usuario}.pdf"
+        
+        print(f"✅ Certificado generado exitosamente: {nombre_archivo}")
+        print("=" * 80)
         
         return send_file(
             buffer,
             mimetype='application/pdf',
             as_attachment=True,
-            download_name=filename
+            download_name=nombre_archivo
         )
         
     except Exception as e:
-        print(f"Error al generar certificado: {str(e)}")
+        print(f"❌ ERROR al generar certificado: {str(e)}")
+        print("=" * 80)
+        import traceback
+        traceback.print_exc()
         return f"Error al generar el certificado: {str(e)}", 500

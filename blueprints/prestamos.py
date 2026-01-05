@@ -34,9 +34,9 @@ except ImportError:
 
 from database import get_database_connection
 
-# ============================================================================
+# ====================================
 # IMPORTAR SERVICIO DE NOTIFICACIONES
-# ============================================================================
+# ====================================
 try:
     from services.notification_service import NotificationService
     NOTIFICACIONES_ACTIVAS = True
@@ -92,9 +92,9 @@ def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# =========================
+# ==============================
 # Funciones para notificaciones
-# =========================
+# ==============================
 def _obtener_info_prestamo_completa(prestamo_id):
     """Obtiene información completa del préstamo para notificaciones"""
     conn = cur = None
@@ -447,7 +447,7 @@ def crear_prestamo():
 
             usuario_prestador = session.get('usuario_nombre', 'Sistema')
 
-            # Crea préstamo CON ESTADO 'PENDIENTE' (cambiado de 'PRESTADO')
+            
             cur.execute("""
                 INSERT INTO dbo.PrestamosElementos
                     (ElementoId, UsuarioSolicitanteId, OficinaId, CantidadPrestada, 
@@ -617,7 +617,7 @@ def aprobar_prestamo(prestamo_id):
         elemento_id = row[1]
         cantidad_prestada = row[2]
         
-        # Cambiado de 'PRESTADO' a 'PENDIENTE'
+       
         if estado_actual != 'PENDIENTE':
             return jsonify({'success': False, 'message': f'El préstamo ya está en estado: {estado_actual}'}), 400
         

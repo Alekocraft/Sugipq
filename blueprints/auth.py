@@ -24,8 +24,7 @@ def init_session_config(app):
     app.config['SESSION_COOKIE_HTTPONLY'] = True  # No accesible por JavaScript
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Protección CSRF
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=SESSION_ABSOLUTE_TIMEOUT_HOURS)
-    
-    print(f"⚠️ Configuración de sesión: {SESSION_TIMEOUT_MINUTES} min inactividad, {SESSION_ABSOLUTE_TIMEOUT_HOURS}h máximo")
+
 
 def check_session_timeout():
     """Verifica si la sesión ha expirado por inactividad"""
@@ -40,12 +39,12 @@ def check_session_timeout():
             
             inactive_time = datetime.now() - last_activity
             if inactive_time > timedelta(minutes=SESSION_TIMEOUT_MINUTES):
-                print(f"⏰ Sesión expirada por inactividad (5 min): {inactive_time}")
                 return True
         except Exception as e:
             print(f"⚠️ Error verificando timeout: {e}")
     
     return False
+
 
 def update_session_activity():
     """Actualiza el timestamp de última actividad"""
@@ -53,12 +52,14 @@ def update_session_activity():
         session['last_activity'] = datetime.now().isoformat()
         session.modified = True
 
+
 def clear_session_safely():
     """Limpia la sesión de forma segura"""
     try:
         session.clear()
     except Exception as e:
         print(f"⚠️ Error limpiando sesión: {e}")
+
 
 def require_login(f):
     """Decorador para requerir login con verificación de timeout"""
@@ -95,6 +96,7 @@ def assign_role_by_office(office_name):
     else:
         return 'usuario'
 
+
 def get_client_info():
     """Obtiene información del cliente para logs de seguridad"""
     return {
@@ -115,6 +117,7 @@ def index():
         return redirect('/dashboard')
     return redirect('/login')
 
+
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
     # Si ya está logueado, redirigir al dashboard
@@ -133,7 +136,6 @@ def login():
             return render_template('auth/login.html')
         
         client_info = get_client_info()
-        print(f"🔐 Intento de login: {usuario} desde {client_info['ip']}")
         
         try:
             usuario_info = UsuarioModel.verificar_credenciales(usuario, contraseña)
@@ -158,41 +160,34 @@ def login():
                 # Hacer la sesión permanente
                 session.permanent = True
                 
-                print(f"✅ Login exitoso: {usuario} - Rol: {usuario_info['rol']} - IP: {client_info['ip']}")
                 flash(f'¡Bienvenido {usuario_info["nombre"]}!', 'success')
                 return redirect('/dashboard')
             else:
-                print(f"❌ Login fallido: {usuario} desde {client_info['ip']}")
                 flash('Usuario o contraseña incorrectos', 'danger')
                 return render_template('auth/login.html')
                 
         except Exception as e:
-            print(f"❌ Error durante login: {e}")
-            import traceback
-            print(f"❌ Traceback: {traceback.format_exc()}")
             flash('Error del sistema durante el login', 'danger')
             return render_template('auth/login.html')
     
     return render_template('auth/login.html')
 
+
 @auth_bp.route('/logout')
 def logout():
     usuario = session.get('usuario', 'Desconocido')
     client_info = get_client_info()
-    print(f"🚪 Logout: {usuario} desde {client_info['ip']}")
     
     clear_session_safely()
     flash('Sesión cerrada correctamente', 'info')
     return redirect('/login')
 
- 
+
 @auth_bp.route('/test-ldap', methods=['GET', 'POST'])
 def test_ldap():
     """
     Ruta para probar conexión LDAP REAL.
     Accesible desde: /test-ldap
-    
-    ✅ CORREGIDO: Ahora usa ADAuth real en lugar de datos simulados
     """
     try:
         result = None
@@ -215,25 +210,16 @@ def test_ldap():
                 ldap_server = Config.LDAP_SERVER
                 ldap_domain = Config.LDAP_DOMAIN
                 
-                print(f"🔍 TEST LDAP: Probando autenticación para '{username}'")
-                print(f"📡 Servidor: {ldap_server}")
-                print(f"🌐 Dominio: {ldap_domain}")
-                
                 # Crear instancia de ADAuth y autenticar
                 ad_auth = ADAuth()
                 
                 # 1. Probar conexión al servidor
                 connection_ok = ad_auth.test_connection()
-                print(f"🔌 Conexión al servidor: {'✅ OK' if connection_ok else '❌ FALLO'}")
                 
                 # 2. Autenticar usuario
                 user_data = ad_auth.authenticate_user(username, password)
                 
                 if user_data:
-                    # ✅ AUTENTICACIÓN EXITOSA - Datos REALES del LDAP
-                    print(f"✅ TEST LDAP: Autenticación exitosa para '{username}'")
-                    print(f"📋 Datos del usuario: {user_data}")
-                    
                     # Intentar sincronizar con la base de datos
                     sync_info = None
                     sync_error = None
@@ -245,7 +231,6 @@ def test_ldap():
                         db_user = UsuarioModel.get_by_username(username)
                         
                         if db_user:
-                            print(f"👤 Usuario encontrado en BD: ID {db_user.get('id')}")
                             sync_info = {
                                 'user_id': db_user.get('id'),
                                 'system_role': db_user.get('rol'),
@@ -253,7 +238,6 @@ def test_ldap():
                                 'sync_status': 'Usuario existente actualizado'
                             }
                         else:
-                            print(f"⚠️ Usuario NO encontrado en BD, debería crearse automáticamente en login")
                             sync_info = {
                                 'user_id': None,
                                 'system_role': user_data.get('role', 'usuario'),
@@ -262,7 +246,6 @@ def test_ldap():
                             }
                     
                     except Exception as sync_ex:
-                        print(f"⚠️ Error en sincronización BD: {sync_ex}")
                         sync_error = f"Error sincronizando con BD: {str(sync_ex)}"
                     
                     result = {
@@ -286,8 +269,6 @@ def test_ldap():
                     }
                     
                 else:
-                    # ❌ AUTENTICACIÓN FALLIDA
-                    print(f"❌ TEST LDAP: Autenticación fallida para '{username}'")
                     result = {
                         'success': False,
                         'message': '❌ Autenticación LDAP fallida - Credenciales inválidas o usuario no encontrado',
@@ -302,9 +283,6 @@ def test_ldap():
                     }
                         
             except ImportError as ie:
-                # Módulo LDAP no disponible
-                import traceback
-                print(f"⚠️ TEST LDAP: Módulo ldap3 no disponible: {ie}")
                 result = {
                     'success': False,
                     'message': '⚠️ Módulo LDAP no instalado - Instale python-ldap3',
@@ -315,14 +293,10 @@ def test_ldap():
                     'user_info': None,
                     'sync_info': None,
                     'sync_error': f'ImportError: {str(ie)}',
-                    'traceback': traceback.format_exc()
+                    'traceback': None
                 }
                 
             except Exception as e:
-                # Error general
-                import traceback
-                print(f"❌ TEST LDAP: Error general: {e}")
-                print(traceback.format_exc())
                 result = {
                     'success': False,
                     'message': f'❌ Error en autenticación LDAP: {str(e)}',
@@ -333,7 +307,7 @@ def test_ldap():
                     'user_info': None,
                     'sync_info': None,
                     'sync_error': str(e),
-                    'traceback': traceback.format_exc()
+                    'traceback': None
                 }
         
         else:  # GET request
@@ -367,9 +341,6 @@ def test_ldap():
         return render_template('auth/test_ldap.html', result=result)
         
     except Exception as e:
-        import traceback
-        print(f"❌ Error crítico en test_ldap: {e}")
-        print(traceback.format_exc())
         result = {
             'success': False,
             'message': f'❌ Error crítico en la página: {str(e)}',
@@ -380,17 +351,16 @@ def test_ldap():
             'user_info': None,
             'sync_info': None,
             'sync_error': str(e),
-            'traceback': traceback.format_exc()
+            'traceback': None
         }
         return render_template('auth/test_ldap.html', result=result)
+
 
 @auth_bp.route('/dashboard')
 @require_login
 def dashboard():
     try:
-        print("📊 Cargando dashboard...")
-        
-        # ✅ NUEVO: Obtener filtro de oficina según permisos
+        # Obtener filtro de oficina según permisos
         from utils.permissions import user_can_view_all
         oficina_id = None if user_can_view_all() else session.get('oficina_id')
         
@@ -402,33 +372,25 @@ def dashboard():
         try:
             from models.materiales_model import MaterialModel
             materiales = MaterialModel.obtener_todos(oficina_id) or []
-            print(f"✅ Materiales cargados: {len(materiales)}")
-        except Exception as e:
-            print(f"⚠️ Error cargando materiales: {e}")
+        except Exception:
             materiales = []
         
         try:
             from models.oficinas_model import OficinaModel
             oficinas = OficinaModel.obtener_todas() or []
-            print(f"✅ Oficinas cargadas: {len(oficinas)}")
-        except Exception as e:
-            print(f"⚠️ Error cargando oficinas: {e}")
+        except Exception:
             oficinas = []
         
         try:
             from models.solicitudes_model import SolicitudModel
             solicitudes = SolicitudModel.obtener_todas(oficina_id) or []
-            print(f"✅ Solicitudes cargadas: {len(solicitudes)}")
-        except Exception as e:
-            print(f"⚠️ Error cargando solicitudes: {e}")
+        except Exception:
             solicitudes = []
         
         try:
             from models.usuarios_model import UsuarioModel
             aprobadores = UsuarioModel.obtener_aprobadores() or []
-            print(f"✅ Aprobadores cargados: {len(aprobadores)}")
-        except Exception as e:
-            print(f"⚠️ Error cargando aprobadores: {e}")
+        except Exception:
             aprobadores = []
 
         return render_template('dashboard.html',
@@ -436,8 +398,7 @@ def dashboard():
                             oficinas=oficinas,
                             solicitudes=solicitudes,
                             aprobadores=aprobadores)
-    except Exception as e:
-        print(f"❌ Error crítico en dashboard: {e}")
+    except Exception:
         flash('Error al cargar el dashboard', 'danger')
         return render_template('dashboard.html', 
                             materiales=[], 
@@ -479,6 +440,7 @@ def session_status():
             pass
     
     return jsonify({'authenticated': True, 'user': session.get('usuario_nombre')})
+
 
 @auth_bp.route('/api/extend-session', methods=['POST'])
 def extend_session():
