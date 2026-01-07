@@ -1,4 +1,4 @@
-﻿# models/usuarios_model.py - MODIFICADO para priorizar BD local, luego LDAP como fallback
+﻿# models/usuarios_model.py 
 from database import get_database_connection
 import logging
 from config.config import Config

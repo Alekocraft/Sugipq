@@ -80,7 +80,7 @@ def _handle_image_upload(archivo, producto_actual=None):
     os.makedirs(upload_dir, exist_ok=True)
     filepath = os.path.join(upload_dir, filename)
     archivo.save(filepath)
-    return '/' + filepath.replace('\\', '/')
+    return 'static/uploads/productos/' + filename
 
 def _validate_product_form(categorias, proveedores):
     nombre = request.form.get('nombre', '').strip()
@@ -195,7 +195,7 @@ def ver_inventario_corporativo(producto_id):
         return _handle_not_found()
 
     try:
-        historial = InventarioCorporativoModel.historial_movimientos(producto_id) or []
+        historial = InventarioCorporativoModel.historial_asignaciones(producto_id) or []
     except AttributeError:
         historial = []
         logger.warning("Metodo historial_movimientos no disponible")
@@ -226,23 +226,31 @@ def crear_inventario_corporativo():
         try:
             ruta_imagen = _handle_image_upload(request.files.get('imagen'))
 
-            nuevo_producto = {
-                'codigo_unico': request.form.get('codigo_unico'),
-                'nombre': request.form.get('nombre'),
-                'descripcion': request.form.get('descripcion'),
-                'categoria_id': int(request.form.get('categoria_id')),
-                'proveedor_id': int(request.form.get('proveedor_id')),
-                'cantidad': int(request.form.get('cantidad', 0)),
-                'cantidad_minima': int(request.form.get('cantidad_minima', 0)),
-                'valor_unitario': float(request.form.get('valor_unitario', 0)),
-                'es_asignable': 'es_asignable' in request.form,
-                'ruta_imagen': ruta_imagen,
-                'usuario_creacion': session.get('usuario', 'Sistema')
-            }
+            # Generar código único si no se proporciona
+            codigo_unico = request.form.get('codigo_unico')
+            if not codigo_unico:
+                codigo_unico = InventarioCorporativoModel.generar_codigo_unico()
 
-            InventarioCorporativoModel.crear(nuevo_producto)
-            flash('Producto creado correctamente.', 'success')
-            return redirect('/inventario-corporativo')
+            nuevo_id = InventarioCorporativoModel.crear(
+                codigo_unico=codigo_unico,
+                nombre=request.form.get('nombre'),
+                descripcion=request.form.get('descripcion'),
+                categoria_id=int(request.form.get('categoria_id')),
+                proveedor_id=int(request.form.get('proveedor_id')),
+                valor_unitario=float(request.form.get('valor_unitario', 0)),
+                cantidad=int(request.form.get('cantidad', 0)),
+                cantidad_minima=int(request.form.get('cantidad_minima', 0)),
+                ubicacion=request.form.get('ubicacion', ''),
+                es_asignable=1 if 'es_asignable' in request.form else 0,
+                usuario_creador=session.get('usuario', 'Sistema'),
+                ruta_imagen=ruta_imagen
+            )
+
+            if nuevo_id:
+                flash('Producto creado correctamente.', 'success')
+                return redirect('/inventario-corporativo')
+            else:
+                flash('Error al crear producto.', 'danger')
 
         except Exception as e:
             logger.error(f"[ERROR CREAR] {e}")
@@ -278,23 +286,26 @@ def editar_inventario_corporativo(producto_id):
         try:
             ruta_imagen = _handle_image_upload(request.files.get('imagen'), producto)
 
-            producto_actualizado = {
-                'codigo_unico': request.form.get('codigo_unico'),
-                'nombre': request.form.get('nombre'),
-                'descripcion': request.form.get('descripcion'),
-                'categoria_id': int(request.form.get('categoria_id')),
-                'proveedor_id': int(request.form.get('proveedor_id')),
-                'cantidad': int(request.form.get('cantidad', 0)),
-                'cantidad_minima': int(request.form.get('cantidad_minima', 0)),
-                'valor_unitario': float(request.form.get('valor_unitario', 0)),
-                'es_asignable': 'es_asignable' in request.form,
-                'ruta_imagen': ruta_imagen,
-                'usuario_modificacion': session.get('usuario', 'Sistema')
-            }
+            actualizado = InventarioCorporativoModel.actualizar(
+                producto_id=producto_id,
+                codigo_unico=request.form.get('codigo_unico'),
+                nombre=request.form.get('nombre'),
+                descripcion=request.form.get('descripcion'),
+                categoria_id=int(request.form.get('categoria_id')),
+                proveedor_id=int(request.form.get('proveedor_id')),
+                valor_unitario=float(request.form.get('valor_unitario', 0)),
+                cantidad=int(request.form.get('cantidad', 0)),
+                cantidad_minima=int(request.form.get('cantidad_minima', 0)),
+                ubicacion=request.form.get('ubicacion', producto.get('ubicacion', '')),
+                es_asignable=1 if 'es_asignable' in request.form else 0,
+                ruta_imagen=ruta_imagen
+            )
 
-            InventarioCorporativoModel.actualizar(producto_id, producto_actualizado)
-            flash('Producto actualizado correctamente.', 'success')
-            return redirect(f'/inventario-corporativo/{producto_id}')
+            if actualizado:
+                flash('Producto actualizado correctamente.', 'success')
+                return redirect(f'/inventario-corporativo/{producto_id}')
+            else:
+                flash('Error al actualizar producto.', 'danger')
 
         except Exception as e:
             logger.error(f"[ERROR EDITAR] {e}")

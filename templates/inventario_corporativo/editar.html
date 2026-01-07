@@ -1,75 +1,212 @@
-{% extends "base.html" %}
-{% block title %}Editar Producto - Inventario Corporativo{% endblock %}
-{% block content %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Editar Producto Corporativo - Sistema de Inventarios</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="/dashboard">🏢 Sistema Inventarios</a>
+            <div class="navbar-nav ms-auto">
+                <span class="navbar-text me-3">
+                    <i class="fas fa-user"></i> Hola, {{ session.get('usuario_nombre', 'Usuario') }}
+                </span>
+                <a class="nav-link" href="/logout"><i class="fas fa-sign-out-alt"></i> Cerrar Sesión</a>
+            </div>
+        </div>
+    </nav>
 
-<div class="container-fluid fade-in">
-    <div class="row justify-content-center">
-        <div class="col-lg-8">
-            <div class="card border-0 shadow-sm">
-                <div class="card-header bg-warning">
-                    <h5 class="mb-0"><i class="fas fa-edit"></i> Editar Producto</h5>
-                </div>
-                <div class="card-body">
-                    <form method="POST">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label class="form-label">Código Único *</label>
-                                    <input type="text" class="form-control" name="codigo_unico" value="{{ producto.codigo_unico }}" readonly required>
+    <div class="container mt-4">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <div class="row">
+            <div class="col-md-10 mx-auto">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <i class="fas fa-edit"></i> Editar Producto: {{ producto.nombre }}
+                        </h2>
+                    </div>
+                    <div class="card-body">
+                        {% if producto %}
+                        <form method="POST" enctype="multipart/form-data">
+                            <!-- Código Único -->
+                            <div class="mb-3">
+                                <label for="codigo_unico" class="form-label">Código Único:</label>
+                                <input type="text" class="form-control" id="codigo_unico" name="codigo_unico"
+                                       value="{{ producto.codigo_unico }}" required>
+                                <div class="form-text">Código único del producto</div>
+                            </div>
+
+                            <!-- Nombre -->
+                            <div class="mb-3">
+                                <label for="nombre" class="form-label">Nombre del Producto:</label>
+                                <input type="text" class="form-control" id="nombre" name="nombre"
+                                       value="{{ producto.nombre }}" required>
+                            </div>
+
+                            <!-- Descripción -->
+                            <div class="mb-3">
+                                <label for="descripcion" class="form-label">Descripción:</label>
+                                <textarea class="form-control" id="descripcion" name="descripcion" rows="3">{{ producto.descripcion }}</textarea>
+                            </div>
+
+                            <!-- Categoría y Proveedor -->
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="categoria_id" class="form-label">Categoría:</label>
+                                        <select class="form-control" id="categoria_id" name="categoria_id" required>
+                                            <option value="">Seleccione una categoría</option>
+                                            {% for categoria in categorias %}
+                                            <option value="{{ categoria.id }}" 
+                                                    {% if producto.categoria_id == categoria.id %}selected{% endif %}>
+                                                {{ categoria.nombre }}
+                                            </option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
                                 </div>
-                                <div class="mb-3">
-                                    <label class="form-label">Nombre *</label>
-                                    <input type="text" class="form-control" name="nombre" value="{{ producto.nombre }}" required>
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label">Categoría *</label>
-                                    <select class="form-select" name="categoria_id" required>
-                                        {% for c in categorias %}
-                                        <option value="{{ c.id }}" {% if c.id==producto.categoria_id %}selected{% endif %}>{{ c.nombre }}</option>
-                                        {% endfor %}
-                                    </select>
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label">Proveedor *</label>
-                                    <select class="form-select" name="proveedor_id" required>
-                                        {% for p in proveedores %}
-                                        <option value="{{ p.id }}" {% if p.id==producto.proveedor_id %}selected{% endif %}>{{ p.nombre }}</option>
-                                        {% endfor %}
-                                    </select>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="proveedor_id" class="form-label">Proveedor:</label>
+                                        <select class="form-control" id="proveedor_id" name="proveedor_id" required>
+                                            <option value="">Seleccione un proveedor</option>
+                                            {% for proveedor in proveedores %}
+                                            <option value="{{ proveedor.id }}" 
+                                                    {% if producto.proveedor_id == proveedor.id %}selected{% endif %}>
+                                                {{ proveedor.nombre }}
+                                            </option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label class="form-label">Valor Unitario *</label>
-                                    <input type="number" class="form-control" name="valor_unitario" min="0" step="0.01" value="{{ producto.valor_unitario }}" required>
+
+                            <!-- Cantidad y Valor -->
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="cantidad" class="form-label">Cantidad Disponible:</label>
+                                        <input type="number" class="form-control" id="cantidad" name="cantidad"
+                                               value="{{ producto.cantidad }}" min="0" required>
+                                    </div>
                                 </div>
-                                <!-- En la sección de la columna derecha, agrega este campo después de Valor Unitario -->
-                                <div class="mb-3">
-                                    <label class="form-label">Cantidad *</label>
-                                    <input type="number" class="form-control" name="cantidad" min="0" value="{{ producto.cantidad }}" required>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="cantidad_minima" class="form-label">Cantidad Mínima:</label>
+                                        <input type="number" class="form-control" id="cantidad_minima" name="cantidad_minima"
+                                               value="{{ producto.cantidad_minima }}" min="0" required>
+                                        <div class="form-text">Stock mínimo para alertas</div>
+                                    </div>
                                 </div>
-                                <div class="mb-3">
-                                    <label class="form-label">Ubicación</label>
-                                    <input type="text" class="form-control" name="ubicacion" value="{{ producto.ubicacion or '' }}">
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label">Descripción</label>
-                                    <textarea class="form-control" name="descripcion" rows="3">{{ producto.descripcion or '' }}</textarea>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" name="es_asignable" id="es_asignable" {% if producto.es_asignable %}checked{% endif %}>
-                                    <label class="form-check-label" for="es_asignable">Asignable</label>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="valor_unitario" class="form-label">Valor Unitario ($):</label>
+                                        <input type="number" step="0.01" class="form-control" id="valor_unitario" name="valor_unitario"
+                                               value="{{ producto.valor_unitario }}" min="0.01" required>
+                                    </div>
                                 </div>
                             </div>
+
+                            <!-- Ubicación -->
+                            <div class="mb-3">
+                                <label for="ubicacion" class="form-label">Ubicación:</label>
+                                <input type="text" class="form-control" id="ubicacion" name="ubicacion"
+                                       value="{{ producto.ubicacion }}">
+                                <div class="form-text">Ubicación física del producto</div>
+                            </div>
+
+                            <!-- Es Asignable -->
+                            <div class="mb-3 form-check">
+                                <input type="checkbox" class="form-check-input" id="es_asignable" name="es_asignable"
+                                       {% if producto.es_asignable %}checked{% endif %}>
+                                <label class="form-check-label" for="es_asignable">Producto asignable</label>
+                                <div class="form-text">Marcar si este producto puede ser asignado a usuarios</div>
+                            </div>
+
+                            <!-- Imagen -->
+                            <div class="mb-3">
+                                <label for="imagen" class="form-label">Nueva Imagen (opcional):</label>
+                                <input type="file" class="form-control" id="imagen" name="imagen" accept="image/*" onchange="previewImage(this)">
+                                
+                                {% if producto.ruta_imagen %}
+                                <div class="mt-2">
+                                    <p><strong>Imagen actual:</strong></p>
+                                    {% set ruta_imagen_completa = '/' + producto.ruta_imagen if producto.ruta_imagen.startswith('static/') else '/static/uploads/productos/' + producto.ruta_imagen %}
+                                    <img id="preview" src="{{ ruta_imagen_completa }}" alt="Imagen actual"
+                                         style="max-width: 150px; max-height: 150px; border: 1px solid #ccc; border-radius: 4px;"
+                                         onerror="this.style.display='none'">
+                                </div>
+                                {% else %}
+                                <div class="mt-2">
+                                    <p class="text-muted"><em>No hay imagen actual</em></p>
+                                    <img id="preview" style="max-width: 150px; max-height: 150px; display: none; border: 1px solid #ccc; border-radius: 4px;">
+                                </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- Botones -->
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                                <a href="/inventario-corporativo" class="btn btn-secondary me-md-2">
+                                    <i class="fas fa-arrow-left"></i> Volver a Inventario
+                                </a>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save"></i> Actualizar Producto
+                                </button>
+                            </div>
+                        </form>
+                        {% else %}
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle"></i> No se pudo cargar la información del producto.
                         </div>
-                        <div class="d-flex justify-content-between mt-3">
-                            <a href="/inventario-corporativo" class="btn btn-secondary"><i class="fas fa-arrow-left"></i> Cancelar</a>
-                            <button class="btn btn-primary"><i class="fas fa-save"></i> Guardar cambios</button>
-                        </div>
-                    </form>
+                        <a href="/inventario-corporativo" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> Volver al Inventario
+                        </a>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-</div>
-{% endblock %}
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function previewImage(input) {
+            const preview = document.getElementById('preview');
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    preview.src = e.target.result;
+                    preview.style.display = 'block';
+                    const noImageText = preview.parentElement.querySelector('.text-muted');
+                    if (noImageText) {
+                        noImageText.style.display = 'none';
+                    }
+                }
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const preview = document.getElementById('preview');
+            if (preview.src && preview.src !== window.location.href) {
+                preview.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html>
