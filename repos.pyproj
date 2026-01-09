@@ -32,7 +32,6 @@
     <Content Include="templates\confirmacion\confirmar.html" />
     <Content Include="templates\confirmacion\error.html" />
     <Content Include="templates\confirmacion\mis_pendientes.html" />
-    <Content Include="templates\confirmacion\token_expirado.html" />
     <Content Include="templates\confirmacion\ya_confirmado.htm" />
     <Content Include="templates\inventario_corporativo\confirmaciones.html" />
     <Content Include="templates\prestamos\elemento_crear.html" />

@@ -11,7 +11,7 @@ def aprobar_solicitud(solicitud_id):
         return redirect('/login')
 
     rol = session.get('rol', '')
-    if rol == 'tesoreria':
+    if rol == 'tesorería':
         flash('No tiene permisos para acceder a esta sección.', 'danger')
         return redirect('/reportes')
 
@@ -38,7 +38,7 @@ def aprobar_parcial_solicitud(solicitud_id):
         return redirect('/login')
 
     rol = session.get('rol', '')
-    if rol == 'tesoreria':
+    if rol == 'tesorería':
         flash('No tiene permisos para acceder a esta sección.', 'danger')
         return redirect('/reportes')
 
@@ -73,7 +73,7 @@ def rechazar_solicitud(solicitud_id):
         return redirect('/login')
 
     rol = session.get('rol', '')
-    if rol == 'tesoreria':
+    if rol == 'tesorería':
         flash('No tiene permisos para acceder a esta sección.', 'danger')
         return redirect('/reportes')
 
@@ -84,8 +84,8 @@ def rechazar_solicitud(solicitud_id):
             return redirect('/solicitudes')
 
         usuario_id = session['usuario_id']
-        observacion = request.form.get('observacion', '')
-        if SolicitudModel.rechazar(solicitud_id, usuario_id, observacion):
+        observación = request.form.get('observación', '')
+        if SolicitudModel.rechazar(solicitud_id, usuario_id, observación):
             flash('Solicitud rechazada exitosamente.', 'success')
         else:
             flash('Error al rechazar la solicitud.', 'danger')

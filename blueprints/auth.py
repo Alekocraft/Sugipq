@@ -4,32 +4,18 @@ from models.usuarios_model import UsuarioModel
 from datetime import datetime, timedelta
 from functools import wraps
 
-# =====================================================
-# CONFIGURACIÓN DEL BLUEPRINT
-# =====================================================
-
 auth_bp = Blueprint('auth', __name__, url_prefix='')
 
+SESSION_TIMEOUT_MINUTES = 5
+SESSION_ABSOLUTE_TIMEOUT_HOURS = 3
 
-# =====================================================
-# CONFIGURACIÓN DE SESIÓN MODIFICADA
-# =====================================================
-SESSION_TIMEOUT_MINUTES = 5  # REDUCIDO: 30 → 5 minutos de inactividad
-SESSION_ABSOLUTE_TIMEOUT_HOURS = 3  
-
-# =====================================================
-# FUNCIONES DE MANEJO DE SESIÓN
-# =====================================================
 def init_session_config(app):
-    """Inicializa la configuración de sesión en la aplicación"""
-    app.config['SESSION_COOKIE_SECURE'] = True  # Solo HTTPS en producción
-    app.config['SESSION_COOKIE_HTTPONLY'] = True  # No accesible por JavaScript
-    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Protección CSRF
+    app.config['SESSION_COOKIE_SECURE'] = True
+    app.config['SESSION_COOKIE_HTTPONLY'] = True
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=SESSION_ABSOLUTE_TIMEOUT_HOURS)
 
-
 def check_session_timeout():
-    """Verifica si la sesión ha expirado por inactividad"""
     if 'usuario_id' not in session:
         return False
     
@@ -43,28 +29,22 @@ def check_session_timeout():
             if inactive_time > timedelta(minutes=SESSION_TIMEOUT_MINUTES):
                 return True
         except Exception as e:
-            print(f"⚠️ Error verificando timeout: {e}")
+            print(f"Error verificando timeout: {e}")
     
     return False
 
-
 def update_session_activity():
-    """Actualiza el timestamp de última actividad"""
     if 'usuario_id' in session:
         session['last_activity'] = datetime.now().isoformat()
         session.modified = True
 
-
 def clear_session_safely():
-    """Limpia la sesión de forma segura"""
     try:
         session.clear()
     except Exception as e:
-        print(f"⚠️ Error limpiando sesión: {e}")
-
+        print(f"Error limpiando sesión: {e}")
 
 def require_login(f):
-    """Decorador para requerir login con verificación de timeout"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'usuario_id' not in session:
@@ -80,11 +60,7 @@ def require_login(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# =====================================================
-# FUNCIONES AUXILIARES
-# =====================================================
 def assign_role_by_office(office_name):
-    """Devuelve el rol asignado según el nombre de la oficina."""
     office_name = office_name.lower().strip() if office_name else ''
     
     if 'gerencia' in office_name:
@@ -98,18 +74,13 @@ def assign_role_by_office(office_name):
     else:
         return 'usuario'
 
-
 def get_client_info():
-    """Obtiene información del cliente para logs de seguridad"""
     return {
         'ip': request.remote_addr,
         'user_agent': request.headers.get('User-Agent', 'Unknown'),
         'timestamp': datetime.now().isoformat()
     }
 
-# =====================================================
-# RUTAS DE AUTENTICACIÓN
-# =====================================================
 @auth_bp.route('/')
 def index():
     if 'usuario_id' in session:
@@ -119,10 +90,8 @@ def index():
         return redirect('/dashboard')
     return redirect('/login')
 
-
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
-    # Si ya está logueado, redirigir al dashboard
     if 'usuario_id' in session:
         if not check_session_timeout():
             return redirect('/dashboard')
@@ -132,7 +101,6 @@ def login():
         usuario = request.form.get('usuario', '').strip()
         contraseña = request.form.get('contraseña', '')
         
-        # Validación básica
         if not usuario or not contraseña:
             flash('Por favor, ingrese usuario y contraseña', 'warning')
             return render_template('auth/login.html')
@@ -143,10 +111,8 @@ def login():
             usuario_info = UsuarioModel.verificar_credenciales(usuario, contraseña)
             
             if usuario_info:
-                # Regenerar ID de sesión para prevenir session fixation
                 session.clear()
                 
-                # Establecer datos de sesión
                 session['usuario_id'] = usuario_info['id']
                 session['usuario_nombre'] = usuario_info['nombre']
                 session['usuario'] = usuario_info['usuario']
@@ -154,12 +120,10 @@ def login():
                 session['oficina_id'] = usuario_info.get('oficina_id', 1)
                 session['oficina_nombre'] = usuario_info.get('oficina_nombre', '')
                 
-                # Timestamps de sesión
                 session['login_time'] = datetime.now().isoformat()
                 session['last_activity'] = datetime.now().isoformat()
                 session['client_ip'] = client_info['ip']
                 
-                # Hacer la sesión permanente
                 session.permanent = True
                 
                 flash(f'¡Bienvenido {usuario_info["nombre"]}!', 'success')
@@ -174,7 +138,6 @@ def login():
     
     return render_template('auth/login.html')
 
-
 @auth_bp.route('/logout')
 def logout():
     usuario = session.get('usuario', 'Desconocido')
@@ -184,13 +147,8 @@ def logout():
     flash('Sesión cerrada correctamente', 'info')
     return redirect('/login')
 
-
 @auth_bp.route('/test-ldap', methods=['GET', 'POST'])
 def test_ldap():
-    """
-    Ruta para probar conexión LDAP REAL.
-    Accesible desde: /test-ldap
-    """
     try:
         result = None
         
@@ -203,31 +161,24 @@ def test_ldap():
                 return render_template('auth/test_ldap.html')
             
             try:
-                # Importar la clase REAL de autenticación LDAP
                 from utils.ldap_auth import ADAuth
                 from config.config import Config
                 
-                # Obtener configuración
                 ldap_enabled = Config.LDAP_ENABLED
                 ldap_server = Config.LDAP_SERVER
                 ldap_domain = Config.LDAP_DOMAIN
                 
-                # Crear instancia de ADAuth y autenticar
                 ad_auth = ADAuth()
                 
-                # 1. Probar conexión al servidor
                 connection_ok = ad_auth.test_connection()
                 
-                # 2. Autenticar usuario
                 user_data = ad_auth.authenticate_user(username, password)
                 
                 if user_data:
-                    # Intentar sincronizar con la base de datos
                     sync_info = None
                     sync_error = None
                     
                     try:
-                        # Buscar o crear usuario en la base de datos
                         from models.usuarios_model import UsuarioModel
                         
                         db_user = UsuarioModel.get_by_username(username)
@@ -312,8 +263,7 @@ def test_ldap():
                     'traceback': None
                 }
         
-        else:  # GET request
-            # Mostrar configuración actual
+        else:
             try:
                 from config.config import Config
                 result = {
@@ -357,12 +307,10 @@ def test_ldap():
         }
         return render_template('auth/test_ldap.html', result=result)
 
-
 @auth_bp.route('/dashboard')
 @require_login
 def dashboard():
     try:
-        # Obtener filtro de oficina según permisos
         from utils.permissions import user_can_view_all
         oficina_id = None if user_can_view_all() else session.get('oficina_id')
         
@@ -408,12 +356,8 @@ def dashboard():
                             solicitudes=[],
                             aprobadores=[])
 
-# =====================================================
-# API DE ESTADO DE SESIÓN
-# =====================================================
 @auth_bp.route('/api/session-status')
 def session_status():
-    """API para verificar estado de sesión (útil para JavaScript)"""
     from flask import jsonify
     
     if 'usuario_id' not in session:
@@ -422,7 +366,6 @@ def session_status():
     if check_session_timeout():
         return jsonify({'authenticated': False, 'reason': 'timeout'})
     
-    # Calcular tiempo restante
     last_activity = session.get('last_activity')
     if last_activity:
         try:
@@ -443,10 +386,8 @@ def session_status():
     
     return jsonify({'authenticated': True, 'user': session.get('usuario_nombre')})
 
-
 @auth_bp.route('/api/extend-session', methods=['POST'])
 def extend_session():
-    """API para extender la sesión activa"""
     from flask import jsonify
     
     if 'usuario_id' not in session:

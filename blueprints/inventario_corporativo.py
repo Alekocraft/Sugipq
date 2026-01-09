@@ -226,7 +226,6 @@ def crear_inventario_corporativo():
         try:
             ruta_imagen = _handle_image_upload(request.files.get('imagen'))
 
-            # Generar código único si no se proporciona
             codigo_unico = request.form.get('codigo_unico')
             if not codigo_unico:
                 codigo_unico = InventarioCorporativoModel.generar_codigo_unico()
