@@ -1,8 +1,10 @@
 ﻿# models/usuarios_model.py 
+
 from database import get_database_connection
 import logging
 from config.config import Config
 import bcrypt
+import os
 from utils.helpers import sanitizar_username, sanitizar_email, sanitizar_ip  # ✅ CORRECCIÓN: Importar funciones de sanitización
 
 logger = logging.getLogger(__name__)
@@ -15,17 +17,17 @@ class UsuarioModel:
         Verifica credenciales PRIORIZANDO BD local, luego LDAP como fallback
         Maneja usuarios LDAP pendientes de sincronización
         """
-        logger.info(f"🔐 Intentando autenticación para: {sanitizar_username(usuario)}")  # ✅ CORRECCIÓN: Usar sanitización
+        logger.info(f"🔐 Intentando autenticación para: {sanitizar_username(usuario)}")   
         
         # 1. PRIMERO: Intentar autenticación local
-        logger.info(f"🔄 1. Intentando autenticación LOCAL para: {sanitizar_username(usuario)}")  # ✅ CORRECCIÓN
+        logger.info(f"🔄 1. Intentando autenticación LOCAL para: {sanitizar_username(usuario)}")   
         usuario_local = UsuarioModel._verificar_localmente_corregido(usuario, contraseña)
         
         if usuario_local:
-            logger.info(f"✅ Autenticación LOCAL exitosa para: {sanitizar_username(usuario)}")  # ✅ CORRECCIÓN
+            logger.info(f"✅ Autenticación LOCAL exitosa para: {sanitizar_username(usuario)}")   
             return usuario_local
         
-        logger.info(f"❌ Autenticación LOCAL falló para: {sanitizar_username(usuario)}")  # ✅ CORRECCIÓN
+        logger.info(f"❌ Autenticación LOCAL falló para: {sanitizar_username(usuario)}")   
         
         # 2. Verificar si es usuario LDAP pendiente
         conn = get_database_connection()
@@ -42,11 +44,11 @@ class UsuarioModel:
                 conn.close()
                 
                 if usuario_ldap:
-                    logger.info(f"🔄 Usuario LDAP encontrado: {sanitizar_username(usuario)}")  # ✅ CORRECCIÓN
+                    logger.info(f"🔄 Usuario LDAP encontrado: {sanitizar_username(usuario)}")   
                     
                     # Si está pendiente o es usuario LDAP
                     if usuario_ldap[1] in ['LDAP_PENDING', 'LDAP_USER']:
-                        logger.info(f"🔄 2. Intentando LDAP para usuario registrado: {sanitizar_username(usuario)}")  # ✅ CORRECCIÓN
+                        logger.info(f"🔄 2. Intentando LDAP para usuario registrado: {sanitizar_username(usuario)}")   
                         
                         if Config.LDAP_ENABLED:
                             try:
@@ -54,7 +56,7 @@ class UsuarioModel:
                                 ad_user = ad_auth.authenticate_user(usuario, contraseña)
                                 
                                 if ad_user:
-                                    logger.info(f"✅ LDAP exitoso para usuario registrado: {sanitizar_username(usuario)}")  # ✅ CORRECCIÓN
+                                    logger.info(f"✅ LDAP exitoso para usuario registrado: {sanitizar_username(usuario)}")  
                                     
                                     # Completar sincronización si estaba pendiente
                                     if usuario_ldap[1] == 'LDAP_PENDING':
@@ -522,7 +524,7 @@ class UsuarioModel:
     def crear_usuario_admin_inicial():
         """
         Crea un usuario administrador inicial si no existe ninguno
-        Contraseña por defecto: admin123
+        Ahora usa contraseña desde variable de entorno
         """
         conn = get_database_connection()
         if not conn:
@@ -549,9 +551,17 @@ class UsuarioModel:
                 logger.error("❌ No hay oficinas activas para asignar al usuario admin")
                 return False
             
-            # Generar hash para contraseña 'admin123'
+           
+            admin_password = os.getenv('ADMIN_DEFAULT_PASSWORD')
+            
+            if not admin_password:
+                logger.error("❌ ADMIN_DEFAULT_PASSWORD no configurado en variables de entorno")
+                logger.error("   Configurar en .env: ADMIN_DEFAULT_PASSWORD=tu_contraseña_segura")
+                return False
+            
+            # Generar hash para contraseña del administrador
             password_hash = bcrypt.hashpw(
-                'admin123'.encode('utf-8'), 
+                admin_password.encode('utf-8'), 
                 bcrypt.gensalt()
             ).decode('utf-8')
             
@@ -571,6 +581,7 @@ class UsuarioModel:
             conn.commit()
             logger.info("✅ Usuario administrador creado exitosamente")
             logger.info("🔑 Credenciales: usuario=admin, contraseña=[PROTEGIDA]")  # ✅ CORRECCIÓN: No mostrar contraseña
+            logger.info("ℹ️ La contraseña se obtuvo de la variable de entorno ADMIN_DEFAULT_PASSWORD")
             return True
             
         except Exception as e:
@@ -868,6 +879,7 @@ class UsuarioModel:
         finally:
             if conn:
                 conn.close()    
+    
     @staticmethod
     def obtener_aprobadores_desde_tabla():
         """

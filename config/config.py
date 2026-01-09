@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
 import os
 from datetime import timedelta
+from dotenv import load_dotenv
+
+ 
+load_dotenv()
 
 class Config:
     """Configuración base para toda la aplicación"""
@@ -37,13 +41,13 @@ class Config:
         'inventario_corporativo': ['dashboard', 'inventario_corporativo']
     }
     
-    # Configuración LDAP
     LDAP_ENABLED = True
-    LDAP_SERVER = '10.60.0.30'
-    LDAP_DOMAIN = 'qualitascolombia.com.co'
-    LDAP_SEARCH_BASE = 'DC=qualitascolombia,DC=com,DC=co'
-    LDAP_SERVICE_USER = 'userauge'
-    LDAP_SERVICE_PASSWORD = 'QC4ug3*24'
+    LDAP_SERVER = os.getenv('LDAP_SERVER', '10.60.0.30')
+    LDAP_PORT = int(os.getenv('LDAP_PORT', '389'))
+    LDAP_DOMAIN = os.getenv('LDAP_DOMAIN', 'qualitascolombia.com.co')
+    LDAP_SEARCH_BASE = os.getenv('LDAP_SEARCH_BASE', 'DC=qualitascolombia,DC=com,DC=co')
+    LDAP_SERVICE_USER = os.getenv('LDAP_SERVICE_USER')
+    LDAP_SERVICE_PASSWORD = os.getenv('LDAP_SERVICE_PASSWORD')
     
     # Fallback a autenticación local si LDAP falla
     LDAP_FALLBACK_LOCAL = True

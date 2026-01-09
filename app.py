@@ -237,7 +237,7 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 logger.info(f"Directorio de uploads configurado en: {os.path.abspath(UPLOAD_FOLDER)}")
 
 app.config['SESSION_COOKIE_SECURE'] = os.environ.get('FLASK_ENV') == 'production'
-app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_HTTPONLY'] = False # ajuste a true cuando este el link 
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=8)
 

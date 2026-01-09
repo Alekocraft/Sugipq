@@ -1,11 +1,13 @@
 ﻿# utils/ldap_auth.py
 """
 Autenticación con Active Directory Qualitas
+Versión segura - DÍA 5: Sanitización de usernames en logs
 """
 import ldap3
 from ldap3 import Server, Connection, ALL, NTLM
 import logging
 from config.config import Config
+from utils.helpers import sanitizar_username  # ✅ DÍA 5 - Sanitizar usernames en logs
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +55,8 @@ class ADAuth:
         
             # 2. CORREGIDO: Usar formato domain\username para NTLM
             user_dn = f"{self.domain}\\{username}"
-            logger.info(f"🔐 LDAP intentando autenticación con: {user_dn}")
+            # ✅ DÍA 5 - Sanitizar username en log
+            logger.info(f"🔐 LDAP intentando autenticación con: {self.domain}\\{sanitizar_username(username)}")
         
             # 3. Intentar conexión y autenticación
             conn = Connection(
@@ -65,7 +68,8 @@ class ADAuth:
             )
         
             if conn.bound:
-                logger.info(f"✅ LDAP: Autenticación exitosa para {username}")
+                # ✅ DÍA 5 - Sanitizar username en log
+                logger.info(f"✅ LDAP: Autenticación exitosa para {sanitizar_username(username)}")
             
                 # 4. Buscar información adicional del usuario
                 user_info = self._get_user_details(conn, username)
@@ -76,7 +80,8 @@ class ADAuth:
                     user_info['role'] = self._assign_role(user_info)
                     return user_info
                 else:
-                    logger.warning(f"⚠️ LDAP: Usuario {username} autenticado pero no encontrado en búsqueda")
+                    # ✅ DÍA 5 - Sanitizar username en log
+                    logger.warning(f"⚠️ LDAP: Usuario {sanitizar_username(username)} autenticado pero no encontrado en búsqueda")
                     return {
                         'username': username,
                         'full_name': username,
@@ -85,11 +90,13 @@ class ADAuth:
                         'role': 'usuario'
                     }
             else:
-                logger.error(f"❌ LDAP: Autenticación fallida para {username}")
+                # ✅ DÍA 5 - Sanitizar username en log
+                logger.error(f"❌ LDAP: Autenticación fallida para {sanitizar_username(username)}")
                 return None
             
         except Exception as e:
-            logger.error(f"❌ LDAP: Error autenticando {username}: {e}")
+            # ✅ DÍA 5 - Sanitizar username en log
+            logger.error(f"❌ LDAP: Error autenticando {sanitizar_username(username)}: {e}")
             return None
     
     def _get_user_details(self, connection, username):
@@ -129,11 +136,13 @@ class ADAuth:
                 
                 return user_info
             else:
-                logger.warning(f"⚠️ LDAP: Usuario {username} no encontrado en búsqueda")
+                # ✅ DÍA 5 - Sanitizar username en log
+                logger.warning(f"⚠️ LDAP: Usuario {sanitizar_username(username)} no encontrado en búsqueda")
                 return None
                 
         except Exception as e:
-            logger.error(f"❌ LDAP: Error obteniendo detalles de {username}: {e}")
+            # ✅ DÍA 5 - Sanitizar username en log
+            logger.error(f"❌ LDAP: Error obteniendo detalles de {sanitizar_username(username)}: {e}")
             return None
     
     def _assign_role(self, user_info):
