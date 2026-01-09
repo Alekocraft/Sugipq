@@ -1,3 +1,5 @@
+[file name]: test_ldap.html
+[file content begin]
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -67,12 +69,12 @@
                             
                             <div class="mb-3">
                                 <label for="password" class="form-label">Contraseña AD</label>
-                                <input type="password" class="form-control" id="password" name="password" required>
+                                <input type="password" class="form-control" id="password" name="password" autocomplete="off" required>
                             </div>
                             
                             <div class="d-grid gap-2">
                                 <button type="submit" class="btn btn-primary">Probar Autenticación LDAP</button>
-                                <a href="{{ url_for('auth.login') }}" class="btn btn-secondary">Volver al Login</a>
+                                <a href="{{ url_for('auth_bp.login') }}" class="btn btn-secondary">Volver al Login</a>
                                 {% if session.get('usuario_id') %}
                                 <a href="/dashboard" class="btn btn-outline-secondary">Volver al Dashboard</a>
                                 {% endif %}
@@ -230,3 +232,4 @@
     </script>
 </body>
 </html>
+[file content end]
