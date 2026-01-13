@@ -13,7 +13,6 @@ from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 from database import get_database_connection
 import os
-from utils.helpers import sanitizar_ip  # ✅ DÍA 5
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +29,7 @@ def _load_email_config():
         
         # DEPURACIÓN: Mostrar lo que se está cargando
         print(f"\n=== CONFIGURACIÓN SMTP CARGADA ===")
-        print(f"SMTP_SERVER: {sanitizar_ip(smtp_server) if smtp_server else 'No configurado'}")
+        print(f"SMTP_SERVER: {smtp_server}")
         print(f"SMTP_PORT: {smtp_port}")
         print(f"SMTP_USE_TLS: {use_tls}")
         print(f"SMTP_FROM_EMAIL: {from_email}")
@@ -272,22 +271,37 @@ class NotificationService:
             msg.attach(part1)
             msg.attach(part2)
             
-            # Usar TLS si está configurado
-            if EMAIL_CONFIG['use_tls']:
+            # ✅ DÍA 6 - Conexión SMTP segura con SSL
+            # Usar SMTP_SSL (puerto 465) para conexión segura por defecto
+            try:
                 server = smtplib.SMTP_SSL(
                     EMAIL_CONFIG['smtp_server'], 
                     EMAIL_CONFIG['smtp_port'], 
                     timeout=30
                 )
-            else:
+                
+                # Autenticación si hay credenciales configuradas
+                if EMAIL_CONFIG['smtp_user'] and EMAIL_CONFIG['smtp_password']:
+                    server.login(EMAIL_CONFIG['smtp_user'], EMAIL_CONFIG['smtp_password'])
+                    
+            except Exception as ssl_error:
+                # Fallback a SMTP normal si SSL falla (compatibilidad con servidores legacy)
+                logger.warning(f"SSL fallback - usando SMTP normal: {type(ssl_error).__name__}")
                 server = smtplib.SMTP(
                     EMAIL_CONFIG['smtp_server'], 
                     EMAIL_CONFIG['smtp_port'], 
                     timeout=30
                 )
-            
-            if EMAIL_CONFIG['use_tls'] and EMAIL_CONFIG['smtp_user'] and EMAIL_CONFIG['smtp_password']:
-                server.login(EMAIL_CONFIG['smtp_user'], EMAIL_CONFIG['smtp_password'])
+                
+                # Intentar STARTTLS si está disponible
+                if EMAIL_CONFIG.get('use_tls', False):
+                    try:
+                        server.starttls()
+                    except:
+                        pass
+                
+                if EMAIL_CONFIG['smtp_user'] and EMAIL_CONFIG['smtp_password']:
+                    server.login(EMAIL_CONFIG['smtp_user'], EMAIL_CONFIG['smtp_password'])
             
             server.sendmail(EMAIL_CONFIG['from_email'], destinatario_email, msg.as_string())
             server.quit()
@@ -1158,6 +1172,52 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 # CONFIGURACIÓN DE EMAIL
 # ============================================================================
+def _load_email_config():
+    """Carga configuración de email"""
+    try:
+        # Leer variables de entorno
+        smtp_server = os.getenv('SMTP_SERVER')
+        smtp_port = os.getenv('SMTP_PORT', '25')
+        use_tls = os.getenv('SMTP_USE_TLS', 'False').lower() == 'true'
+        from_email = os.getenv('SMTP_FROM_EMAIL')
+        
+        # Si no hay configuración, usar valores por defecto
+        if not smtp_server:
+            logger.warning("SMTP_SERVER no configurado, usando valores por defecto")
+            smtp_server = '10.60.0.31'
+        
+        if not from_email:
+            logger.warning("SMTP_FROM_EMAIL no configurado, usando valor por defecto")
+            from_email = 'gestiondeInventarios@qualitascolombia.com.co'
+        
+        # Para debugging
+        logger.info(f"Configuración SMTP: server={smtp_server}, port={smtp_port}, tls={use_tls}")
+        
+        return {
+            'smtp_server': smtp_server,
+            'smtp_port': int(smtp_port),
+            'use_tls': use_tls,
+            'smtp_user': os.getenv('SMTP_USER', ''),
+            'smtp_password': os.getenv('SMTP_PASSWORD', ''),
+            'from_email': from_email,
+            'from_name': 'Sistema de Gestión de Inventarios'
+        }
+        
+    except Exception as e:
+        logger.error(f"Error cargando configuración de email: {e}")
+        # Configuración de fallback
+        return {
+            'smtp_server': '10.60.0.31',
+            'smtp_port': 25,
+            'use_tls': False,
+            'smtp_user': '',
+            'smtp_password': '',
+            'from_email': 'gestiondeInventarios@qualitascolombia.com.co',
+            'from_name': 'Sistema de Gestión de Inventarios'
+        }
+
+EMAIL_CONFIG = _load_email_config()
+
 # ============================================================================
 # COLORES Y ESTILOS COMPARTIDOS
 # ============================================================================
@@ -1368,7 +1428,7 @@ class NotificationService:
             msg.attach(part2)
             
             # Para debugging
-            logger.info(f"Conectando a SMTP: {sanitizar_ip(EMAIL_CONFIG['smtp_server'])}:{EMAIL_CONFIG['smtp_port']}")
+            logger.info(f"Conectando a SMTP: {EMAIL_CONFIG['smtp_server']}:{EMAIL_CONFIG['smtp_port']}")
             
             server = smtplib.SMTP(EMAIL_CONFIG['smtp_server'], EMAIL_CONFIG['smtp_port'], timeout=30)
             
@@ -2221,37 +2281,3 @@ def notificar_prestamo(prestamo_info, tipo_notificacion, **kwargs):
             kwargs.get('usuario_accion', 'Sistema'),
             kwargs.get('observacion', '')
         )
-
-def servicio_notificaciones_disponible():
-    """Verifica si el servicio de notificaciones está disponible"""
-    if not EMAIL_CONFIG:
-        logger.warning("⚠️ Servicio de notificaciones no disponible: Configuración faltante")
-        return False
-    
-    if not EMAIL_CONFIG.get('smtp_server'):
-        logger.warning("⚠️ Servicio de notificaciones no disponible: SMTP_SERVER no configurado")
-        return False
-    
-    if not EMAIL_CONFIG.get('from_email'):
-        logger.warning("⚠️ Servicio de notificaciones no disponible: SMTP_FROM_EMAIL no configurado")
-        return False
-    
-    logger.info("[OK] Servicio de notificaciones disponible")
-    return True
-    """
-    Verifica si el servicio de notificaciones está disponible
-    """
-    if EMAIL_CONFIG is None:
-        logger.warning("⚠️ Servicio de notificaciones no disponible: Configuración faltante")
-        return False
-    
-    # Verificar configuración mínima
-    if not EMAIL_CONFIG.get('smtp_server'):
-        logger.warning("⚠️ Servicio de notificaciones no disponible: SMTP_SERVER no configurado")
-        return False
-    
-    if not EMAIL_CONFIG.get('from_email'):
-        logger.warning("⚠️ Servicio de notificaciones no disponible: SMTP_FROM_EMAIL no configurado")
-        return False
-    
-    return True
