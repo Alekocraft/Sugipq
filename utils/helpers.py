@@ -1,3 +1,5 @@
+# utils/helpers.py
+
 import os
 import logging
 import random
@@ -227,11 +229,44 @@ def sanitizar_ip(ip):
         logger.warning(f"Error sanitizando IP: {e}")
         return '[ip-protegida]'
 
+def sanitizar_id(valor):
+    """
+    Sanitiza IDs numéricos para logs.
+    Solo permite dígitos, convierte a string seguro.
+    """
+    if not valor:
+        return '[id-protegido]'
+    
+    try:
+        # Convertir a int y luego a string para asegurar que es numérico
+        return str(int(valor))
+    except (ValueError, TypeError):
+        return '[id-invalido]'
+
+def sanitizar_texto_generico(texto, max_length=30):
+    """
+    Sanitiza texto genérico para logs (nombres, descripciones, etc.)
+    Limita longitud y remueve caracteres especiales peligrosos.
+    """
+    if not texto:
+        return '[texto-protegido]'
+    
+    try:
+        # Remover caracteres de nueva línea y control
+        texto_limpio = ''.join(c for c in str(texto) if c.isprintable())
+        # Truncar si es muy largo
+        if len(texto_limpio) > max_length:
+            texto_limpio = texto_limpio[:max_length] + '...'
+        return texto_limpio
+    except Exception as e:
+        logger.warning(f"Error sanitizando texto: {e}")
+        return '[texto-protegido]'
+
 # Exportar las funciones de sanitización para que estén disponibles
 __all__ = [
     'allowed_file', 'save_uploaded_file', 'get_user_permissions', 'can_access',
     'format_currency', 'format_date', 'get_pagination_params', 'flash_errors',
     'generate_codigo_unico', 'calcular_valor_total', 'validar_stock', 
     'obtener_mes_actual', 'sanitizar_identificacion', 'sanitizar_email', 
-    'sanitizar_username', 'sanitizar_ip'
+    'sanitizar_username', 'sanitizar_ip', 'sanitizar_id', 'sanitizar_texto_generico'
 ]

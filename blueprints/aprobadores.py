@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, session, flash, url_for, current_app
 from models.usuarios_model import UsuarioModel
 from utils.permissions import can_access
+from utils.helpers import sanitizar_username
 import logging
 
 logger = logging.getLogger(__name__)
@@ -18,7 +19,7 @@ def listar_aprobadores():
         return redirect(url_for('auth.login'))
 
     if not can_access('aprobadores', 'view'):
-        logger.warning(f"Usuario {session.get('usuario_id')} sin permisos para ver aprobadores")
+        logger.warning(f"Usuario {sanitizar_username(str(session.get('usuario_id', 'desconocido')))} sin permisos para ver aprobadores")
         flash('No tiene permisos para acceder a esta sección', 'danger')
         return redirect(url_for('dashboard'))
 

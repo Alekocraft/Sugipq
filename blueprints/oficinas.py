@@ -3,7 +3,10 @@
 from flask import Blueprint, render_template, request, redirect, session, flash, jsonify
 from models.oficinas_model import OficinaModel
 from utils.permissions import can_access
+from utils.helpers import sanitizar_email, sanitizar_username, sanitizar_texto_generico
 import logging
+
+
 
 # Configurar logger específico para este blueprint
 logger = logging.getLogger(__name__)
@@ -23,7 +26,7 @@ def listar_oficinas():
         return redirect('/login')
     
     if not can_access('oficinas', 'view'):
-        logger.warning(f"⚠️ Usuario {session.get('usuario')} sin permisos para ver oficinas")
+        logger.warning(f"⚠️ Usuario {sanitizar_username(session.get('usuario', 'desconocido'))} sin permisos para ver oficinas")
         flash('No tienes permisos para acceder a esta sección', 'danger')
         return redirect('/dashboard')
     
@@ -90,7 +93,7 @@ def crear_oficina():
             )
             
             if oficina_id:
-                logger.info(f"✅ Oficina creada: {nombre} (ID: {oficina_id})")
+                logger.info(f"✅ Oficina creada: {sanitizar_texto_generico(nombre)} (ID: {oficina_id})")
                 flash('Oficina creada exitosamente', 'success')
                 return redirect('/oficinas')
             else:

@@ -1,10 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
 from datetime import timedelta
-from dotenv import load_dotenv
-
- 
-load_dotenv()
 
 class Config:
     """Configuración base para toda la aplicación"""
@@ -12,14 +8,22 @@ class Config:
     # Clave secreta
     SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
     
-    # Configuración de Flask
+    # ✅ DÍA 5 - Configuración de Flask con seguridad dinámica
     JSON_AS_ASCII = False
     TEMPLATES_AUTO_RELOAD = True
-    SESSION_COOKIE_SECURE = False 
+    
+    # ✅ CORRECCIÓN CRÍTICA: SESSION_COOKIE_SECURE dinámico según entorno
+    # En producción será True, en desarrollo False
+    _is_production = os.environ.get('FLASK_ENV') == 'production'
+    SESSION_COOKIE_SECURE = _is_production
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = 'Lax'
     PERMANENT_SESSION_LIFETIME = timedelta(hours=8)
     
+    # ✅ CORRECCIÓN: Cookies "Remember Me" también seguras
+    REMEMBER_COOKIE_SECURE = _is_production
+    REMEMBER_COOKIE_HTTPONLY = True
+    REMEMBER_COOKIE_DURATION = timedelta(days=30)
     
     # Uploads
     UPLOAD_FOLDER = 'static/uploads'
@@ -41,13 +45,13 @@ class Config:
         'inventario_corporativo': ['dashboard', 'inventario_corporativo']
     }
     
+    # Configuración LDAP
     LDAP_ENABLED = True
-    LDAP_SERVER = os.getenv('LDAP_SERVER', '10.60.0.30')
-    LDAP_PORT = int(os.getenv('LDAP_PORT', '389'))
-    LDAP_DOMAIN = os.getenv('LDAP_DOMAIN', 'qualitascolombia.com.co')
-    LDAP_SEARCH_BASE = os.getenv('LDAP_SEARCH_BASE', 'DC=qualitascolombia,DC=com,DC=co')
-    LDAP_SERVICE_USER = os.getenv('LDAP_SERVICE_USER')
-    LDAP_SERVICE_PASSWORD = os.getenv('LDAP_SERVICE_PASSWORD')
+    LDAP_SERVER = '10.60.0.30'
+    LDAP_DOMAIN = 'qualitascolombia.com.co'
+    LDAP_SEARCH_BASE = 'DC=qualitascolombia,DC=com,DC=co'
+    LDAP_SERVICE_USER = 'userauge'
+    LDAP_SERVICE_PASSWORD = 'QC4ug3*24'
     
     # Fallback a autenticación local si LDAP falla
     LDAP_FALLBACK_LOCAL = True
@@ -58,6 +62,7 @@ class DevelopmentConfig(Config):
     DEBUG = True
     TESTING = False
     ENV = 'development'
+    # En desarrollo, SESSION_COOKIE_SECURE será False automáticamente
 
 
 class ProductionConfig(Config):
@@ -66,9 +71,11 @@ class ProductionConfig(Config):
     TESTING = False
     ENV = 'production'
     
-    # Seguridad en producción
+    # ✅ En producción, SESSION_COOKIE_SECURE será True automáticamente
+    # Ya no es necesario override, se configura dinámicamente en Config base
     SESSION_COOKIE_SECURE = True
     SESSION_COOKIE_HTTPONLY = True
+    REMEMBER_COOKIE_SECURE = True
 
 
 class TestingConfig(Config):

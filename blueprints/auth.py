@@ -3,37 +3,26 @@ from flask import Blueprint, render_template, request, redirect, session, flash,
 from models.usuarios_model import UsuarioModel
 from datetime import datetime, timedelta
 from functools import wraps
-import os
 
 auth_bp = Blueprint('auth', __name__, url_prefix='')
 
-SESSION_TIMEOUT_MINUTES = 30  # ✅ Cambiado de 5 a 30 minutos
-SESSION_ABSOLUTE_TIMEOUT_HOURS = 8  # ✅ Aumentado de 3 a 8 horas
+SESSION_TIMEOUT_MINUTES = 5
+SESSION_ABSOLUTE_TIMEOUT_HOURS = 3
 
 def init_session_config(app):
-    """
-    Configura sesiones de forma segura según el entorno
+    """✅ DÍA 5 - Configuración dinámica de sesiones según entorno"""
+    import os
+    is_production = os.environ.get('FLASK_ENV') == 'production'
     
-    ✅ DÍA 5 - CORRECCIÓN CRÍTICA:
-    - Desarrollo (HTTP): SESSION_COOKIE_SECURE = False
-    - Producción (HTTPS): SESSION_COOKIE_SECURE = True
-    """
-    # Detectar si estamos en producción basado en el dominio
-    is_production = os.getenv('FLASK_ENV') == 'production' or \
-                    'sugipq.qualitascolombia.com.co' in os.getenv('SERVER_NAME', '')
-    
-    # ✅ CORRECCIÓN CRÍTICA: False en desarrollo, True solo en producción con HTTPS
+    # Cookies seguras solo en producción (requiere HTTPS)
     app.config['SESSION_COOKIE_SECURE'] = is_production
     app.config['SESSION_COOKIE_HTTPONLY'] = True
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=SESSION_ABSOLUTE_TIMEOUT_HOURS)
     
-    # Configurar dominio de cookies para producción
-    if is_production:
-        app.config['SESSION_COOKIE_DOMAIN'] = '.qualitascolombia.com.co'
-    
-    print(f"[SESIÓN] Configuración: SECURE={app.config['SESSION_COOKIE_SECURE']}, HTTPONLY=True, SAMESITE=Lax")
-    print(f"[SESIÓN] Entorno: {'PRODUCCIÓN (HTTPS)' if is_production else 'DESARROLLO (HTTP)'}")
+    # Cookies "Remember Me" también seguras
+    app.config['REMEMBER_COOKIE_SECURE'] = is_production
+    app.config['REMEMBER_COOKIE_HTTPONLY'] = True
 
 def check_session_timeout():
     if 'usuario_id' not in session:
@@ -69,12 +58,12 @@ def require_login(f):
     def decorated_function(*args, **kwargs):
         if 'usuario_id' not in session:
             flash('Por favor, inicie sesión para continuar', 'warning')
-            return redirect('/auth/login')
+            return redirect('/login')
         
         if check_session_timeout():
             clear_session_safely()
-            flash(f'Su sesión ha expirado por inactividad ({SESSION_TIMEOUT_MINUTES} minutos). Por favor, inicie sesión nuevamente.', 'warning')
-            return redirect('/auth/login')
+            flash('Su sesión ha expirado por inactividad (5 minutos). Por favor, inicie sesión nuevamente.', 'warning')
+            return redirect('/login')
         
         update_session_activity()
         return f(*args, **kwargs)
@@ -106,9 +95,9 @@ def index():
     if 'usuario_id' in session:
         if check_session_timeout():
             clear_session_safely()
-            return redirect('/auth/login')
+            return redirect('/login')
         return redirect('/dashboard')
-    return redirect('/auth/login')
+    return redirect('/login')
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
@@ -131,13 +120,8 @@ def login():
             usuario_info = UsuarioModel.verificar_credenciales(usuario, contraseña)
             
             if usuario_info:
-                # ✅ CORRECCIÓN CRÍTICA: Limpiar sesión ANTES de crear nueva
                 session.clear()
                 
-                # ✅ CORRECCIÓN CRÍTICA: Marcar sesión como permanente PRIMERO
-                session.permanent = True
-                
-                # ✅ Asignar datos de sesión
                 session['usuario_id'] = usuario_info['id']
                 session['usuario_nombre'] = usuario_info['nombre']
                 session['usuario'] = usuario_info['usuario']
@@ -149,24 +133,15 @@ def login():
                 session['last_activity'] = datetime.now().isoformat()
                 session['client_ip'] = client_info['ip']
                 
-                # ✅ CORRECCIÓN CRÍTICA: Forzar que Flask guarde la sesión
-                session.modified = True
-                
-                print(f"[SESIÓN] Creada para usuario: {usuario_info['usuario']}")
-                print(f"[SESIÓN] Permanent: {session.permanent}")
+                session.permanent = True
                 
                 flash(f'¡Bienvenido {usuario_info["nombre"]}!', 'success')
-                
-                # ✅ IMPORTANTE: return redirect
                 return redirect('/dashboard')
             else:
                 flash('Usuario o contraseña incorrectos', 'danger')
                 return render_template('auth/login.html')
                 
         except Exception as e:
-            print(f"[ERROR] Exception en login: {e}")
-            import traceback
-            traceback.print_exc()
             flash('Error del sistema durante el login', 'danger')
             return render_template('auth/login.html')
     
@@ -177,13 +152,9 @@ def logout():
     usuario = session.get('usuario', 'Desconocido')
     client_info = get_client_info()
     
-    print(f"[SESIÓN] Logout de usuario: {usuario}")
-    
     clear_session_safely()
     flash('Sesión cerrada correctamente', 'info')
-    return redirect('/auth/login')
-
-# ... [Resto del archivo auth.py se mantiene igual]
+    return redirect('/login')
 
 @auth_bp.route('/test-ldap', methods=['GET', 'POST'])
 def test_ldap():
@@ -236,58 +207,208 @@ def test_ldap():
                                 'sync_status': 'Usuario nuevo - se creará en el primer login'
                             }
                     
-                    except Exception as sync_err:
-                        sync_error = str(sync_err)
+                    except Exception as sync_ex:
+                        sync_error = f"Error sincronizando con BD: {str(sync_ex)}"
                     
                     result = {
                         'success': True,
-                        'message': 'Autenticación exitosa',
-                        'ldap_config': {
-                            'enabled': ldap_enabled,
-                            'server': ldap_server,
-                            'domain': ldap_domain
-                        },
-                        'connection': {
-                            'status': 'OK' if connection_ok else 'Error',
-                            'message': 'Conexión al servidor LDAP exitosa' if connection_ok else 'Error de conexión'
-                        },
-                        'user_data': {
+                        'message': '✅ Autenticación LDAP exitosa con datos REALES',
+                        'ldap_enabled': ldap_enabled,
+                        'ldap_server': ldap_server,
+                        'ldap_domain': ldap_domain,
+                        'username': username,
+                        'user_info': {
                             'username': user_data.get('username'),
                             'full_name': user_data.get('full_name'),
                             'email': user_data.get('email'),
                             'department': user_data.get('department'),
-                            'role': user_data.get('role')
+                            'role_from_ad': user_data.get('role'),
+                            'groups_count': len(user_data.get('groups', []))
                         },
                         'sync_info': sync_info,
-                        'sync_error': sync_error
+                        'sync_error': sync_error,
+                        'traceback': None
                     }
-                    flash('Autenticación LDAP exitosa', 'success')
+                    
                 else:
                     result = {
                         'success': False,
-                        'message': 'Autenticación fallida',
-                        'ldap_config': {
-                            'enabled': ldap_enabled,
-                            'server': ldap_server,
-                            'domain': ldap_domain
-                        },
-                        'connection': {
-                            'status': 'OK' if connection_ok else 'Error',
-                            'message': 'Conexión al servidor LDAP exitosa' if connection_ok else 'Error de conexión'
-                        }
+                        'message': '❌ Autenticación LDAP fallida - Credenciales inválidas o usuario no encontrado',
+                        'ldap_enabled': ldap_enabled,
+                        'ldap_server': ldap_server,
+                        'ldap_domain': ldap_domain,
+                        'username': username,
+                        'user_info': None,
+                        'sync_info': None,
+                        'sync_error': 'Credenciales inválidas o servidor LDAP no disponible',
+                        'traceback': None
                     }
-                    flash('Usuario o contraseña incorrectos', 'danger')
-            
+                        
+            except ImportError as ie:
+                result = {
+                    'success': False,
+                    'message': '⚠️ Módulo LDAP no instalado - Instale python-ldap3',
+                    'ldap_enabled': False,
+                    'ldap_server': 'No disponible',
+                    'ldap_domain': 'No disponible',
+                    'username': username,
+                    'user_info': None,
+                    'sync_info': None,
+                    'sync_error': f'ImportError: {str(ie)}',
+                    'traceback': None
+                }
+                
             except Exception as e:
                 result = {
                     'success': False,
-                    'message': f'Error: {str(e)}',
-                    'error_details': str(e)
+                    'message': f'❌ Error en autenticación LDAP: {str(e)}',
+                    'ldap_enabled': False,
+                    'ldap_server': 'Error',
+                    'ldap_domain': 'Error',
+                    'username': username,
+                    'user_info': None,
+                    'sync_info': None,
+                    'sync_error': str(e),
+                    'traceback': None
                 }
-                flash(f'Error en prueba LDAP: {str(e)}', 'danger')
+        
+        else:
+            try:
+                from config.config import Config
+                result = {
+                    'success': None,
+                    'message': 'Ingrese sus credenciales de dominio para probar la conexión LDAP',
+                    'ldap_enabled': Config.LDAP_ENABLED,
+                    'ldap_server': Config.LDAP_SERVER,
+                    'ldap_domain': Config.LDAP_DOMAIN,
+                    'username': None,
+                    'user_info': None,
+                    'sync_info': None,
+                    'sync_error': None
+                }
+            except Exception as e:
+                result = {
+                    'success': None,
+                    'message': f'Error cargando configuración LDAP: {str(e)}',
+                    'ldap_enabled': False,
+                    'ldap_server': 'No configurado',
+                    'ldap_domain': 'No configurado',
+                    'username': None,
+                    'user_info': None,
+                    'sync_info': None,
+                    'sync_error': None
+                }
         
         return render_template('auth/test_ldap.html', result=result)
-    
+        
     except Exception as e:
-        flash(f'Error: {str(e)}', 'danger')
-        return render_template('auth/test_ldap.html', result=None)
+        result = {
+            'success': False,
+            'message': f'❌ Error crítico en la página: {str(e)}',
+            'ldap_enabled': False,
+            'ldap_server': 'Error',
+            'ldap_domain': 'Error',
+            'username': None,
+            'user_info': None,
+            'sync_info': None,
+            'sync_error': str(e),
+            'traceback': None
+        }
+        return render_template('auth/test_ldap.html', result=result)
+
+@auth_bp.route('/dashboard')
+@require_login
+def dashboard():
+    try:
+        from utils.permissions import user_can_view_all
+        oficina_id = None if user_can_view_all() else session.get('oficina_id')
+        
+        materiales = []
+        oficinas = []
+        solicitudes = []
+        aprobadores = []
+        
+        try:
+            from models.materiales_model import MaterialModel
+            materiales = MaterialModel.obtener_todos(oficina_id) or []
+        except Exception:
+            materiales = []
+        
+        try:
+            from models.oficinas_model import OficinaModel
+            oficinas = OficinaModel.obtener_todas() or []
+        except Exception:
+            oficinas = []
+        
+        try:
+            from models.solicitudes_model import SolicitudModel
+            solicitudes = SolicitudModel.obtener_todas(oficina_id) or []
+        except Exception:
+            solicitudes = []
+        
+        try:
+            from models.usuarios_model import UsuarioModel
+            aprobadores = UsuarioModel.obtener_aprobadores() or []
+        except Exception:
+            aprobadores = []
+
+        return render_template('dashboard.html',
+                            materiales=materiales,
+                            oficinas=oficinas,
+                            solicitudes=solicitudes,
+                            aprobadores=aprobadores)
+    except Exception:
+        flash('Error al cargar el dashboard', 'danger')
+        return render_template('dashboard.html', 
+                            materiales=[], 
+                            oficinas=[], 
+                            solicitudes=[],
+                            aprobadores=[])
+
+@auth_bp.route('/api/session-status')
+def session_status():
+    from flask import jsonify
+    
+    if 'usuario_id' not in session:
+        return jsonify({'authenticated': False, 'reason': 'no_session'})
+    
+    if check_session_timeout():
+        return jsonify({'authenticated': False, 'reason': 'timeout'})
+    
+    last_activity = session.get('last_activity')
+    if last_activity:
+        try:
+            if isinstance(last_activity, str):
+                last_activity = datetime.fromisoformat(last_activity)
+            
+            inactive_time = datetime.now() - last_activity
+            remaining_seconds = (timedelta(minutes=SESSION_TIMEOUT_MINUTES) - inactive_time).total_seconds()
+            
+            return jsonify({
+                'authenticated': True,
+                'user': session.get('usuario_nombre'),
+                'remaining_seconds': max(0, int(remaining_seconds)),
+                'timeout_minutes': SESSION_TIMEOUT_MINUTES
+            })
+        except Exception:
+            pass
+    
+    return jsonify({'authenticated': True, 'user': session.get('usuario_nombre')})
+
+@auth_bp.route('/api/extend-session', methods=['POST'])
+def extend_session():
+    from flask import jsonify
+    
+    if 'usuario_id' not in session:
+        return jsonify({'success': False, 'message': 'No hay sesión activa'}), 401
+    
+    if check_session_timeout():
+        clear_session_safely()
+        return jsonify({'success': False, 'message': 'Sesión expirada'}), 401
+    
+    update_session_activity()
+    return jsonify({
+        'success': True, 
+        'message': 'Sesión extendida',
+        'new_timeout_seconds': SESSION_TIMEOUT_MINUTES * 60
+    })

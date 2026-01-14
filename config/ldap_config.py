@@ -1,6 +1,6 @@
 # config/ldap_config.py
 """
-Configuración para conexión con Active Directory Qualitas Colombia
+ConfiguraciÃ³n para conexiÃ³n con Active Directory Qualitas Colombia
 """
 import os
 from dotenv import load_dotenv
@@ -17,7 +17,7 @@ LDAP_SEARCH_BASE = os.getenv('LDAP_SEARCH_BASE', 'DC=qualitascolombia,DC=com,DC=
 LDAP_SERVICE_USER = os.getenv('LDAP_SERVICE_USER', 'userauge')
 LDAP_SERVICE_PASSWORD = os.getenv('LDAP_SERVICE_PASSWORD')
 
-# Configuración de mapeo de roles AD -> Sistema
+# ConfiguraciÃ³n de mapeo de roles AD -> Sistema
 AD_ROLE_MAPPING = {
     'administrador': ['gerencia', 'admin', 'administrador'],
     'lider_inventario': ['almacen', 'logistica', 'inventario'],

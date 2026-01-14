@@ -1,5 +1,3 @@
-[file name]: test_ldap.html
-[file content begin]
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -60,21 +58,25 @@
                         </div>
                         
                         <form method="POST" id="ldapForm">
+                            <!-- ✅ DÍA 7 - CSRF Token para protección contra ataques CSRF -->
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            
                             <div class="mb-3">
                                 <label for="username" class="form-label">Usuario AD</label>
                                 <input type="text" class="form-control" id="username" name="username" 
                                        placeholder="ej: jperez" required>
-                                <div class="form-text">Solo el nombre de usuario, ej: "jperez" no "jperez@qualitascolombia.com.co"</div>
+                                <div class="form-text">Solo el nombre de usuario, ej: "jperez" no "<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="32584257405748724347535e5b465341515d5e5d5f505b531c515d5f1c515d">[email&#160;protected]</a>"</div>
                             </div>
                             
                             <div class="mb-3">
                                 <label for="password" class="form-label">Contraseña AD</label>
-                                <input type="password" class="form-control" id="password" name="password" autocomplete="off" required>
+                                <input type="password" class="form-control" id="password" name="password" 
+                                       autocomplete="current-password" required>
                             </div>
                             
                             <div class="d-grid gap-2">
                                 <button type="submit" class="btn btn-primary">Probar Autenticación LDAP</button>
-                                <a href="{{ url_for('auth_bp.login') }}" class="btn btn-secondary">Volver al Login</a>
+                                <a href="{{ url_for('auth.login') }}" class="btn btn-secondary">Volver al Login</a>
                                 {% if session.get('usuario_id') %}
                                 <a href="/dashboard" class="btn btn-outline-secondary">Volver al Dashboard</a>
                                 {% endif %}
@@ -213,7 +215,7 @@
         </div>
     </div>
     
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // Auto-enfocar el campo de usuario
         document.addEventListener('DOMContentLoaded', function() {
@@ -223,7 +225,7 @@
             const form = document.getElementById('ldapForm');
             if (form) {
                 form.addEventListener('submit', function() {
-                    setTimeout(() => {
+                    setTimeout(function() {
                         document.getElementById('password').value = '';
                     }, 100);
                 });
@@ -232,4 +234,3 @@
     </script>
 </body>
 </html>
-[file content end]

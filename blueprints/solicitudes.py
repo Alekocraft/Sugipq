@@ -12,6 +12,7 @@ from models.usuarios_model import UsuarioModel
 from models.novedades_model import NovedadModel
 from database import get_database_connection
 from utils.filters import filtrar_por_oficina_usuario, verificar_acceso_oficina
+from utils.helpers import sanitizar_id, sanitizar_username, sanitizar_email
 from utils.permissions import (
     can_approve_solicitud, can_approve_partial_solicitud, 
     can_reject_solicitud, can_return_solicitud,
@@ -415,7 +416,7 @@ def crear():
                         solicitud_info = _obtener_info_solicitud_completa(solicitud_id)
                         if solicitud_info:
                             NotificationService.notificar_solicitud_creada(solicitud_info)
-                            logger.info(f"📧 Notificación enviada: Nueva solicitud #{solicitud_id}")
+                            logger.info(f"📧 Notificación enviada: Novedad registrada para solicitud #{sanitizar_id(solicitud_id)}")
                     except Exception as e:
                         logger.error(f"Error enviando notificación de solicitud creada: {e}")
                 # =============================================
@@ -808,7 +809,7 @@ def registrar_novedad():
                     logger.error(f"Error enviando notificación de novedad: {e}")
             # =============================================
             
-            logger.info(f'Novedad registrada exitosamente. Solicitud ID: {solicitud_id}, Usuario: {usuario_id}')
+            logger.info(f'Novedad registrada exitosamente. Solicitud ID: {sanitizar_id(solicitud_id)}, Usuario: {sanitizar_username(str(usuario_id))}')
             return jsonify({
                 'success': True, 
                 'message': 'Novedad registrada correctamente'
@@ -844,7 +845,7 @@ def gestionar_novedad():
         novedades = NovedadModel.obtener_por_solicitud(int(solicitud_id))
         
         if not novedades:
-            logger.warning(f'No se encontraron novedades para la solicitud ID: {solicitud_id}')
+            logger.warning(f'No se encontraron novedades para la solicitud ID: {sanitizar_id(solicitud_id)}'
             return jsonify({'success': False, 'message': 'No se encontró novedad para esta solicitud'}), 404
 
         novedad = novedades[0]
@@ -885,12 +886,12 @@ def gestionar_novedad():
                         usuario_gestion,
                         observaciones
                     )
-                    logger.info(f"📧 Notificación enviada: Novedad {log_action} para solicitud #{solicitud_id}")
+                    logger.info(f"📧 Notificación enviada: Novedad {log_action} para solicitud #{sanitizar_id(solicitud_id)}")
                 except Exception as e:
                     logger.error(f"Error enviando notificación de gestión novedad: {e}")
             # =============================================
             
-            logger.info(f'Novedad {log_action}. Solicitud ID: {solicitud_id}, Usuario: {usuario_gestion}')
+            logger.info(f'Novedad {log_action}. Solicitud ID: {sanitizar_id(solicitud_id)}, Usuario: {sanitizar_username(usuario_gestion)}')
             return jsonify({
                 'success': True, 
                 'message': f'Novedad {nuevo_estado_novedad} exitosamente'
@@ -919,7 +920,7 @@ def listar_novedades():
         
         tipos_novedad = NovedadModel.obtener_tipos_disponibles()
         
-        logger.info(f"Usuario {session.get('usuario_id')} visualizando {len(novedades)} novedades")
+        logger.info(f"Usuario {sanitizar_username(str(session.get('usuario_id', 'desconocido')))} visualizando {len(novedades)} novedades")
         
         return render_template(
             'solicitudes/listar.html',
@@ -947,7 +948,7 @@ def obtener_novedades_pendientes():
     """Obtiene todas las novedades en estado pendiente"""
     try:
         novedades = NovedadModel.obtener_novedades_pendientes()
-        logger.info(f'Consulta de novedades pendientes. Usuario: {session.get("usuario_id")}')
+        logger.info(f'Consulta de novedades pendientes. Usuario: {sanitizar_username(str(session.get("usuario_id", "desconocido")))}')
         return jsonify({'success': True, 'novedades': novedades})
     except Exception as e:
         logger.error(f'Error al obtener novedades pendientes: {e}', exc_info=True)

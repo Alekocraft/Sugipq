@@ -327,6 +327,8 @@
                         <!-- Pestaña: Usuario Local -->
                         <div class="tab-pane fade show active" id="local" role="tabpanel">
                             <form id="formUsuarioLocal">
+                                <!-- ✅ DÍA 7 - CSRF Token -->
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <div class="row mt-3">
                                     <div class="col-md-6">
                                         <div class="mb-3">
@@ -343,13 +345,15 @@
                                     <div class="col-md-6">
                                         <div class="mb-3">
                                             <label class="form-label">Contraseña *</label>
-                                            <input type="password" class="form-control" name="password" autocomplete="off" required>
+                                            <input type="password" class="form-control" name="password" 
+                                                   autocomplete="new-password" required>
                                         </div>
                                     </div>
                                     <div class="col-md-6">
                                         <div class="mb-3">
                                             <label class="form-label">Confirmar Contraseña *</label>
-                                            <input type="password" class="form-control" name="confirm_password" autocomplete="off" required>
+                                            <input type="password" class="form-control" name="confirm_password" 
+                                                   autocomplete="new-password" required>
                                         </div>
                                     </div>
                                     <div class="col-md-6">
@@ -387,6 +391,8 @@
                         <!-- Pestaña: Usuario de Dominio -->
                         <div class="tab-pane fade" id="ad" role="tabpanel">
                             <form id="formUsuarioAd">
+                                <!-- ✅ DÍA 7 - CSRF Token -->
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <div class="row mt-3">
                                     <div class="col-md-6">
                                         <div class="mb-3">
@@ -399,7 +405,8 @@
                                     <div class="col-md-6">
                                         <div class="mb-3">
                                             <label class="form-label">Contraseña (opcional)</label>
-                                            <input type="password" class="form-control" name="password_ad" autocomplete="off">
+                                            <input type="password" class="form-control" name="password_ad"
+                                                   autocomplete="current-password">
                                             <div class="form-text">Para sincronizar automáticamente desde AD</div>
                                         </div>
                                     </div>
@@ -590,6 +597,8 @@
                                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                 </div>
                                 <form id="formEditarUsuario" data-usuario-id="${usuarioId}">
+                                <!-- ✅ DÍA 7 - CSRF Token -->
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                     <div class="modal-body">
                                         <div class="row">
                                             <div class="col-md-6">
@@ -749,4 +758,3 @@
     {% endblock %}
 </body>
 </html>
- 

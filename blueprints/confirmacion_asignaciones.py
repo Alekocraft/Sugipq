@@ -1,8 +1,8 @@
 ﻿# blueprints/confirmacion_asignaciones.py
- 
+
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
 from models.confirmacion_asignaciones_model import ConfirmacionAsignacionesModel
-from utils.helpers import sanitizar_email, sanitizar_username, sanitizar_ip
+from utils.helpers import sanitizar_email, sanitizar_username, sanitizar_ip, sanitizar_identificacion
 from utils.auth import login_required
 from datetime import datetime
 import logging
@@ -26,10 +26,10 @@ def validar_ldap(username, password):
             email = resultado.get('email', f"{username}@qualitascolombia.com.co")
             nombre = resultado.get('full_name', username)
             
-            logger.info(f"✅ LDAP: Autenticación exitosa para {username} ({email})")
+            logger.info(f"✅ LDAP: Autenticación exitosa para {sanitizar_username(username)} ({sanitizar_email(email)})")
             return (True, email, nombre, None)
         else:
-            logger.warning(f"❌ LDAP: Credenciales inválidas para {username}")
+            logger.warning(f"❌ LDAP: Credenciales inválidas para {sanitizar_username(username)}")
             return (False, None, None, "Usuario o contraseña incorrectos")
             
     except ImportError as e:
@@ -123,7 +123,7 @@ def confirmar_asignacion(token):
                     error=error_cedula
                 )
             
-            logger.info(f"✅ Número de identificación validado: {numero_limpio}")
+            logger.info(f"✅ Número de identificación validado: {sanitizar_identificacion(numero_limpio)}")
             
             sin_autenticar = request.form.get('sin_autenticar') == 'true'
             
@@ -162,17 +162,20 @@ def confirmar_asignacion(token):
                 email_asignado = validacion.get('usuario_email', '').lower()
                 email_ldap_lower = (email_ldap or '').lower()
                 
-                logger.info(f"📧 Comparando emails: LDAP={email_ldap_lower} vs Asignado={email_asignado}")
+                logger.info(f"📧 Comparando emails: LDAP={sanitizar_email(email_ldap_lower)} vs Asignado={sanitizar_email(email_asignado)}")
                 
                 if email_ldap_lower != email_asignado:
-                    logger.warning(f"❌ Usuario LDAP ({email_ldap}) no coincide con asignado ({email_asignado})")
+                    # Log detallado para administradores (con sanitización)
+                    logger.warning(f"❌ Usuario LDAP ({sanitizar_email(email_ldap)}) no coincide con asignado ({sanitizar_email(email_asignado)})")
+                    
+                    # Mensaje genérico para el usuario (sin detalles específicos)
                     flash('El usuario autenticado no coincide con el destinatario de la asignación', 'error')
                     return render_template(
                         'confirmacion/confirmar.html',
                         token=token,
                         asignacion=validacion,
                         ldap_disponible=True,
-                        error=f'El usuario autenticado ({email_ldap}) no coincide con el destinatario ({email_asignado})',
+                        error='El usuario autenticado no coincide con el destinatario de la asignación',
                         username_anterior=username
                     )
                 
@@ -182,12 +185,12 @@ def confirmar_asignacion(token):
             else:
                 usuario_confirmacion = validacion.get('usuario_email', 'Usuario')
                 nombre_confirmacion = validacion.get('usuario_nombre', 'Usuario')
-                logger.warning(f"⚠️ Confirmación sin autenticación LDAP para: {usuario_confirmacion}")
+                logger.warning(f"⚠️ Confirmación sin autenticación LDAP para: {sanitizar_email(usuario_confirmacion)}")
             
             direccion_ip = request.remote_addr
             user_agent = request.headers.get('User-Agent', '')
             
-            logger.info(f"📝 Confirmando asignación - Usuario: {sanitizar_email(usuario_confirmacion)}, CC: [PROTEGIDO], IP: {sanitizar_ip(direccion_ip)}")
+            logger.info(f"📝 Confirmando asignación - Usuario: {sanitizar_email(usuario_confirmacion)}, CC: {sanitizar_identificacion(numero_limpio)}, IP: {sanitizar_ip(direccion_ip)}")
             
             resultado = ConfirmacionAsignacionesModel.confirmar_asignacion(
                 token=token,
@@ -198,7 +201,7 @@ def confirmar_asignacion(token):
             )
             
             if resultado.get('success'):
-                logger.info(f"✅ Asignación confirmada exitosamente: {resultado.get('asignacion_id')} - CC: {numero_limpio}")
+                logger.info(f"✅ Asignación confirmada exitosamente: {resultado.get('asignacion_id')} - CC: {sanitizar_identificacion(numero_limpio)}")
                 return render_template(
                     'confirmacion/confirmado_exitoso.html',
                     resultado=resultado,
@@ -238,6 +241,8 @@ def mis_pendientes():
             usuario_email=usuario_email
         )
         
+        logger.info(f"Obteniendo confirmaciones pendientes para: {sanitizar_email(usuario_email)}")
+        
         return render_template(
             'confirmacion/mis_pendientes.html',
             confirmaciones=pendientes,
@@ -259,6 +264,9 @@ def estadisticas():
             flash('No tienes permisos para ver esta página', 'error')
             return redirect(url_for('dashboard'))
         
+        admin_email = session.get('email', 'admin')
+        logger.info(f"Accediendo a estadísticas como admin: {sanitizar_email(admin_email)}")
+        
         stats = ConfirmacionAsignacionesModel.obtener_estadisticas_confirmaciones()
         
         return render_template(
@@ -279,6 +287,9 @@ def limpiar_tokens():
         if not session.get('is_admin', False):
             flash('No tienes permisos para realizar esta acción', 'error')
             return redirect(url_for('dashboard'))
+        
+        admin_email = session.get('email', 'admin')
+        logger.info(f"Iniciando limpieza de tokens por admin: {sanitizar_email(admin_email)}")
         
         eliminados = ConfirmacionAsignacionesModel.limpiar_tokens_expirados()
         

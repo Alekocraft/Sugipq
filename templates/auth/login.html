@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -53,6 +53,9 @@
                 <div class="card-body p-4">
             
                     <form method="POST" action="" class="login-form">
+                        <!-- ✅ DÍA 7 - CSRF Token para protección contra ataques CSRF -->
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        
                         <!-- Campo Usuario -->
                         <div class="form-group mb-3">
                             <label for="usuario" class="form-label">
@@ -90,7 +93,7 @@
                                        required
                                        minlength="1"
                                        maxlength="100"
-                                       autocomplete="off"
+                                       autocomplete="current-password"
                                        aria-describedby="contraseña-help">
                                 <button type="button" class="input-group-text toggle-password" data-target="contraseña" aria-label="Mostrar u ocultar contraseña">
                                     <i class="fas fa-eye text-muted" aria-hidden="true"></i>
