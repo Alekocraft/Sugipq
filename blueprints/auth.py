@@ -1,414 +1,319 @@
-# blueprints/auth.py
-from flask import Blueprint, render_template, request, redirect, session, flash, current_app
-from models.usuarios_model import UsuarioModel
-from datetime import datetime, timedelta
+# -*- coding: utf-8 -*-
+"""
+Blueprint de Autenticación
+Combina funciones de utilidad y rutas de autenticación
+"""
+import logging
+from flask import Blueprint, session, flash, redirect, url_for, request, render_template
 from functools import wraps
+from datetime import datetime
 
-auth_bp = Blueprint('auth', __name__, url_prefix='')
+logger = logging.getLogger(__name__)
 
-SESSION_TIMEOUT_MINUTES = 5
-SESSION_ABSOLUTE_TIMEOUT_HOURS = 3
+# ============================================================================
+# CREAR BLUEPRINT
+# ============================================================================
+auth_bp = Blueprint('auth', __name__)
 
-def init_session_config(app):
-    """✅ DÍA 5 - Configuración dinámica de sesiones según entorno"""
-    import os
-    is_production = os.environ.get('FLASK_ENV') == 'production'
+# ============================================================================
+# FUNCIONES DE UTILIDAD (DECORADORES)
+# ============================================================================
+
+def require_login():
+    """
+    Verifica si el usuario está autenticado en el sistema
     
-    # Cookies seguras solo en producción (requiere HTTPS)
-    app.config['SESSION_COOKIE_SECURE'] = is_production
-    app.config['SESSION_COOKIE_HTTPONLY'] = True
-    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-    app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=SESSION_ABSOLUTE_TIMEOUT_HOURS)
+    Returns:
+        bool: True si el usuario tiene sesión activa
+    """
+    is_authenticated = 'user_id' in session or 'usuario_id' in session
+    logger.debug(f"Verificación de autenticación: {is_authenticated}")
+    return is_authenticated
+
+
+def has_role(*roles):
+    """
+    Verifica si el usuario tiene alguno de los roles especificados
     
-    # Cookies "Remember Me" también seguras
-    app.config['REMEMBER_COOKIE_SECURE'] = is_production
-    app.config['REMEMBER_COOKIE_HTTPONLY'] = True
-
-def check_session_timeout():
-    if 'usuario_id' not in session:
-        return False
+    Args:
+        *roles: Roles a verificar
+        
+    Returns:
+        bool: True si el usuario tiene al menos uno de los roles
+    """
+    user_role = (session.get('rol', '') or '').strip().lower()
+    target_roles = [r.lower() for r in roles]
+    has_valid_role = user_role in target_roles
     
-    last_activity = session.get('last_activity')
-    if last_activity:
-        try:
-            if isinstance(last_activity, str):
-                last_activity = datetime.fromisoformat(last_activity)
-            
-            inactive_time = datetime.now() - last_activity
-            if inactive_time > timedelta(minutes=SESSION_TIMEOUT_MINUTES):
-                return True
-        except Exception as e:
-            print(f"Error verificando timeout: {e}")
+    logger.debug(f"Usuario rol '{user_role}' tiene alguno de {roles}: {has_valid_role}")
+    return has_valid_role
+
+
+def login_required(f):
+    """
+    Decorador para proteger rutas que requieren autenticación
     
-    return False
-
-def update_session_activity():
-    if 'usuario_id' in session:
-        session['last_activity'] = datetime.now().isoformat()
-        session.modified = True
-
-def clear_session_safely():
-    try:
-        session.clear()
-    except Exception as e:
-        print(f"Error limpiando sesión: {e}")
-
-def require_login(f):
+    Args:
+        f: Función a decorar
+    """
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if 'usuario_id' not in session:
-            flash('Por favor, inicie sesión para continuar', 'warning')
-            return redirect('/login')
+        if not require_login():
+            logger.warning(f"Intento de acceso no autenticado a {request.endpoint}")
+            flash('Por favor inicie sesión para acceder a esta página.', 'warning')
+            return redirect(url_for('auth.login', next=request.url))
         
-        if check_session_timeout():
-            clear_session_safely()
-            flash('Su sesión ha expirado por inactividad (5 minutos). Por favor, inicie sesión nuevamente.', 'warning')
-            return redirect('/login')
-        
-        update_session_activity()
+        logger.debug(f"Acceso autorizado a {request.endpoint}")
         return f(*args, **kwargs)
     return decorated_function
 
-def assign_role_by_office(office_name):
-    office_name = office_name.lower().strip() if office_name else ''
-    
-    if 'gerencia' in office_name:
-        return 'admin'
-    elif 'almacén' in office_name or 'logística' in office_name:
-        return 'almacen'
-    elif 'finanzas' in office_name or 'contabilidad' in office_name:
-        return 'finanzas'
-    elif 'rrhh' in office_name or 'recursos humanos' in office_name:
-        return 'rrhh'
-    else:
-        return 'usuario'
 
-def get_client_info():
-    return {
-        'ip': request.remote_addr,
-        'user_agent': request.headers.get('User-Agent', 'Unknown'),
-        'timestamp': datetime.now().isoformat()
+def role_required(*roles):
+    """
+    Decorador para proteger rutas que requieren roles específicos
+    
+    Args:
+        *roles: Roles requeridos para acceder
+    """
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if not require_login():
+                logger.warning(f"Intento de acceso no autenticado a ruta con roles {roles}")
+                flash('Por favor inicie sesión.', 'warning')
+                return redirect(url_for('auth.login', next=request.url))
+            
+            if not has_role(*roles):
+                user_role = session.get('rol', 'No definido')
+                logger.warning(f"Usuario rol '{user_role}' intentó acceder a ruta que requiere roles {roles}")
+                flash('No tiene permisos para acceder a esta sección.', 'danger')
+                return redirect(url_for('auth.dashboard'))
+            
+            logger.debug(f"Acceso autorizado con rol a {request.endpoint}")
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
+
+def get_current_user():
+    """
+    Obtiene la información del usuario actualmente autenticado
+    
+    Returns:
+        dict: Información del usuario o None si no está autenticado
+    """
+    if not require_login():
+        return None
+    
+    user_data = {
+        'id': session.get('user_id') or session.get('usuario_id'),
+        'nombre': session.get('user_name') or session.get('usuario_nombre'),
+        'rol': session.get('rol'),
+        'oficina_id': session.get('oficina_id'),
+        'oficina_nombre': session.get('oficina_nombre')
     }
+    
+    logger.debug(f"Datos de usuario obtenidos: {user_data['nombre']} ({user_data['rol']})")
+    return user_data
+
+
+def can_access_module(module_name):
+    """
+    Verifica si el usuario puede acceder a un módulo específico según su rol
+    
+    Args:
+        module_name: Nombre del módulo a verificar
+        
+    Returns:
+        bool: True si el usuario tiene acceso al módulo
+    """
+    from config.config import Config
+    user_role = (session.get('rol', '') or '').strip().lower()
+    allowed_modules = Config.ROLES.get(user_role, [])
+    
+    has_access = module_name in allowed_modules
+    logger.debug(f"Acceso a módulo '{module_name}' para rol '{user_role}': {has_access}")
+    return has_access
+
+
+# ============================================================================
+# RUTAS DEL BLUEPRINT
+# ============================================================================
 
 @auth_bp.route('/')
 def index():
+    """Ruta raíz - redirige según estado de autenticación"""
     if 'usuario_id' in session:
-        if check_session_timeout():
-            clear_session_safely()
-            return redirect('/login')
-        return redirect('/dashboard')
-    return redirect('/login')
+        return redirect(url_for('auth.dashboard'))
+    return redirect(url_for('auth.login'))
+
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
-    if 'usuario_id' in session:
-        if not check_session_timeout():
-            return redirect('/dashboard')
-        clear_session_safely()
-    
+    """Página de inicio de sesión - VERSIÓN FINAL CORREGIDA"""
     if request.method == 'POST':
-        usuario = request.form.get('usuario', '').strip()
-        contraseña = request.form.get('contraseña', '')
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
         
-        if not usuario or not contraseña:
-            flash('Por favor, ingrese usuario y contraseña', 'warning')
+        logger.info(f"🔐 Intento de login: {username}")
+        
+        if not username or not password:
+            logger.warning(f"❌ Campos vacíos")
+            flash('Por favor ingrese usuario y contraseña', 'warning')
             return render_template('auth/login.html')
-        
-        client_info = get_client_info()
         
         try:
-            usuario_info = UsuarioModel.verificar_credenciales(usuario, contraseña)
+            # ===== USAR EL MÉTODO CORRECTO DEL MODELO =====
+            from models.usuarios_model import UsuarioModel
+            
+            logger.info(f"🔍 Verificando credenciales para: {username}")
+            usuario_info = UsuarioModel.verificar_credenciales(username, password)
             
             if usuario_info:
+                logger.info(f"✅ Autenticación exitosa para: {username}")
+                logger.debug(f"Usuario info: {usuario_info}")
+                
+                # Establecer sesión con los datos correctos
                 session.clear()
-                
                 session['usuario_id'] = usuario_info['id']
-                session['usuario_nombre'] = usuario_info['nombre']
-                session['usuario'] = usuario_info['usuario']
+                session['user_id'] = usuario_info['id']  # Alias
+                session['usuario_nombre'] = usuario_info.get('nombre', username)
+                session['user_name'] = usuario_info.get('nombre', username)  # Alias
+                session['username'] = usuario_info.get('usuario', username)
                 session['rol'] = usuario_info['rol']
-                session['oficina_id'] = usuario_info.get('oficina_id', 1)
+                session['oficina_id'] = usuario_info.get('oficina_id')
                 session['oficina_nombre'] = usuario_info.get('oficina_nombre', '')
-                
-                session['login_time'] = datetime.now().isoformat()
                 session['last_activity'] = datetime.now().isoformat()
-                session['client_ip'] = client_info['ip']
-                
                 session.permanent = True
                 
-                flash(f'¡Bienvenido {usuario_info["nombre"]}!', 'success')
-                return redirect('/dashboard')
+                logger.info(f"✅ Sesión establecida - Usuario: {username}, Rol: {usuario_info['rol']}")
+                flash(f'Bienvenido {usuario_info.get("nombre", username)}', 'success')
+                return redirect(url_for('auth.dashboard'))
             else:
-                flash('Usuario o contraseña incorrectos', 'danger')
-                return render_template('auth/login.html')
+                logger.warning(f"❌ Credenciales inválidas para: {username}")
+                flash('Credenciales inválidas', 'danger')
                 
         except Exception as e:
-            flash('Error del sistema durante el login', 'danger')
-            return render_template('auth/login.html')
+            logger.error(f"❌ Error en login: {e}", exc_info=True)
+            flash('Error en el proceso de autenticación', 'danger')
     
     return render_template('auth/login.html')
 
+
 @auth_bp.route('/logout')
 def logout():
-    usuario = session.get('usuario', 'Desconocido')
-    client_info = get_client_info()
-    
-    clear_session_safely()
-    flash('Sesión cerrada correctamente', 'info')
-    return redirect('/login')
+    """Cerrar sesión"""
+    username = session.get('username', 'Usuario desconocido')
+    session.clear()
+    logger.info(f"Usuario cerró sesión: {username}")
+    flash('Sesión cerrada exitosamente', 'info')
+    return redirect(url_for('auth.login'))
 
-@auth_bp.route('/test-ldap', methods=['GET', 'POST'])
-def test_ldap():
-    try:
-        result = None
-        
-        if request.method == 'POST':
-            username = request.form.get('username', '').strip()
-            password = request.form.get('password', '')
-            
-            if not username or not password:
-                flash('Debe ingresar usuario y contraseña', 'danger')
-                return render_template('auth/test_ldap.html')
-            
-            try:
-                from utils.ldap_auth import ADAuth
-                from config.config import Config
-                
-                ldap_enabled = Config.LDAP_ENABLED
-                ldap_server = Config.LDAP_SERVER
-                ldap_domain = Config.LDAP_DOMAIN
-                
-                ad_auth = ADAuth()
-                
-                connection_ok = ad_auth.test_connection()
-                
-                user_data = ad_auth.authenticate_user(username, password)
-                
-                if user_data:
-                    sync_info = None
-                    sync_error = None
-                    
-                    try:
-                        from models.usuarios_model import UsuarioModel
-                        
-                        db_user = UsuarioModel.get_by_username(username)
-                        
-                        if db_user:
-                            sync_info = {
-                                'user_id': db_user.get('id'),
-                                'system_role': db_user.get('rol'),
-                                'office_id': db_user.get('oficina_id'),
-                                'sync_status': 'Usuario existente actualizado'
-                            }
-                        else:
-                            sync_info = {
-                                'user_id': None,
-                                'system_role': user_data.get('role', 'usuario'),
-                                'office_id': 1,
-                                'sync_status': 'Usuario nuevo - se creará en el primer login'
-                            }
-                    
-                    except Exception as sync_ex:
-                        sync_error = f"Error sincronizando con BD: {str(sync_ex)}"
-                    
-                    result = {
-                        'success': True,
-                        'message': '✅ Autenticación LDAP exitosa con datos REALES',
-                        'ldap_enabled': ldap_enabled,
-                        'ldap_server': ldap_server,
-                        'ldap_domain': ldap_domain,
-                        'username': username,
-                        'user_info': {
-                            'username': user_data.get('username'),
-                            'full_name': user_data.get('full_name'),
-                            'email': user_data.get('email'),
-                            'department': user_data.get('department'),
-                            'role_from_ad': user_data.get('role'),
-                            'groups_count': len(user_data.get('groups', []))
-                        },
-                        'sync_info': sync_info,
-                        'sync_error': sync_error,
-                        'traceback': None
-                    }
-                    
-                else:
-                    result = {
-                        'success': False,
-                        'message': '❌ Autenticación LDAP fallida - Credenciales inválidas o usuario no encontrado',
-                        'ldap_enabled': ldap_enabled,
-                        'ldap_server': ldap_server,
-                        'ldap_domain': ldap_domain,
-                        'username': username,
-                        'user_info': None,
-                        'sync_info': None,
-                        'sync_error': 'Credenciales inválidas o servidor LDAP no disponible',
-                        'traceback': None
-                    }
-                        
-            except ImportError as ie:
-                result = {
-                    'success': False,
-                    'message': '⚠️ Módulo LDAP no instalado - Instale python-ldap3',
-                    'ldap_enabled': False,
-                    'ldap_server': 'No disponible',
-                    'ldap_domain': 'No disponible',
-                    'username': username,
-                    'user_info': None,
-                    'sync_info': None,
-                    'sync_error': f'ImportError: {str(ie)}',
-                    'traceback': None
-                }
-                
-            except Exception as e:
-                result = {
-                    'success': False,
-                    'message': f'❌ Error en autenticación LDAP: {str(e)}',
-                    'ldap_enabled': False,
-                    'ldap_server': 'Error',
-                    'ldap_domain': 'Error',
-                    'username': username,
-                    'user_info': None,
-                    'sync_info': None,
-                    'sync_error': str(e),
-                    'traceback': None
-                }
-        
-        else:
-            try:
-                from config.config import Config
-                result = {
-                    'success': None,
-                    'message': 'Ingrese sus credenciales de dominio para probar la conexión LDAP',
-                    'ldap_enabled': Config.LDAP_ENABLED,
-                    'ldap_server': Config.LDAP_SERVER,
-                    'ldap_domain': Config.LDAP_DOMAIN,
-                    'username': None,
-                    'user_info': None,
-                    'sync_info': None,
-                    'sync_error': None
-                }
-            except Exception as e:
-                result = {
-                    'success': None,
-                    'message': f'Error cargando configuración LDAP: {str(e)}',
-                    'ldap_enabled': False,
-                    'ldap_server': 'No configurado',
-                    'ldap_domain': 'No configurado',
-                    'username': None,
-                    'user_info': None,
-                    'sync_info': None,
-                    'sync_error': None
-                }
-        
-        return render_template('auth/test_ldap.html', result=result)
-        
-    except Exception as e:
-        result = {
-            'success': False,
-            'message': f'❌ Error crítico en la página: {str(e)}',
-            'ldap_enabled': False,
-            'ldap_server': 'Error',
-            'ldap_domain': 'Error',
-            'username': None,
-            'user_info': None,
-            'sync_info': None,
-            'sync_error': str(e),
-            'traceback': None
-        }
-        return render_template('auth/test_ldap.html', result=result)
 
 @auth_bp.route('/dashboard')
-@require_login
+@login_required
 def dashboard():
+    """Dashboard principal del sistema"""
     try:
-        from utils.permissions import user_can_view_all
-        oficina_id = None if user_can_view_all() else session.get('oficina_id')
+        # Obtener estadísticas según el rol del usuario
+        rol = session.get('rol', '')
+        oficina_id = session.get('oficina_id')
         
-        materiales = []
-        oficinas = []
-        solicitudes = []
-        aprobadores = []
+        stats = {
+            'materiales': 0,
+            'solicitudes_pendientes': 0,
+            'prestamos_activos': 0,
+            'inventario_items': 0,
+            'novedades_recientes': 0
+        }
         
+        # Obtener estadísticas de materiales
         try:
             from models.materiales_model import MaterialModel
-            materiales = MaterialModel.obtener_todos(oficina_id) or []
-        except Exception:
-            materiales = []
+            from utils.filters import filtrar_por_oficina_usuario
+            
+            materiales = MaterialModel.obtener_todos() or []
+            materiales_filtrados = filtrar_por_oficina_usuario(materiales, oficina_id)
+            stats['materiales'] = len(materiales_filtrados)
+        except Exception as e:
+            logger.warning(f"Error obteniendo estadísticas de materiales: {e}")
         
-        try:
-            from models.oficinas_model import OficinaModel
-            oficinas = OficinaModel.obtener_todas() or []
-        except Exception:
-            oficinas = []
-        
+        # Obtener estadísticas de solicitudes
         try:
             from models.solicitudes_model import SolicitudModel
-            solicitudes = SolicitudModel.obtener_todas(oficina_id) or []
-        except Exception:
-            solicitudes = []
+            solicitudes = SolicitudModel.obtener_todas() or []
+            if rol != 'administrador':
+                solicitudes = [s for s in solicitudes if s.get('oficina_id') == oficina_id]
+            stats['solicitudes_pendientes'] = len([
+                s for s in solicitudes 
+                if s.get('estado') in ['pendiente', 'en_revision']
+            ])
+        except Exception as e:
+            logger.warning(f"Error obteniendo estadísticas de solicitudes: {e}")
         
+        # Obtener estadísticas de préstamos
         try:
-            from models.usuarios_model import UsuarioModel
-            aprobadores = UsuarioModel.obtener_aprobadores() or []
-        except Exception:
-            aprobadores = []
-
-        return render_template('dashboard.html',
-                            materiales=materiales,
-                            oficinas=oficinas,
-                            solicitudes=solicitudes,
-                            aprobadores=aprobadores)
-    except Exception:
-        flash('Error al cargar el dashboard', 'danger')
+            from models.prestamos_model import PrestamoModel
+            prestamos = PrestamoModel.obtener_todos() or []
+            if rol != 'administrador':
+                prestamos = [p for p in prestamos if p.get('oficina_id') == oficina_id]
+            stats['prestamos_activos'] = len([
+                p for p in prestamos 
+                if p.get('estado') == 'activo'
+            ])
+        except Exception as e:
+            logger.warning(f"Error obteniendo estadísticas de préstamos: {e}")
+        
+        # Obtener estadísticas de inventario
+        try:
+            from models.inventario_corporativo_model import InventarioCorporativoModel
+            inventario = InventarioCorporativoModel.obtener_todos() or []
+            stats['inventario_items'] = len(inventario)
+        except Exception as e:
+            logger.warning(f"Error obteniendo estadísticas de inventario: {e}")
+        
+        # Obtener módulos accesibles según el rol
+        try:
+            from config.permissions import get_accessible_modules
+            modulos_accesibles = get_accessible_modules()  # ✅ SIN ARGUMENTOS (como indicas en el comentario)
+        except ImportError:
+            # Si no existe config.permissions, intentar alternativas
+            try:
+                from utils.permissions import get_accessible_modules
+                # Si la función en utils.permissions necesita el rol, pasarlo
+                modulos_accesibles = get_accessible_modules(rol)
+            except ImportError:
+                # Si no existe ningún módulo permissions, usar configuración básica
+                try:
+                    from config.config import Config
+                    modulos_accesibles = Config.ROLES.get(rol.lower(), [])
+                except Exception:
+                    logger.warning("No se pudo importar Config desde config.config")
+                    modulos_accesibles = []
+        except Exception as e:
+            logger.warning(f"Error obteniendo módulos accesibles: {e}")
+            modulos_accesibles = []
+        
         return render_template('dashboard.html', 
-                            materiales=[], 
-                            oficinas=[], 
-                            solicitudes=[],
-                            aprobadores=[])
+                             stats=stats,
+                             modulos_accesibles=modulos_accesibles,
+                             usuario=session.get('usuario_nombre'),
+                             rol=rol,
+                             oficina=session.get('oficina_nombre'))
+    
+    except Exception as e:
+        logger.error(f"Error en dashboard: {e}", exc_info=True)
+        flash('Error cargando el dashboard', 'danger')
+        return render_template('dashboard.html', 
+                             stats={}, 
+                             modulos_accesibles=[],
+                             usuario=session.get('usuario_nombre'),
+                             rol=session.get('rol'),
+                             oficina=session.get('oficina_nombre'))
 
-@auth_bp.route('/api/session-status')
-def session_status():
-    from flask import jsonify
-    
-    if 'usuario_id' not in session:
-        return jsonify({'authenticated': False, 'reason': 'no_session'})
-    
-    if check_session_timeout():
-        return jsonify({'authenticated': False, 'reason': 'timeout'})
-    
-    last_activity = session.get('last_activity')
-    if last_activity:
-        try:
-            if isinstance(last_activity, str):
-                last_activity = datetime.fromisoformat(last_activity)
-            
-            inactive_time = datetime.now() - last_activity
-            remaining_seconds = (timedelta(minutes=SESSION_TIMEOUT_MINUTES) - inactive_time).total_seconds()
-            
-            return jsonify({
-                'authenticated': True,
-                'user': session.get('usuario_nombre'),
-                'remaining_seconds': max(0, int(remaining_seconds)),
-                'timeout_minutes': SESSION_TIMEOUT_MINUTES
-            })
-        except Exception:
-            pass
-    
-    return jsonify({'authenticated': True, 'user': session.get('usuario_nombre')})
 
-@auth_bp.route('/api/extend-session', methods=['POST'])
-def extend_session():
-    from flask import jsonify
-    
-    if 'usuario_id' not in session:
-        return jsonify({'success': False, 'message': 'No hay sesión activa'}), 401
-    
-    if check_session_timeout():
-        clear_session_safely()
-        return jsonify({'success': False, 'message': 'Sesión expirada'}), 401
-    
-    update_session_activity()
-    return jsonify({
-        'success': True, 
-        'message': 'Sesión extendida',
-        'new_timeout_seconds': SESSION_TIMEOUT_MINUTES * 60
-    })
+@auth_bp.route('/test-ldap')
+@role_required('administrador')
+def test_ldap():
+    """Página de prueba de autenticación LDAP"""
+    return render_template('auth/test_ldap.html')

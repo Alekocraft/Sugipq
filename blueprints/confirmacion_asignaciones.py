@@ -254,7 +254,7 @@ def mis_pendientes():
     except Exception as e:
         logger.error(f"Error obteniendo confirmaciones pendientes: {e}", exc_info=True)
         flash('Error al cargar las confirmaciones pendientes', 'error')
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('auth.dashboard'))
 
 @confirmacion_bp.route('/estadisticas')
 @login_required
@@ -262,7 +262,7 @@ def estadisticas():
     try:
         if not session.get('is_admin', False):
             flash('No tienes permisos para ver esta página', 'error')
-            return redirect(url_for('dashboard'))
+            return redirect(url_for('auth.dashboard'))
         
         admin_email = session.get('email', 'admin')
         logger.info(f"Accediendo a estadísticas como admin: {sanitizar_email(admin_email)}")
@@ -278,7 +278,7 @@ def estadisticas():
     except Exception as e:
         logger.error(f"Error obteniendo estadísticas: {e}", exc_info=True)
         flash('Error al cargar las estadísticas', 'error')
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('auth.dashboard'))
 
 @confirmacion_bp.route('/limpiar-tokens', methods=['POST'])
 @login_required
@@ -286,7 +286,7 @@ def limpiar_tokens():
     try:
         if not session.get('is_admin', False):
             flash('No tienes permisos para realizar esta acción', 'error')
-            return redirect(url_for('dashboard'))
+            return redirect(url_for('auth.dashboard'))
         
         admin_email = session.get('email', 'admin')
         logger.info(f"Iniciando limpieza de tokens por admin: {sanitizar_email(admin_email)}")

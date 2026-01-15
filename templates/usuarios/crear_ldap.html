@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+{% block title %}Crear Usuario LDAP - Sistema de Inventarios{% endblock %}
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-md-8 mx-auto">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-network-wired me-2"></i>Crear Usuario LDAP
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Este usuario se registrará como LDAP. Deberá autenticarse con sus credenciales de dominio para activar su cuenta.
+                        {% if not consulta_ad_disponible %}
+                        <br><small class="text-warning mt-1">
+                            <i class="fas fa-exclamation-triangle me-1"></i>
+                            La verificación en Active Directory no está disponible.
+                        </small>
+                        {% endif %}
+                    </div>
+                    
+                    <form method="POST" action="{{ url_for('usuarios.crear_ldap') }}">
+                        <!-- CSRF Token -->
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Usuario de Dominio *</label>
+                                <input type="text" class="form-control" name="nombre_usuario" id="nombre_usuario" required
+                                       placeholder="Ej: gsuarez"
+                                       onblur="if(this.value.trim().length > 2) consultarAD()">
+                                <div class="form-text">
+                                    Nombre de usuario en Active Directory (sin dominio)
+                                    {% if consulta_ad_disponible %}
+                                    <br><small class="text-success">
+                                        <i class="fas fa-check-circle me-1"></i>
+                                        Se verificará en AD automáticamente
+                                    </small>
+                                    {% endif %}
+                                </div>
+                                
+                                <!-- Contenedor para información AD -->
+                                <div id="ad-info-container" class="mt-2" style="display: none;">
+                                    <div class="alert" id="ad-alert">
+                                        <div class="d-flex align-items-center">
+                                            <i class="fas fa-spinner fa-spin me-2" id="ad-icon"></i>
+                                            <span id="ad-message">Consultando Active Directory...</span>
+                                        </div>
+                                        <div id="ad-details" class="mt-1 small"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Email *</label>
+                                <input type="email" class="form-control" name="email" id="email" required
+                                       placeholder="usuario@qualitascolombia.com.co">
+                                <div class="form-text">Se autocompletará si se encuentra en AD</div>
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Rol *</label>
+                                <select class="form-select" name="rol" required>
+                                    <option value="">Seleccione un rol</option>
+                                    {% for rol in roles %}
+                                    <option value="{{ rol.value }}">{{ rol.label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Oficina *</label>
+                                <select class="form-select" name="oficina_id" required>
+                                    <option value="">Seleccione una oficina</option>
+                                    {% for oficina in oficinas %}
+                                    <option value="{{ oficina.id }}">{{ oficina.nombre }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex justify-content-end mt-3">
+                            <a href="{{ url_for('usuarios.listar') }}" class="btn btn-secondary me-2">
+                                <i class="fas fa-times me-1"></i> Cancelar
+                            </a>
+                            <button type="submit" class="btn btn-primary" id="submit-btn">
+                                <i class="fas fa-save me-2"></i>Crear Usuario LDAP
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Función para consultar información del usuario en AD
+function consultarAD() {
+    const username = document.getElementById('nombre_usuario').value.trim();
+    const container = document.getElementById('ad-info-container');
+    const alertDiv = document.getElementById('ad-alert');
+    const icon = document.getElementById('ad-icon');
+    const message = document.getElementById('ad-message');
+    const details = document.getElementById('ad-details');
+    const emailField = document.getElementById('email');
+    const submitBtn = document.getElementById('submit-btn');
+    
+    if (username.length < 3) {
+        container.style.display = 'none';
+        return;
+    }
+    
+    // Mostrar contenedor
+    container.style.display = 'block';
+    alertDiv.className = 'alert alert-info';
+    icon.className = 'fas fa-spinner fa-spin me-2';
+    message.innerHTML = 'Consultando Active Directory...';
+    details.innerHTML = '';
+    
+    // Deshabilitar botón mientras consulta
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Consultando AD...';
+    
+    // Consultar API
+    fetch(`/usuarios/api/consultar-ad?usuario=${encodeURIComponent(username)}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Error en la consulta');
+            }
+            return response.json();
+        })
+        .then(data => {
+            // Restaurar botón
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-save me-2"></i>Crear Usuario LDAP';
+            
+            // Verificar si la consulta está disponible
+            if (!data.consulta_disponible && data.consulta_disponible !== undefined) {
+                alertDiv.className = 'alert alert-warning';
+                icon.className = 'fas fa-exclamation-triangle me-2';
+                message.innerHTML = 'Consulta AD no disponible';
+                details.innerHTML = '<small>El sistema continuará sin verificación</small>';
+                return;
+            }
+            
+            // Manejar errores
+            if (data.error) {
+                alertDiv.className = 'alert alert-danger';
+                icon.className = 'fas fa-times-circle me-2';
+                message.innerHTML = `Error: ${data.error}`;
+                if (data.detalle) {
+                    details.innerHTML = `<small>${data.detalle}</small>`;
+                }
+                return;
+            }
+            
+            // Mostrar resultados
+            if (data.encontrado) {
+                alertDiv.className = 'alert alert-success';
+                icon.className = 'fas fa-check-circle me-2';
+                message.innerHTML = `<strong>✓ Usuario encontrado en Active Directory</strong>`;
+                
+                // Construir detalles
+                let detallesHTML = '';
+                if (data.nombre_completo) {
+                    detallesHTML += `<div><strong>Nombre:</strong> ${data.nombre_completo}</div>`;
+                }
+                if (data.departamento) {
+                    detallesHTML += `<div><strong>Departamento:</strong> ${data.departamento}</div>`;
+                }
+                if (data.cargo) {
+                    detallesHTML += `<div><strong>Cargo:</strong> ${data.cargo}</div>`;
+                }
+                if (data.telefono) {
+                    detallesHTML += `<div><strong>Teléfono:</strong> ${data.telefono}</div>`;
+                }
+                details.innerHTML = detallesHTML;
+                
+                // Autocompletar email si está vacío
+                if (data.email && (!emailField.value || emailField.value.trim() === '')) {
+                    emailField.value = data.email;
+                }
+            } else {
+                alertDiv.className = 'alert alert-warning';
+                icon.className = 'fas fa-exclamation-triangle me-2';
+                message.innerHTML = `<strong>⚠ Usuario no encontrado en Active Directory</strong>`;
+                details.innerHTML = `<small>${data.mensaje || 'Verifique que el usuario exista en el dominio'}</small>`;
+            }
+        })
+        .catch(error => {
+            // Restaurar botón en caso de error
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-save me-2"></i>Crear Usuario LDAP';
+            
+            alertDiv.className = 'alert alert-secondary';
+            icon.className = 'fas fa-info-circle me-2';
+            message.innerHTML = 'No se pudo consultar el Active Directory';
+            details.innerHTML = `<small>El sistema continuará sin verificación</small>`;
+        });
+}
+
+// Verificar al cargar si hay un usuario en el campo
+document.addEventListener('DOMContentLoaded', function() {
+    const usernameField = document.getElementById('nombre_usuario');
+    if (usernameField && usernameField.value.trim().length > 2) {
+        setTimeout(() => consultarAD(), 1000);
+    }
+    
+    // También verificar cuando el campo cambia (para copiar/pegar)
+    usernameField.addEventListener('input', function() {
+        if (this.value.trim().length > 2) {
+            // Esperar un momento para no hacer muchas consultas
+            clearTimeout(window.adTimeout);
+            window.adTimeout = setTimeout(() => consultarAD(), 800);
+        } else {
+            document.getElementById('ad-info-container').style.display = 'none';
+        }
+    });
+});
+</script>
+
+<style>
+#ad-info-container .alert {
+    margin-bottom: 0;
+    padding: 0.75rem;
+}
+#ad-details div {
+    margin-top: 0.25rem;
+}
+</style>
+{% endblock %}

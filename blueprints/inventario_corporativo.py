@@ -611,3 +611,443 @@ def exportar_inventario_corporativo_excel(tipo):
     output.seek(0)
 
     return send_file(output, download_name='inventario_corporativo.xlsx', as_attachment=True)
+
+# ==================== NUEVAS FUNCIONALIDADES ====================
+# Agregadas: 14/01/2026
+# Funcionalidades: Devoluciones, Bajas y Traspasos entre Oficinas  
+# Total: 12 rutas nuevas
+# ================================================================
+
+@inventario_corporativo_bp.route('/<int:producto_id>/solicitar-devolucion', methods=['GET', 'POST'])
+def solicitar_devolucion_producto(producto_id):
+    """
+    Solicitar devolución de un producto asignado a una oficina.
+    Disponible para: oficinas que tienen el producto asignado
+    """
+    if not _require_login():
+        return redirect('/login')
+    
+    if not can_access('inventario_corporativo', 'view'):
+        return _handle_unauthorized()
+    
+    # Obtener información del producto
+    producto = InventarioCorporativoModel.obtener_por_id(producto_id)
+    if not producto:
+        return _handle_not_found()
+    
+    # Obtener oficinas (para seleccionar cuál devuelve)
+    oficinas = InventarioCorporativoModel.obtener_oficinas() or []
+    
+    if request.method == 'POST':
+        try:
+            oficina_id = request.form.get('oficina_id')
+            cantidad = request.form.get('cantidad')
+            motivo = request.form.get('motivo', '').strip()
+            
+            if not all([oficina_id, cantidad, motivo]):
+                flash('Todos los campos son requeridos', 'danger')
+                return render_template('inventario_corporativo/solicitar_devolucion.html',
+                                     producto=producto, oficinas=oficinas)
+            
+            # Solicitar la devolución
+            resultado = InventarioCorporativoModel.solicitar_devolucion(
+                producto_id=producto_id,
+                oficina_id=int(oficina_id),
+                cantidad=int(cantidad),
+                motivo=motivo,
+                usuario_solicita=session.get('usuario', 'Sistema')
+            )
+            
+            if resultado.get('success'):
+                flash(resultado.get('message'), 'success')
+                logger.info(f"Devolución solicitada: Producto {sanitizar_id(str(producto_id))}, por {sanitizar_username(session.get('usuario'))}")
+                return redirect(f'/inventario-corporativo/{producto_id}')
+            else:
+                flash(resultado.get('message'), 'danger')
+                
+        except Exception as e:
+            logger.error(f"Error en solicitar_devolucion_producto: {e}")
+            flash('Error al solicitar devolución', 'danger')
+    
+    return render_template('inventario_corporativo/solicitar_devolucion.html',
+                         producto=producto, oficinas=oficinas)
+
+
+@inventario_corporativo_bp.route('/devoluciones-pendientes')
+def listar_devoluciones_pendientes():
+    """
+    Ver todas las devoluciones pendientes de aprobación.
+    Solo para: Líder de Inventario, Administrador, Aprobador
+    """
+    if not _require_login():
+        return redirect('/login')
+    
+    # Verificar permisos
+    rol = session.get('rol', '').lower()
+    if rol not in ['administrador', 'lider_inventario', 'aprobador']:
+        flash('No tiene permisos para ver devoluciones pendientes', 'danger')
+        return redirect('/inventario-corporativo')
+    
+    try:
+        devoluciones = InventarioCorporativoModel.obtener_devoluciones_pendientes()
+        logger.info(f"Devoluciones pendientes consultadas por {sanitizar_username(session.get('usuario'))}")
+        
+        return render_template('inventario_corporativo/devoluciones_pendientes.html',
+                             devoluciones=devoluciones)
+    except Exception as e:
+        logger.error(f"Error en listar_devoluciones_pendientes: {e}")
+        flash('Error al cargar devoluciones', 'danger')
+        return redirect('/inventario-corporativo')
+
+
+@inventario_corporativo_bp.route('/devolucion/<int:devolucion_id>/aprobar', methods=['POST'])
+def aprobar_devolucion(devolucion_id):
+    """
+    Aprobar una devolución y devolver el stock al inventario.
+    Solo: Líder de Inventario, Administrador, Aprobador
+    """
+    if not _require_login():
+        return jsonify({'success': False, 'message': 'No autorizado'}), 401
+    
+    # Verificar permisos
+    rol = session.get('rol', '').lower()
+    if rol not in ['administrador', 'lider_inventario', 'aprobador']:
+        return jsonify({'success': False, 'message': 'Sin permisos para aprobar devoluciones'}), 403
+    
+    try:
+        observaciones = request.form.get('observaciones', '')
+        usuario_aprueba = session.get('usuario', 'Sistema')
+        
+        resultado = InventarioCorporativoModel.aprobar_devolucion(
+            devolucion_id=devolucion_id,
+            usuario_aprueba=usuario_aprueba,
+            observaciones=observaciones
+        )
+        
+        if resultado.get('success'):
+            logger.info(f"Devolución aprobada: ID {sanitizar_id(str(devolucion_id))}, por {sanitizar_username(usuario_aprueba)}")
+            
+        return jsonify(resultado)
+        
+    except Exception as e:
+        logger.error(f"Error en aprobar_devolucion: {e}")
+        return jsonify({'success': False, 'message': 'Error al aprobar devolución'}), 500
+
+
+@inventario_corporativo_bp.route('/devolucion/<int:devolucion_id>/rechazar', methods=['POST'])
+def rechazar_devolucion(devolucion_id):
+    """
+    Rechazar una devolución.
+    Solo: Líder de Inventario, Administrador, Aprobador
+    """
+    if not _require_login():
+        return jsonify({'success': False, 'message': 'No autorizado'}), 401
+    
+    # Verificar permisos
+    rol = session.get('rol', '').lower()
+    if rol not in ['administrador', 'lider_inventario', 'aprobador']:
+        return jsonify({'success': False, 'message': 'Sin permisos para rechazar devoluciones'}), 403
+    
+    try:
+        motivo_rechazo = request.form.get('motivo_rechazo', '').strip()
+        usuario_rechaza = session.get('usuario', 'Sistema')
+        
+        if not motivo_rechazo:
+            return jsonify({'success': False, 'message': 'El motivo de rechazo es requerido'}), 400
+        
+        resultado = InventarioCorporativoModel.rechazar_devolucion(
+            devolucion_id=devolucion_id,
+            usuario_rechaza=usuario_rechaza,
+            motivo_rechazo=motivo_rechazo
+        )
+        
+        if resultado.get('success'):
+            logger.info(f"Devolución rechazada: ID {sanitizar_id(str(devolucion_id))}, por {sanitizar_username(usuario_rechaza)}")
+            
+        return jsonify(resultado)
+        
+    except Exception as e:
+        logger.error(f"Error en rechazar_devolucion: {e}")
+        return jsonify({'success': False, 'message': 'Error al rechazar devolución'}), 500
+
+# ==================== BAJAS DE PRODUCTOS ====================
+
+
+@inventario_corporativo_bp.route('/productos-devueltos')
+def listar_productos_devueltos():
+    """
+    Ver productos en estado DEVUELTO que pueden ser dados de baja.
+    Solo para: Líder de Inventario
+    """
+    if not _require_login():
+        return redirect('/login')
+    
+    # Solo líder de inventario puede dar de baja
+    if session.get('rol', '').lower() != 'lider_inventario':
+        flash('Solo el Líder de Inventario puede dar de baja productos', 'danger')
+        return redirect('/inventario-corporativo')
+    
+    try:
+        productos_devueltos = InventarioCorporativoModel.obtener_productos_devueltos()
+        logger.info(f"Productos devueltos consultados por {sanitizar_username(session.get('usuario'))}")
+        
+        return render_template('inventario_corporativo/productos_devueltos.html',
+                             productos=productos_devueltos)
+    except Exception as e:
+        logger.error(f"Error en listar_productos_devueltos: {e}")
+        flash('Error al cargar productos devueltos', 'danger')
+        return redirect('/inventario-corporativo')
+
+
+@inventario_corporativo_bp.route('/producto/<int:producto_id>/dar-de-baja', methods=['POST'])
+def dar_de_baja_producto(producto_id):
+    """
+    Dar de baja un producto que está en estado DEVUELTO.
+    Solo: Líder de Inventario
+    """
+    if not _require_login():
+        return jsonify({'success': False, 'message': 'No autorizado'}), 401
+    
+    # Solo líder de inventario puede dar de baja
+    if session.get('rol', '').lower() != 'lider_inventario':
+        return jsonify({'success': False, 'message': 'Solo el Líder de Inventario puede dar de baja productos'}), 403
+    
+    try:
+        asignacion_id = request.form.get('asignacion_id')
+        motivo = request.form.get('motivo', '').strip()
+        usuario_accion = session.get('usuario', 'Sistema')
+        
+        if not all([asignacion_id, motivo]):
+            return jsonify({'success': False, 'message': 'Asignación ID y motivo son requeridos'}), 400
+        
+        resultado = InventarioCorporativoModel.dar_de_baja_producto(
+            producto_id=producto_id,
+            asignacion_id=int(asignacion_id),
+            motivo=motivo,
+            usuario_accion=usuario_accion
+        )
+        
+        if resultado.get('success'):
+            logger.info(f"Producto dado de baja: ID {sanitizar_id(str(producto_id))}, por {sanitizar_username(usuario_accion)}")
+            
+        return jsonify(resultado)
+        
+    except Exception as e:
+        logger.error(f"Error en dar_de_baja_producto: {e}")
+        return jsonify({'success': False, 'message': 'Error al dar de baja el producto'}), 500
+
+# ==================== TRASPASOS ENTRE OFICINAS ====================
+
+
+@inventario_corporativo_bp.route('/<int:producto_id>/solicitar-traspaso', methods=['GET', 'POST'])
+def solicitar_traspaso_producto(producto_id):
+    """
+    Solicitar traspaso de un producto de una oficina a otra.
+    Disponible para: oficinas que tienen el producto asignado
+    """
+    if not _require_login():
+        return redirect('/login')
+    
+    if not can_access('inventario_corporativo', 'view'):
+        return _handle_unauthorized()
+    
+    # Obtener información del producto
+    producto = InventarioCorporativoModel.obtener_por_id(producto_id)
+    if not producto:
+        return _handle_not_found()
+    
+    # Obtener todas las oficinas
+    oficinas = InventarioCorporativoModel.obtener_oficinas() or []
+    
+    if request.method == 'POST':
+        try:
+            oficina_origen_id = request.form.get('oficina_origen_id')
+            oficina_destino_id = request.form.get('oficina_destino_id')
+            cantidad = request.form.get('cantidad')
+            motivo = request.form.get('motivo', '').strip()
+            
+            if not all([oficina_origen_id, oficina_destino_id, cantidad, motivo]):
+                flash('Todos los campos son requeridos', 'danger')
+                return render_template('inventario_corporativo/solicitar_traspaso.html',
+                                     producto=producto, oficinas=oficinas)
+            
+            if oficina_origen_id == oficina_destino_id:
+                flash('La oficina de origen y destino no pueden ser la misma', 'danger')
+                return render_template('inventario_corporativo/solicitar_traspaso.html',
+                                     producto=producto, oficinas=oficinas)
+            
+            # Solicitar el traspaso
+            resultado = InventarioCorporativoModel.solicitar_traspaso(
+                producto_id=producto_id,
+                oficina_origen_id=int(oficina_origen_id),
+                oficina_destino_id=int(oficina_destino_id),
+                cantidad=int(cantidad),
+                motivo=motivo,
+                usuario_solicita=session.get('usuario', 'Sistema')
+            )
+            
+            if resultado.get('success'):
+                flash(resultado.get('message'), 'success')
+                logger.info(f"Traspaso solicitado: Producto {sanitizar_id(str(producto_id))}, por {sanitizar_username(session.get('usuario'))}")
+                return redirect(f'/inventario-corporativo/{producto_id}')
+            else:
+                flash(resultado.get('message'), 'danger')
+                
+        except Exception as e:
+            logger.error(f"Error en solicitar_traspaso_producto: {e}")
+            flash('Error al solicitar traspaso', 'danger')
+    
+    return render_template('inventario_corporativo/solicitar_traspaso.html',
+                         producto=producto, oficinas=oficinas)
+
+
+@inventario_corporativo_bp.route('/traspasos-pendientes')
+def listar_traspasos_pendientes():
+    """
+    Ver todos los traspasos pendientes de aprobación.
+    Solo para: Líder de Inventario, Administrador, Aprobador
+    """
+    if not _require_login():
+        return redirect('/login')
+    
+    # Verificar permisos
+    rol = session.get('rol', '').lower()
+    if rol not in ['administrador', 'lider_inventario', 'aprobador']:
+        flash('No tiene permisos para ver traspasos pendientes', 'danger')
+        return redirect('/inventario-corporativo')
+    
+    try:
+        traspasos = InventarioCorporativoModel.obtener_traspasos_pendientes()
+        logger.info(f"Traspasos pendientes consultados por {sanitizar_username(session.get('usuario'))}")
+        
+        return render_template('inventario_corporativo/traspasos_pendientes.html',
+                             traspasos=traspasos)
+    except Exception as e:
+        logger.error(f"Error en listar_traspasos_pendientes: {e}")
+        flash('Error al cargar traspasos', 'danger')
+        return redirect('/inventario-corporativo')
+
+
+@inventario_corporativo_bp.route('/traspaso/<int:traspaso_id>/aprobar', methods=['POST'])
+def aprobar_traspaso(traspaso_id):
+    """
+    Aprobar un traspaso y realizar el cambio de oficina.
+    Solo: Líder de Inventario, Administrador, Aprobador
+    """
+    if not _require_login():
+        return jsonify({'success': False, 'message': 'No autorizado'}), 401
+    
+    # Verificar permisos
+    rol = session.get('rol', '').lower()
+    if rol not in ['administrador', 'lider_inventario', 'aprobador']:
+        return jsonify({'success': False, 'message': 'Sin permisos para aprobar traspasos'}), 403
+    
+    try:
+        observaciones = request.form.get('observaciones', '')
+        usuario_aprueba = session.get('usuario', 'Sistema')
+        
+        resultado = InventarioCorporativoModel.aprobar_traspaso(
+            traspaso_id=traspaso_id,
+            usuario_aprueba=usuario_aprueba,
+            observaciones=observaciones
+        )
+        
+        if resultado.get('success'):
+            logger.info(f"Traspaso aprobado: ID {sanitizar_id(str(traspaso_id))}, por {sanitizar_username(usuario_aprueba)}")
+            
+        return jsonify(resultado)
+        
+    except Exception as e:
+        logger.error(f"Error en aprobar_traspaso: {e}")
+        return jsonify({'success': False, 'message': 'Error al aprobar traspaso'}), 500
+
+
+@inventario_corporativo_bp.route('/traspaso/<int:traspaso_id>/rechazar', methods=['POST'])
+def rechazar_traspaso(traspaso_id):
+    """
+    Rechazar un traspaso.
+    Solo: Líder de Inventario, Administrador, Aprobador
+    """
+    if not _require_login():
+        return jsonify({'success': False, 'message': 'No autorizado'}), 401
+    
+    # Verificar permisos
+    rol = session.get('rol', '').lower()
+    if rol not in ['administrador', 'lider_inventario', 'aprobador']:
+        return jsonify({'success': False, 'message': 'Sin permisos para rechazar traspasos'}), 403
+    
+    try:
+        motivo_rechazo = request.form.get('motivo_rechazo', '').strip()
+        usuario_rechaza = session.get('usuario', 'Sistema')
+        
+        if not motivo_rechazo:
+            return jsonify({'success': False, 'message': 'El motivo de rechazo es requerido'}), 400
+        
+        resultado = InventarioCorporativoModel.rechazar_traspaso(
+            traspaso_id=traspaso_id,
+            usuario_rechaza=usuario_rechaza,
+            motivo_rechazo=motivo_rechazo
+        )
+        
+        if resultado.get('success'):
+            logger.info(f"Traspaso rechazado: ID {sanitizar_id(str(traspaso_id))}, por {sanitizar_username(usuario_rechaza)}")
+            
+        return jsonify(resultado)
+        
+    except Exception as e:
+        logger.error(f"Error en rechazar_traspaso: {e}")
+        return jsonify({'success': False, 'message': 'Error al rechazar traspaso'}), 500
+
+# ==================== VISTAS PARA OFICINAS ====================
+
+
+@inventario_corporativo_bp.route('/mis-devoluciones')
+def mis_devoluciones():
+    """
+    Ver las devoluciones de la oficina del usuario actual
+    """
+    if not _require_login():
+        return redirect('/login')
+    
+    # Obtener la oficina del usuario
+    oficina_id = session.get('oficina_id')
+    if not oficina_id:
+        flash('No se pudo determinar su oficina', 'danger')
+        return redirect('/inventario-corporativo')
+    
+    try:
+        devoluciones = InventarioCorporativoModel.obtener_devoluciones_por_oficina(oficina_id)
+        logger.info(f"Devoluciones consultadas por oficina {sanitizar_id(str(oficina_id))}")
+        
+        return render_template('inventario_corporativo/mis_devoluciones.html',
+                             devoluciones=devoluciones)
+    except Exception as e:
+        logger.error(f"Error en mis_devoluciones: {e}")
+        flash('Error al cargar devoluciones', 'danger')
+        return redirect('/inventario-corporativo')
+
+
+@inventario_corporativo_bp.route('/mis-traspasos')
+def mis_traspasos():
+    """
+    Ver los traspasos relacionados con la oficina del usuario actual
+    """
+    if not _require_login():
+        return redirect('/login')
+    
+    # Obtener la oficina del usuario
+    oficina_id = session.get('oficina_id')
+    if not oficina_id:
+        flash('No se pudo determinar su oficina', 'danger')
+        return redirect('/inventario-corporativo')
+    
+    try:
+        traspasos = InventarioCorporativoModel.obtener_traspasos_por_oficina(oficina_id)
+        logger.info(f"Traspasos consultados por oficina {sanitizar_id(str(oficina_id))}")
+        
+        return render_template('inventario_corporativo/mis_traspasos.html',
+                             traspasos=traspasos)
+    except Exception as e:
+        logger.error(f"Error en mis_traspasos: {e}")
+        flash('Error al cargar traspasos', 'danger')
+        return redirect('/inventario-corporativo')

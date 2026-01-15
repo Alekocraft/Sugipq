@@ -1,18 +1,26 @@
 # config/permissions.py
 """
 Sistema centralizado de permisos basado en roles y oficinas
+ACTUALIZADO: Incluye permisos para devoluciones, bajas y traspasos
 """
 
 ROLE_PERMISSIONS = {
     'administrador': {   
-        'modules': ['dashboard', 'material_pop', 'inventario_corporativo', 'prestamo_material', 'reportes', 'solicitudes', 'oficinas', 'novedades'],  
+        'modules': ['dashboard', 'material_pop', 'inventario_corporativo', 'prestamo_material', 'reportes', 'solicitudes', 'oficinas', 'novedades', 'usuarios'],  # ✅ AGREGADO 'usuarios'
         'actions': {
+            'usuarios': ['view', 'manage', 'create', 'edit', 'delete'],  # ✅ AGREGADO - SOLO ADMINISTRADOR
             'materiales': ['view', 'create', 'edit', 'delete'],
             'solicitudes': ['view', 'create', 'edit', 'delete', 'approve', 'reject', 'partial_approve', 'return'],
             'oficinas': ['view', 'manage'],
             'aprobadores': ['view', 'manage'],
             'reportes': ['view_all'],  
-            'inventario_corporativo': ['view', 'create', 'edit', 'delete', 'assign', 'manage_sedes', 'manage_oficinas'],
+            'inventario_corporativo': [
+                'view', 'create', 'edit', 'delete', 'assign', 
+                'manage_sedes', 'manage_oficinas',
+                'approve_devolucion',  # ✅ NUEVO
+                'approve_traspaso',    # ✅ NUEVO
+                'dar_de_baja'          # ✅ NUEVO - Admin TAMBIÉN puede dar de baja
+            ],
             'prestamos': ['view', 'create', 'approve', 'reject', 'return', 'manage_materials'],
             'novedades': ['create', 'view', 'manage', 'approve', 'reject']
         },
@@ -20,14 +28,21 @@ ROLE_PERMISSIONS = {
     },
 
     'lider_inventario': {
-        'modules': ['dashboard', 'material_pop', 'inventario_corporativo', 'prestamo_material', 'reportes', 'solicitudes', 'oficinas', 'novedades'],  
+        'modules': ['dashboard', 'material_pop', 'inventario_corporativo', 'prestamo_material', 'reportes', 'solicitudes', 'oficinas', 'novedades'],  # ❌ SIN 'usuarios'
         'actions': {
+            # ❌ SIN 'usuarios'
             'materiales': ['view', 'create', 'edit', 'delete'],
             'solicitudes': ['view', 'create', 'edit', 'delete', 'approve', 'reject', 'partial_approve', 'return'],
             'oficinas': ['view'],
             'aprobadores': ['view'],
             'reportes': ['view_all'],  
-            'inventario_corporativo': ['view', 'create', 'edit', 'delete', 'assign', 'manage_sedes', 'manage_oficinas'],
+            'inventario_corporativo': [
+                'view', 'create', 'edit', 'delete', 'assign', 
+                'manage_sedes', 'manage_oficinas',
+                'approve_devolucion',  # ✅ NUEVO
+                'approve_traspaso',    # ✅ NUEVO
+                'dar_de_baja'          # ✅ NUEVO
+            ],
             'prestamos': ['view', 'create', 'approve', 'reject', 'return', 'manage_materials'],         
             'novedades': ['create', 'view', 'manage', 'approve', 'reject']
         },
@@ -35,14 +50,19 @@ ROLE_PERMISSIONS = {
     },
     
     'aprobador': {
-        'modules': ['dashboard', 'material_pop', 'inventario_corporativo', 'prestamo_material', 'reportes', 'solicitudes', 'oficinas', 'novedades'],
+        'modules': ['dashboard', 'material_pop', 'inventario_corporativo', 'prestamo_material', 'reportes', 'solicitudes', 'oficinas', 'novedades'],  # ❌ SIN 'usuarios'
         'actions': {
+            # ❌ SIN 'usuarios'
             'materiales': ['view'],
             'solicitudes': ['view', 'create', 'edit', 'delete', 'approve', 'reject', 'partial_approve', 'return'],
             'oficinas': ['view'],
             'aprobadores': ['view'],
             'reportes': ['view_all'],
-            'inventario_corporativo': ['view'],
+            'inventario_corporativo': [
+                'view',
+                'approve_devolucion',  # ✅ NUEVO
+                'approve_traspaso'     # ✅ NUEVO
+            ],
             'prestamos': ['view', 'create', 'approve', 'reject', 'return'],
             'novedades': ['create', 'view', 'manage', 'approve', 'reject']
         },
@@ -65,7 +85,7 @@ ROLE_PERMISSIONS = {
     },
 
     'oficina_coq': {
-        'modules': ['dashboard', 'material_pop', 'prestamo_material', 'reportes', 'oficinas', 'solicitudes', 'novedades'],
+        'modules': ['dashboard', 'material_pop', 'prestamo_material', 'reportes', 'oficinas', 'solicitudes', 'novedades', 'inventario_corporativo'],  # ✅ AGREGADO
         'actions': {
             'materiales': [], 
             'solicitudes': ['view', 'create', 'return'],   
@@ -73,13 +93,18 @@ ROLE_PERMISSIONS = {
             'aprobadores': ['view'],
             'prestamos': ['view_own', 'create'],
             'reportes': ['view_own'],
-            'novedades': ['create', 'view', 'return']
+            'novedades': ['create', 'view', 'return'],
+            'inventario_corporativo': [  # ✅ NUEVO
+                'view',
+                'solicitar_devolucion',
+                'solicitar_traspaso'
+            ]
         },
         'office_filter': 'COQ' 
     },
 
     'oficina_cali': {
-        'modules': ['dashboard', 'material_pop', 'prestamo_material', 'reportes', 'oficinas', 'solicitudes', 'novedades'],
+        'modules': ['dashboard', 'material_pop', 'prestamo_material', 'reportes', 'oficinas', 'solicitudes', 'novedades', 'inventario_corporativo'],  # ✅ AGREGADO
         'actions': {
             'materiales': [],
             'solicitudes': ['view', 'create', 'return'],   
@@ -87,13 +112,18 @@ ROLE_PERMISSIONS = {
             'aprobadores': ['view'],
             'prestamos': ['view_own', 'create'],
             'reportes': ['view_own'],
-            'novedades': ['create', 'view', 'return']
+            'novedades': ['create', 'view', 'return'],
+            'inventario_corporativo': [  # ✅ NUEVO
+                'view',
+                'solicitar_devolucion',
+                'solicitar_traspaso'
+            ]
         },
         'office_filter': 'CALI'
     },
 
     'oficina_pereira': {
-        'modules': ['dashboard', 'material_pop', 'prestamo_material', 'reportes', 'oficinas', 'solicitudes', 'novedades'],
+        'modules': ['dashboard', 'material_pop', 'prestamo_material', 'reportes', 'oficinas', 'solicitudes', 'novedades', 'inventario_corporativo'],  # ✅ AGREGADO
         'actions': {
             'materiales': [],
             'solicitudes': ['view', 'create', 'return'],
@@ -101,13 +131,18 @@ ROLE_PERMISSIONS = {
             'aprobadores': ['view'],
             'prestamos': ['view_own', 'create'],
             'reportes': ['view_own'],
-            'novedades': ['create', 'view', 'return']
+            'novedades': ['create', 'view', 'return'],
+            'inventario_corporativo': [  # ✅ NUEVO
+                'view',
+                'solicitar_devolucion',
+                'solicitar_traspaso'
+            ]
         },
         'office_filter': 'PEREIRA'
     },
 
     'oficina_neiva': {
-        'modules': ['dashboard', 'material_pop', 'prestamo_material', 'reportes', 'oficinas', 'solicitudes', 'novedades'],
+        'modules': ['dashboard', 'material_pop', 'prestamo_material', 'reportes', 'oficinas', 'solicitudes', 'novedades', 'inventario_corporativo'],  # ✅ AGREGADO
         'actions': {
             'materiales': [],
             'solicitudes': ['view', 'create', 'return'],  
@@ -115,13 +150,18 @@ ROLE_PERMISSIONS = {
             'aprobadores': ['view'],
             'prestamos': ['view_own', 'create'],
             'reportes': ['view_own'],
-            'novedades': ['create', 'view', 'return']
+            'novedades': ['create', 'view', 'return'],
+            'inventario_corporativo': [  # ✅ NUEVO
+                'view',
+                'solicitar_devolucion',
+                'solicitar_traspaso'
+            ]
         },
         'office_filter': 'NEIVA'
     },
 
     'oficina_kennedy': {
-        'modules': ['dashboard', 'material_pop', 'prestamo_material', 'reportes', 'oficinas', 'solicitudes', 'novedades'],
+        'modules': ['dashboard', 'material_pop', 'prestamo_material', 'reportes', 'oficinas', 'solicitudes', 'novedades', 'inventario_corporativo'],  # ✅ AGREGADO
         'actions': {
             'materiales': [],
             'solicitudes': ['view', 'create', 'return'],  
@@ -129,13 +169,18 @@ ROLE_PERMISSIONS = {
             'aprobadores': ['view'],
             'prestamos': ['view_own', 'create'],
             'reportes': ['view_own'],
-            'novedades': ['create', 'view', 'return']
+            'novedades': ['create', 'view', 'return'],
+            'inventario_corporativo': [  # ✅ NUEVO
+                'view',
+                'solicitar_devolucion',
+                'solicitar_traspaso'
+            ]
         },
         'office_filter': 'KENNEDY'
     },
 
     'oficina_bucaramanga': {
-        'modules': ['dashboard', 'material_pop', 'prestamo_material', 'reportes', 'oficinas', 'solicitudes', 'novedades'],
+        'modules': ['dashboard', 'material_pop', 'prestamo_material', 'reportes', 'oficinas', 'solicitudes', 'novedades', 'inventario_corporativo'],  # ✅ AGREGADO
         'actions': {
             'materiales': [],
             'solicitudes': ['view', 'create', 'return'],  
@@ -143,13 +188,18 @@ ROLE_PERMISSIONS = {
             'aprobadores': ['view'],
             'prestamos': ['view_own', 'create'],
             'reportes': ['view_own'],
-            'novedades': ['create', 'view', 'return']
+            'novedades': ['create', 'view', 'return'],
+            'inventario_corporativo': [  # ✅ NUEVO
+                'view',
+                'solicitar_devolucion',
+                'solicitar_traspaso'
+            ]
         },
         'office_filter': 'BUCARAMANGA'
     },
 
     'oficina_polo_club': {
-        'modules': ['dashboard', 'material_pop', 'prestamo_material', 'reportes', 'oficinas', 'solicitudes', 'novedades'],
+        'modules': ['dashboard', 'material_pop', 'prestamo_material', 'reportes', 'oficinas', 'solicitudes', 'novedades', 'inventario_corporativo'],  # ✅ AGREGADO
         'actions': {
             'materiales': [],
             'solicitudes': ['view', 'create', 'return'],  
@@ -157,13 +207,18 @@ ROLE_PERMISSIONS = {
             'aprobadores': ['view'],
             'prestamos': ['view_own', 'create'],
             'reportes': ['view_own'],
-            'novedades': ['create', 'view', 'return']
+            'novedades': ['create', 'view', 'return'],
+            'inventario_corporativo': [  # ✅ NUEVO
+                'view',
+                'solicitar_devolucion',
+                'solicitar_traspaso'
+            ]
         },
         'office_filter': 'POLO CLUB'
     },
 
     'oficina_nogal': {
-        'modules': ['dashboard', 'material_pop', 'prestamo_material', 'reportes', 'oficinas', 'solicitudes', 'novedades'],
+        'modules': ['dashboard', 'material_pop', 'prestamo_material', 'reportes', 'oficinas', 'solicitudes', 'novedades', 'inventario_corporativo'],  # ✅ AGREGADO
         'actions': {
             'materiales': [],
             'solicitudes': ['view', 'create', 'return'],  
@@ -171,13 +226,18 @@ ROLE_PERMISSIONS = {
             'aprobadores': ['view'],
             'prestamos': ['view_own', 'create'],
             'reportes': ['view_own'],
-            'novedades': ['create', 'view', 'return']
+            'novedades': ['create', 'view', 'return'],
+            'inventario_corporativo': [  # ✅ NUEVO
+                'view',
+                'solicitar_devolucion',
+                'solicitar_traspaso'
+            ]
         },
         'office_filter': 'NOGAL'
     },
 
     'oficina_tunja': {
-        'modules': ['dashboard', 'material_pop', 'prestamo_material', 'reportes', 'oficinas', 'solicitudes', 'novedades'],
+        'modules': ['dashboard', 'material_pop', 'prestamo_material', 'reportes', 'oficinas', 'solicitudes', 'novedades', 'inventario_corporativo'],  # ✅ AGREGADO
         'actions': {
             'materiales': [],
             'solicitudes': ['view', 'create', 'return'],  
@@ -185,13 +245,18 @@ ROLE_PERMISSIONS = {
             'aprobadores': ['view'],
             'prestamos': ['view_own', 'create'],
             'reportes': ['view_own'],
-            'novedades': ['create', 'view', 'return']
+            'novedades': ['create', 'view', 'return'],
+            'inventario_corporativo': [  # ✅ NUEVO
+                'view',
+                'solicitar_devolucion',
+                'solicitar_traspaso'
+            ]
         },
         'office_filter': 'TUNJA'
     },
 
     'oficina_cartagena': {
-        'modules': ['dashboard', 'material_pop', 'prestamo_material', 'reportes', 'oficinas', 'solicitudes', 'novedades'],
+        'modules': ['dashboard', 'material_pop', 'prestamo_material', 'reportes', 'oficinas', 'solicitudes', 'novedades', 'inventario_corporativo'],  # ✅ AGREGADO
         'actions': {
             'materiales': [],
             'solicitudes': ['view', 'create', 'return'],  
@@ -199,13 +264,18 @@ ROLE_PERMISSIONS = {
             'aprobadores': ['view'],
             'prestamos': ['view_own', 'create'],
             'reportes': ['view_own'],
-            'novedades': ['create', 'view', 'return']
+            'novedades': ['create', 'view', 'return'],
+            'inventario_corporativo': [  # ✅ NUEVO
+                'view',
+                'solicitar_devolucion',
+                'solicitar_traspaso'
+            ]
         },
         'office_filter': 'CARTAGENA'
     },
 
     'oficina_morato': {
-        'modules': ['dashboard', 'material_pop', 'prestamo_material', 'reportes', 'oficinas', 'solicitudes', 'novedades'],
+        'modules': ['dashboard', 'material_pop', 'prestamo_material', 'reportes', 'oficinas', 'solicitudes', 'novedades', 'inventario_corporativo'],  # ✅ AGREGADO
         'actions': {
             'materiales': [],
             'solicitudes': ['view', 'create', 'return'],  
@@ -213,13 +283,18 @@ ROLE_PERMISSIONS = {
             'aprobadores': ['view'],
             'prestamos': ['view_own', 'create'],
             'reportes': ['view_own'],
-            'novedades': ['create', 'view', 'return']
+            'novedades': ['create', 'view', 'return'],
+            'inventario_corporativo': [  # ✅ NUEVO
+                'view',
+                'solicitar_devolucion',
+                'solicitar_traspaso'
+            ]
         },
         'office_filter': 'MORATO'
     },
 
     'oficina_medellin': {
-        'modules': ['dashboard', 'material_pop', 'prestamo_material', 'reportes', 'oficinas', 'solicitudes', 'novedades'],
+        'modules': ['dashboard', 'material_pop', 'prestamo_material', 'reportes', 'oficinas', 'solicitudes', 'novedades', 'inventario_corporativo'],  # ✅ AGREGADO
         'actions': {
             'materiales': [],
             'solicitudes': ['view', 'create', 'return'],  
@@ -227,13 +302,18 @@ ROLE_PERMISSIONS = {
             'aprobadores': ['view'],
             'prestamos': ['view_own', 'create'],
             'reportes': ['view_own'],
-            'novedades': ['create', 'view', 'return']
+            'novedades': ['create', 'view', 'return'],
+            'inventario_corporativo': [  # ✅ NUEVO
+                'view',
+                'solicitar_devolucion',
+                'solicitar_traspaso'
+            ]
         },
         'office_filter': 'MEDELLÍN'
     },
 
     'oficina_cedritos': {
-        'modules': ['dashboard', 'material_pop', 'prestamo_material', 'reportes', 'oficinas', 'solicitudes', 'novedades'],
+        'modules': ['dashboard', 'material_pop', 'prestamo_material', 'reportes', 'oficinas', 'solicitudes', 'novedades', 'inventario_corporativo'],  # ✅ AGREGADO
         'actions': {
             'materiales': [],
             'solicitudes': ['view', 'create', 'return'],   
@@ -241,13 +321,18 @@ ROLE_PERMISSIONS = {
             'aprobadores': ['view'],
             'prestamos': ['view_own', 'create'],
             'reportes': ['view_own'],
-            'novedades': ['create', 'view', 'return']   
+            'novedades': ['create', 'view', 'return'],
+            'inventario_corporativo': [  # ✅ NUEVO
+                'view',
+                'solicitar_devolucion',
+                'solicitar_traspaso'
+            ]
         },
         'office_filter': 'CEDRITOS'
     },
 
     'oficina_lourdes': {
-        'modules': ['dashboard', 'material_pop', 'prestamo_material', 'reportes', 'oficinas', 'solicitudes', 'novedades'],
+        'modules': ['dashboard', 'material_pop', 'prestamo_material', 'reportes', 'oficinas', 'solicitudes', 'novedades', 'inventario_corporativo'],  # ✅ AGREGADO
         'actions': {
             'materiales': [],
             'solicitudes': ['view', 'create', 'return'],  
@@ -255,17 +340,25 @@ ROLE_PERMISSIONS = {
             'aprobadores': ['view'],
             'prestamos': ['view_own', 'create'],
             'reportes': ['view_own'],
-            'novedades': ['create', 'view', 'return']
+            'novedades': ['create', 'view', 'return'],
+            'inventario_corporativo': [  # ✅ NUEVO
+                'view',
+                'solicitar_devolucion',
+                'solicitar_traspaso'
+            ]
         },
         'office_filter': 'LOURDES'
     },
 
     'oficina_regular': {
-        'modules': ['dashboard', 'reportes', 'solicitudes', 'novedades'],  
+        'modules': ['dashboard', 'reportes', 'solicitudes', 'novedades', 'inventario_corporativo'],  # ✅ AGREGADO
         'actions': {
             'solicitudes': ['view', 'create', 'return'],
             'reportes': ['view_own'],
-            'novedades': ['create', 'view', 'return']
+            'novedades': ['create', 'view', 'return'],
+            'inventario_corporativo': [  # ✅ NUEVO (permisos limitados)
+                'view'
+            ]
         },
         'office_filter': 'own'
     }
@@ -406,3 +499,103 @@ def get_user_permissions():
         return {'modules': [], 'actions': {}, 'office_filter': 'none'}
     
     return ROLE_PERMISSIONS[rol]
+
+
+# ==================== FUNCIONES HELPER NUEVAS PARA INVENTARIO CORPORATIVO ====================
+
+def puede_aprobar_devoluciones():
+    """
+    Verifica si el usuario puede aprobar devoluciones.
+    Solo: Administrador, Líder de Inventario, Aprobador
+    """
+    return can_access('inventario_corporativo', 'approve_devolucion')
+
+
+def puede_aprobar_traspasos():
+    """
+    Verifica si el usuario puede aprobar traspasos.
+    Solo: Administrador, Líder de Inventario, Aprobador
+    """
+    return can_access('inventario_corporativo', 'approve_traspaso')
+
+
+def puede_dar_de_baja():
+    """
+    Verifica si el usuario puede dar de baja productos.
+    Solo: Administrador y Líder de Inventario
+    """
+    return can_access('inventario_corporativo', 'dar_de_baja')
+
+
+def puede_solicitar_devolucion():
+    """
+    Verifica si el usuario puede solicitar devoluciones.
+    Oficinas y roles con permisos de gestión
+    """
+    return can_access('inventario_corporativo', 'solicitar_devolucion')
+
+
+def puede_solicitar_traspaso():
+    """
+    Verifica si el usuario puede solicitar traspasos.
+    Oficinas y roles con permisos de gestión
+    """
+    return can_access('inventario_corporativo', 'solicitar_traspaso')
+
+
+def can_manage_inventario_corporativo():
+    """
+    Verifica si el usuario puede gestionar el inventario corporativo.
+    (crear, editar, eliminar, asignar)
+    """
+    from flask import session
+    rol = session.get('rol', '').lower()
+    return rol in ['administrador', 'lider_inventario']
+
+
+def can_view_inventario_actions():
+    """
+    Verifica si el usuario puede ver las acciones del inventario corporativo.
+    """
+    return can_access('inventario_corporativo', 'view')
+
+
+# ==================== FUNCIONES PARA GESTIÓN DE USUARIOS ====================
+
+def puede_gestionar_usuarios():
+    """
+    Verifica si el usuario puede gestionar usuarios.
+    SOLO: Administrador
+    """
+    from flask import session
+    rol = session.get('rol', '').lower()
+    # Solo administrador puede gestionar usuarios
+    return rol == 'administrador' and can_access('usuarios', 'manage')
+
+def puede_crear_usuarios():
+    """
+    Verifica si el usuario puede crear usuarios.
+    SOLO: Administrador
+    """
+    return can_access('usuarios', 'create')
+
+def puede_editar_usuarios():
+    """
+    Verifica si el usuario puede editar usuarios.
+    SOLO: Administrador
+    """
+    return can_access('usuarios', 'edit')
+
+def puede_eliminar_usuarios():
+    """
+    Verifica si el usuario puede eliminar usuarios.
+    SOLO: Administrador
+    """
+    return can_access('usuarios', 'delete')
+
+def puede_ver_usuarios():
+    """
+    Verifica si el usuario puede ver usuarios.
+    SOLO: Administrador (por ahora)
+    """
+    return can_access('usuarios', 'view')

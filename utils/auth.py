@@ -6,13 +6,13 @@ logger = logging.getLogger(__name__)
 
 def require_login():
     """
-    Verifica si el usuario está autenticado en el sistema
+    Verifica si el usuario estÃ¡ autenticado en el sistema
     
     Returns:
-        bool: True si el usuario tiene sesión activa
+        bool: True si el usuario tiene sesiÃ³n activa
     """
     is_authenticated = 'user_id' in session or 'usuario_id' in session
-    logger.debug(f"Verificación de autenticación: {is_authenticated}")
+    logger.debug(f"VerificaciÃ³n de autenticaciÃ³n: {is_authenticated}")
     return is_authenticated
 
 def has_role(*roles):
@@ -34,17 +34,17 @@ def has_role(*roles):
 
 def login_required(f):
     """
-    Decorador para proteger rutas que requieren autenticación
+    Decorador para proteger rutas que requieren autenticaciÃ³n
     
     Args:
-        f: Función a decorar
+        f: FunciÃ³n a decorar
     """
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if not require_login():
             logger.warning(f"Intento de acceso no autenticado a {request.endpoint}")
-            flash('Por favor inicie sesión para acceder a esta página.', 'warning')
-            return redirect(url_for('auth_bp.login', next=request.url))
+            flash('Por favor inicie sesiÃ³n para acceder a esta pÃ¡gina.', 'warning')
+            return redirect(url_for('auth.login', next=request.url))
         
         logger.debug(f"Acceso autorizado a {request.endpoint}")
         return f(*args, **kwargs)
@@ -52,7 +52,7 @@ def login_required(f):
 
 def role_required(*roles):
     """
-    Decorador para proteger rutas que requieren roles específicos
+    Decorador para proteger rutas que requieren roles especÃ­ficos
     
     Args:
         *roles: Roles requeridos para acceder
@@ -62,14 +62,14 @@ def role_required(*roles):
         def decorated_function(*args, **kwargs):
             if not require_login():
                 logger.warning(f"Intento de acceso no autenticado a ruta con roles {roles}")
-                flash('Por favor inicie sesión.', 'warning')
-                return redirect(url_for('auth_bp.login', next=request.url))
+                flash('Por favor inicie sesiÃ³n.', 'warning')
+                return redirect(url_for('auth.login', next=request.url))
             
             if not has_role(*roles):
                 user_role = session.get('rol', 'No definido')
-                logger.warning(f"Usuario rol '{user_role}' intentó acceder a ruta que requiere roles {roles}")
-                flash('No tiene permisos para acceder a esta sección.', 'danger')
-                return redirect(url_for('auth_bp.dashboard'))
+                logger.warning(f"Usuario rol '{user_role}' intentÃ³ acceder a ruta que requiere roles {roles}")
+                flash('No tiene permisos para acceder a esta secciÃ³n.', 'danger')
+                return redirect(url_for('auth.dashboard'))
             
             logger.debug(f"Acceso autorizado con rol a {request.endpoint}")
             return f(*args, **kwargs)
@@ -78,10 +78,10 @@ def role_required(*roles):
 
 def get_current_user():
     """
-    Obtiene la información del usuario actualmente autenticado
+    Obtiene la informaciÃ³n del usuario actualmente autenticado
     
     Returns:
-        dict: Información del usuario o None si no está autenticado
+        dict: InformaciÃ³n del usuario o None si no estÃ¡ autenticado
     """
     if not require_login():
         return None
@@ -99,18 +99,18 @@ def get_current_user():
 
 def can_access_module(module_name):
     """
-    Verifica si el usuario puede acceder a un módulo específico según su rol
+    Verifica si el usuario puede acceder a un mÃ³dulo especÃ­fico segÃºn su rol
     
     Args:
-        module_name: Nombre del módulo a verificar
+        module_name: Nombre del mÃ³dulo a verificar
         
     Returns:
-        bool: True si el usuario tiene acceso al módulo
+        bool: True si el usuario tiene acceso al mÃ³dulo
     """
     from config.config import Config
     user_role = (session.get('rol', '') or '').strip().lower()
     allowed_modules = Config.ROLES.get(user_role, [])
     
     has_access = module_name in allowed_modules
-    logger.debug(f"Acceso a módulo '{module_name}' para rol '{user_role}': {has_access}")
+    logger.debug(f"Acceso a mÃ³dulo '{module_name}' para rol '{user_role}': {has_access}")
     return has_access

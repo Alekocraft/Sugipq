@@ -52,54 +52,54 @@
             <div class="card login-card">
                 <div class="card-body p-4">
             
-                    <form method="POST" action="" class="login-form">
+                    <form method="POST" action="{{ url_for('auth.login') }}" class="login-form">
                         <!-- ✅ DÍA 7 - CSRF Token para protección contra ataques CSRF -->
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         
                         <!-- Campo Usuario -->
                         <div class="form-group mb-3">
-                            <label for="usuario" class="form-label">
+                            <label for="username" class="form-label">
                                 <i class="fas fa-user me-2 text-morado"></i>Usuario
                             </label>
                             <div class="input-group">
                                 <input type="text"
-                                       id="usuario"
-                                       name="usuario"
+                                       id="username"
+                                       name="username"
                                        class="form-control login-input"
                                        placeholder="Ingresa tu usuario"
                                        required
                                        minlength="1"
                                        maxlength="50"
                                        autocomplete="username"
-                                       aria-describedby="usuario-help">
+                                       aria-describedby="username-help">
                                 <span class="input-group-text">
                                     <i class="fas fa-id-card text-muted" aria-hidden="true"></i>
                                 </span>
                             </div>
-                            <div id="usuario-help" class="form-text visually-hidden">Campo para ingresar el nombre de usuario</div>
+                            <div id="username-help" class="form-text visually-hidden">Campo para ingresar el nombre de usuario</div>
                         </div>
 
                         <!-- Campo Contraseña -->
                         <div class="form-group mb-4">
-                            <label for="contraseña" class="form-label">
+                            <label for="password" class="form-label">
                                 <i class="fas fa-lock me-2 text-morado"></i>Contraseña
                             </label>
                             <div class="input-group">
                                 <input type="password"
-                                       id="contraseña"
-                                       name="contraseña"
+                                       id="password"
+                                       name="password"
                                        class="form-control login-input"
                                        placeholder="Ingresa tu contraseña"
                                        required
                                        minlength="1"
                                        maxlength="100"
                                        autocomplete="current-password"
-                                       aria-describedby="contraseña-help">
-                                <button type="button" class="input-group-text toggle-password" data-target="contraseña" aria-label="Mostrar u ocultar contraseña">
+                                       aria-describedby="password-help">
+                                <button type="button" class="input-group-text toggle-password" data-target="password" aria-label="Mostrar u ocultar contraseña">
                                     <i class="fas fa-eye text-muted" aria-hidden="true"></i>
                                 </button>
                             </div>
-                            <div id="contraseña-help" class="form-text visually-hidden">Campo para ingresar la contraseña</div>
+                            <div id="password-help" class="form-text visually-hidden">Campo para ingresar la contraseña</div>
                         </div>
 
                         <!-- Botón de ingreso -->
@@ -169,24 +169,24 @@
 
         // Validación básica del formulario
         document.querySelector('.login-form')?.addEventListener('submit', (e) => {
-            const usuario = document.getElementById('usuario');
-            const contraseña = document.getElementById('contraseña');
+            const username = document.getElementById('username');
+            const password = document.getElementById('password');
             
             // Validación básica de longitud
-            if (usuario && usuario.value.trim().length === 0) {
+            if (username && username.value.trim().length === 0) {
                 e.preventDefault();
-                usuario.focus();
+                username.focus();
                 return;
             }
             
-            if (contraseña && contraseña.value.trim().length === 0) {
+            if (password && password.value.trim().length === 0) {
                 e.preventDefault();
-                contraseña.focus();
+                password.focus();
                 return;
             }
             
             // Limpieza básica de datos (eliminar espacios en blanco)
-            if (usuario) usuario.value = usuario.value.trim();
+            if (username) username.value = username.value.trim();
         });
     </script>
 </body>

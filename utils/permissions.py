@@ -1,3 +1,4 @@
+#utils/permissions.py 
 """
 Módulo de permisos para el sistema.
 Wrapper para el PermissionManager con funciones específicas.
@@ -155,6 +156,12 @@ def can_access(module: str, action: Optional[str] = None) -> bool:
     Returns:
         bool: True si tiene acceso, False de lo contrario
     """
+    # Caso especial para usuarios.manage - SOLO ADMINISTRADOR
+    if module == 'usuarios' and action == 'manage':
+        # Verificar específicamente
+        rol = session.get('rol', '').lower()
+        return rol == 'administrador' and PermissionManager.has_action_permission(module, action)
+    
     if action:
         # Verificar permiso para acción específica
         has_permission = PermissionManager.has_action_permission(module, action)
@@ -372,9 +379,15 @@ def can_generate_reportes() -> bool:
 
 
 def can_manage_usuarios() -> bool:
-    """Verifica permiso para gestionar usuarios"""
+    """Verifica permiso para gestionar usuarios - SOLO ADMINISTRADOR"""
+    rol = session.get('rol', '').lower()
+    # Solo administrador puede gestionar usuarios
+    if rol != 'administrador':
+        logger.debug(f"Rol {rol} no puede gestionar usuarios (solo administrador)")
+        return False
+    
     can_manage = PermissionManager.has_action_permission('usuarios', 'manage')
-    logger.debug(f"Usuario puede gestionar usuarios: {can_manage}")
+    logger.debug(f"Administrador puede gestionar usuarios: {can_manage}")
     return can_manage
 
 

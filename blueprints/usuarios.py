@@ -1,967 +1,500 @@
-# models/usuarios_model.py 
-
-from database import get_database_connection
+# blueprints/usuarios.py
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify
+from functools import wraps
 import logging
-from config.config import Config
-import bcrypt
-import os
-from utils.helpers import sanitizar_username, sanitizar_email, sanitizar_ip, sanitizar_identificacion  # ✅ Usar funciones de sanitización
+from models.usuarios_model import UsuarioModel
+from models.oficinas_model import OficinaModel
+from utils.permissions import can_access
+from utils.helpers import sanitizar_username, sanitizar_email
 
 logger = logging.getLogger(__name__)
 
-class UsuarioModel:
-    
-    @staticmethod
-    def verificar_credenciales(usuario, contraseña):
-        """
-        Verifica credenciales PRIORIZANDO BD local, luego LDAP como fallback
-        Maneja usuarios LDAP pendientes de sincronización
-        """
-        sanitized_user = sanitizar_username(usuario)
-        logger.info(f"🔐 Intentando autenticación para: {sanitized_user}")   
-        
-        # 1. PRIMERO: Intentar autenticación local
-        logger.info(f"🔄 1. Intentando autenticación LOCAL para: {sanitized_user}")   
-        usuario_local = UsuarioModel._verificar_localmente_corregido(usuario, contraseña)
-        
-        if usuario_local:
-            logger.info(f"✅ Autenticación LOCAL exitosa para: {sanitized_user}")   
-            return usuario_local
-        
-        logger.info(f"❌ Autenticación LOCAL falló para: {sanitized_user}")   
-        
-        # 2. Verificar si es usuario LDAP pendiente
-        conn = get_database_connection()
-        if conn:
-            try:
-                cursor = conn.cursor()
-                cursor.execute("""
-                    SELECT UsuarioId, ContraseñaHash, Activo 
-                    FROM Usuarios 
-                    WHERE NombreUsuario = ? AND EsLDAP = 1
-                """, (usuario,))
-                
-                usuario_ldap = cursor.fetchone()
-                
-                if usuario_ldap:
-                    logger.info(f"🔄 Usuario LDAP encontrado: {sanitized_user}")   
-                    
-                    # Si está pendiente o es usuario LDAP
-                    if usuario_ldap[1] in ['LDAP_PENDING', 'LDAP_USER']:
-                        logger.info(f"🔄 2. Intentando LDAP para usuario registrado: {sanitized_user}")   
-                        
-                        if Config.LDAP_ENABLED:
-                            try:
-                                from utils.ldap_auth import ad_auth
-                                ad_user = ad_auth.authenticate_user(usuario, contraseña)
-                                
-                                if ad_user:
-                                    email = ad_user.get('email', '')
-                                    sanitized_email = sanitizar_email(email)
-                                    logger.info(f"✅ LDAP exitoso para usuario registrado: {sanitized_user} ({sanitized_email})")  
-                                    
-                                    # Completar sincronización si estaba pendiente
-                                    if usuario_ldap[1] == 'LDAP_PENDING':
-                                        UsuarioModel.completar_sincronizacion_ldap(usuario, ad_user)
-                                    
-                                    # Obtener información del usuario
-                                    usuario_info = UsuarioModel._obtener_info_usuario(usuario)
-                                    if usuario_info:
-                                        return usuario_info
-                                    else:
-                                        # Si no se puede obtener info, crear sesión básica
-                                        return {
-                                            'id': usuario_ldap[0],
-                                            'usuario': usuario,
-                                            'nombre': usuario,
-                                            'rol': 'usuario',  # Rol por defecto hasta que se sincronice
-                                            'oficina_id': 1,
-                                            'oficina_nombre': ''
-                                        }
-                            except Exception as ldap_error:
-                                logger.error(f"❌ Error en LDAP para usuario registrado: {type(ldap_error).__name__}")
-                        
-                        # Si LDAP falla pero el usuario existe
-                        if usuario_ldap[2] == 1:  # Si está activo
-                            logger.warning(f"⚠️ Usuario LDAP no pudo autenticarse: {sanitized_user}")
-            
-            except Exception as e:
-                logger.error(f"❌ Error verificando usuario LDAP: {type(e).__name__}")
-            finally:
-                cursor.close()
-                conn.close()
-        
-        # 3. SEGUNDO: Solo si LDAP está habilitado y no es usuario registrado
-        if Config.LDAP_ENABLED:
-            logger.info(f"🔄 3. Intentando LDAP para usuario nuevo: {sanitized_user}")
-            try:
-                from utils.ldap_auth import ad_auth
-                ad_user = ad_auth.authenticate_user(usuario, contraseña)
-                
-                if ad_user:
-                    email = ad_user.get('email', '')
-                    sanitized_email = sanitizar_email(email)
-                    logger.info(f"✅ LDAP exitoso para usuario nuevo: {sanitized_user} ({sanitized_email})")
-                    # Sincronizar con BD local
-                    usuario_info = UsuarioModel.sync_user_from_ad(ad_user)
-                    
-                    if usuario_info:
-                        return usuario_info
-                    else:
-                        logger.error(f"❌ Error sincronizando usuario LDAP nuevo: {sanitized_user}")
-                else:
-                    logger.warning(f"❌ LDAP también falló para: {sanitized_user}")
-            except Exception as ldap_error:
-                logger.error(f"❌ Error en LDAP para usuario nuevo: {type(ldap_error).__name__}")
-        
-        # 4. Si todo falla
-        logger.error(f"❌ TODAS las autenticaciones fallaron para: {sanitized_user}")
-        return None
+usuarios_bp = Blueprint('usuarios', __name__)
 
-    @staticmethod
-    def _obtener_info_usuario(username):
-        """
-        Obtiene información completa del usuario desde BD
-        """
-        conn = get_database_connection()
-        if not conn:
-            return None
-            
-        try:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT 
-                    u.UsuarioId, 
-                    u.NombreUsuario, 
-                    u.CorreoElectronico,
-                    u.Rol, 
-                    u.OficinaId, 
-                    o.NombreOficina,
-                    u.EsLDAP
-                FROM Usuarios u
-                LEFT JOIN Oficinas o ON u.OficinaId = o.OficinaId
-                WHERE u.NombreUsuario = ? AND u.Activo = 1
-            """, (username,))
-            
-            row = cursor.fetchone()
-            
-            if row:
-                email = row[2] if row[2] else ''
-                sanitized_email = sanitizar_email(email)
-                usuario_info = {
-                    'id': row[0],
-                    'usuario': row[1],
-                    'nombre': email if email else row[1],
-                    'rol': row[3],
-                    'oficina_id': row[4],
-                    'oficina_nombre': row[5] if row[5] else '',
-                    'es_ldap': bool(row[6])
-                }
-                logger.debug(f"Info usuario obtenida: {sanitizar_username(username)} ({sanitized_email})")
-                return usuario_info
-            return None
-                
-        except Exception as e:
-            logger.error(f"❌ Error obteniendo info usuario: {type(e).__name__}")
-            return None
-        finally:
-            if cursor:
-                cursor.close()
-            if conn:
-                conn.close()
+try:
+    from utils.ldap_consulta import ad_consulta
+    CONSULTA_AD_DISPONIBLE = True
+    logger.info("Módulo de consulta AD disponible")
+except ImportError as e:
+    CONSULTA_AD_DISPONIBLE = False
+    logger.warning(f"Módulo de consulta AD no disponible: {e}")
 
-    @staticmethod
-    def _verificar_localmente_corregido(usuario, contraseña):
-        """
-        Autenticación local CORREGIDA - compatible con tu BD exacta
-        """
-        conn = get_database_connection()
-        if not conn:
-            logger.error("❌ No hay conexión a la BD")
-            return None
-            
-        try:
-            cursor = conn.cursor()
-            
-            # CONSULTA CORREGIDA según tu estructura exacta de BD
-            cursor.execute("""
-                SELECT 
-                    u.UsuarioId, 
-                    u.NombreUsuario, 
-                    u.CorreoElectronico,
-                    u.Rol, 
-                    u.OficinaId, 
-                    o.NombreOficina,
-                    u.ContraseñaHash
-                FROM Usuarios u
-                LEFT JOIN Oficinas o ON u.OficinaId = o.OficinaId
-                WHERE u.NombreUsuario = ? AND u.Activo = 1
-            """, (usuario,))
-            
-            row = cursor.fetchone()
-            
-            if row:
-                sanitized_user = sanitizar_username(usuario)
-                logger.info(f"✅ Usuario encontrado en BD: {sanitized_user}")
-                
-                # Verificar contraseña hash
-                stored_hash = row[6]  # ContraseñaHash está en posición 7 (índice 6)
-                
-                if not stored_hash:
-                    logger.error(f"❌ Hash de contraseña vacío para: {sanitized_user}")
-                    return None                
-                try:
-                    # IMPORTANTE: bcrypt.checkpw necesita ambos parámetros como bytes
-                    password_bytes = contraseña.encode('utf-8')
-                    hash_bytes = stored_hash.encode('utf-8')
-                    
-                    logger.info(f"🔑 Verificando contraseña para: {sanitized_user}")
-                    if bcrypt.checkpw(password_bytes, hash_bytes):
-                        email = row[2] if row[2] else ''
-                        sanitized_email = sanitizar_email(email)
-                        
-                        usuario_info = {
-                            'id': row[0],           # UsuarioId
-                            'usuario': row[1],      # NombreUsuario
-                            'nombre': email if email else row[1],  # CorreoElectronico o NombreUsuario
-                            'rol': row[3],          # Rol
-                            'oficina_id': row[4],   # OficinaId
-                            'oficina_nombre': row[5] if row[5] else ''  # NombreOficina
-                        }
-                        logger.info(f"✅ Contraseña CORRECTA para: {sanitized_user} ({sanitized_email})")
-                        return usuario_info
-                    else:
-                        logger.error(f"❌ Contraseña INCORRECTA para: {sanitized_user}")
-                        return None
-                        
-                except Exception as bcrypt_error:
-                    logger.error(f"❌ Error en bcrypt.checkpw para {sanitizar_username(usuario)}: {type(bcrypt_error).__name__}")
-                    return None
-            else:
-                logger.warning(f"⚠️ Usuario NO encontrado en BD local: {sanitizar_username(usuario)}")
-                return None
-                
-        except Exception as e:
-            logger.error(f"❌ Error en _verificar_localmente_corregido: {type(e).__name__}")
-            return None
-        finally:
-            if cursor:
-                cursor.close()
-            if conn:
-                conn.close()
-    
-    @staticmethod
-    def sync_user_from_ad(ad_user):
-        """
-        Sincroniza usuario desde AD a la base de datos local
-        SOLO para usuarios que no existan localmente
-        """
-        conn = get_database_connection()
-        if not conn:
-            return None
-        
-        try:
-            cursor = conn.cursor()
-        
-            # Verificar si el usuario ya existe
-            cursor.execute("""
-                SELECT 
-                    UsuarioId, 
-                    NombreUsuario, 
-                    CorreoElectronico, 
-                    Rol, 
-                    OficinaId
-                FROM Usuarios 
-                WHERE NombreUsuario = ? AND Activo = 1
-            """, (ad_user['username'],))  # CAMBIADO: 'username' no 'samaccountname'
-        
-            existing = cursor.fetchone()
-        
-            if existing:
-                # Usuario ya existe localmente
-                email = existing[2] if existing[2] else ''
-                sanitized_email = sanitizar_email(email)
-                
-                usuario_info = {
-                    'id': existing[0],
-                    'usuario': existing[1],
-                    'nombre': email if email else existing[1],
-                    'rol': existing[3],
-                    'oficina_id': existing[4],
-                    'oficina_nombre': ''
-                }
-                logger.info(f"ℹ️ Usuario ya existía en BD local: {sanitizar_username(ad_user['username'])} ({sanitized_email})")
-                return usuario_info
-            else:
-                # Crear nuevo usuario desde AD
-                default_rol = 'usuario'
-                if 'role' in ad_user:  # CAMBIADO: 'role' no 'grupos'
-                    default_rol = ad_user['role']
-                else:
-                    # Verificar grupos para determinar rol
-                    groups = ad_user.get('groups', [])
-                    if any('administradores' in g.lower() for g in groups):
-                        default_rol = 'admin'  # Tu sistema usa 'admin'
-                    elif any('aprobadores' in g.lower() for g in groups):
-                        default_rol = 'aprobador'
-                    elif any('tesorer' in g.lower() for g in groups):
-                        default_rol = 'tesoreria'
-            
-                # Obtener oficina por defecto
-                departamento = ad_user.get('department', '')
-                oficina_id = UsuarioModel.get_default_office(departamento)
-            
-                # Si no hay oficina, usar la primera
-                if not oficina_id:
-                    cursor.execute("SELECT TOP 1 OficinaId FROM Oficinas WHERE Activo = 1")
-                    oficina_result = cursor.fetchone()
-                    oficina_id = oficina_result[0] if oficina_result else 1
-            
-                email = ad_user.get('email', f"{ad_user['username']}@qualitascolombia.com.co")
-                sanitized_email = sanitizar_email(email)
-                
-                # Insertar nuevo usuario
-                cursor.execute("""
-                    INSERT INTO Usuarios (
-                        NombreUsuario, 
-                        CorreoElectronico, 
-                        Rol, 
-                        OficinaId, 
-                        Activo, 
-                        FechaCreacion,
-                        ContraseñaHash,
-                        EsLDAP
-                    ) VALUES (?, ?, ?, ?, 1, GETDATE(), 'LDAP_USER', 1)
-                """, (
-                    ad_user['username'],
-                    email,
-                    default_rol,
-                    oficina_id
-                ))
-            
-                conn.commit()
-            
-                # Obtener el ID del usuario creado
-                cursor.execute("SELECT UsuarioId FROM Usuarios WHERE NombreUsuario = ?", (ad_user['username'],))
-                new_id = cursor.fetchone()[0]
-            
-                usuario_info = {
-                    'id': new_id,
-                    'usuario': ad_user['username'],
-                    'nombre': ad_user.get('full_name', ad_user['username']),
-                    'rol': default_rol,
-                    'oficina_id': oficina_id,
-                    'oficina_nombre': '',
-                    'es_ldap': True
-                }
-            
-                logger.info(f"✅ Nuevo usuario sincronizado desde AD: {sanitizar_username(ad_user['username'])} ({sanitized_email})")
-                return usuario_info
-        except Exception as e:
-            logger.error(f"❌ Error sincronizando usuario AD: {type(e).__name__}")
-            if conn:
-                conn.rollback()
-            return None
-        finally:
-            if cursor:
-                cursor.close()
-            if conn:
-                conn.close()
-    
-    @staticmethod
-    def get_default_office(department):
-        """
-        Obtiene el ID de oficina por defecto basado en departamento AD
-        """
-        conn = get_database_connection()
-        if not conn:
-            return None
-        
-        try:
-            cursor = conn.cursor()
-        
-            # Mapeo de departamentos Qualitas a oficinas
-            department_mapping = {
-                'tesorería': 'Tesoreria',
-                'finanzas': 'Tesoreria',
-                'contabilidad': 'Tesoreria',
-                'administración': 'Administración',
-                'gerencia': 'Gerencia',
-                'sistemas': 'Sistemas',
-                'tecnología': 'Sistemas',
-                'rrhh': 'Recursos Humanos',
-                'recursos humanos': 'Recursos Humanos',
-                'comercial': 'Comercial',
-                'ventas': 'Comercial',
-                'operaciones': 'Operaciones',
-                'logística': 'Logística',
-                'almacén': 'Logística'
-            }
-        
-            department_lower = (department or '').lower()
-        
-            # Buscar oficina por mapeo de departamento
-            for dept_key, dept_name in department_mapping.items():
-                if dept_key in department_lower:
-                    cursor.execute("""
-                        SELECT OficinaId FROM Oficinas 
-                        WHERE NombreOficina LIKE ? AND Activo = 1
-                    """, (f'%{dept_name}%',))
-                    result = cursor.fetchone()
-                    if result:
-                        return result[0]
-        
-            # Si no encuentra, buscar oficina por nombre similar al departamento
-            if department:
-                cursor.execute("""
-                    SELECT OficinaId FROM Oficinas 
-                    WHERE (NombreOficina LIKE ? OR Ubicacion LIKE ?) 
-                    AND Activo = 1
-                    ORDER BY OficinaId
-                """, (f'%{department}%', f'%{department}%'))
-                result = cursor.fetchone()
-                if result:
-                    return result[0]
-        
-            # Si todo falla, usar la primera oficina activa
-            cursor.execute("SELECT TOP 1 OficinaId FROM Oficinas WHERE Activo = 1 ORDER BY OficinaId")
-            default_office = cursor.fetchone()
-        
-            return default_office[0] if default_office else 1
-            
-        except Exception as e:
-            logger.error(f"❌ Error obteniendo oficina por defecto: {type(e).__name__}")
-            return 1
-        finally:
-            if cursor:
-                cursor.close()
-            if conn:
-                conn.close()
-    
-    @staticmethod
-    def obtener_aprobadores():
-        """
-        Obtiene usuarios con rol de aprobación
-        """
-        conn = get_database_connection()
-        if not conn:
-            return []
-            
-        try:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT 
-                    UsuarioId, 
-                    CorreoElectronico, 
-                    NombreUsuario, 
-                    OficinaId
-                FROM Usuarios 
-                WHERE Rol IN ('aprobador', 'administrador') AND Activo = 1
-                ORDER BY CorreoElectronico
-            """)
-            
-            aprobadores = []
-            for row in cursor.fetchall():
-                email = row[1] if row[1] else ''
-                aprobadores.append({
-                    'id': row[0],
-                    'nombre': email if email else row[2],
-                    'usuario': row[2],
-                    'oficina_id': row[3]
-                })
-            
-            logger.info(f"✅ Se encontraron {len(aprobadores)} aprobadores desde tabla Usuarios")
-            return aprobadores
-            
-        except Exception as e:
-            logger.error(f"❌ Error obteniendo aprobadores: {type(e).__name__}")
-            return []
-        finally:
-            if cursor:
-                cursor.close()
-            if conn:
-                conn.close()
-    
-    @staticmethod
-    def crear_usuario_manual(usuario_data):
-        """
-        Crea usuario manualmente (para casos especiales)
-        
-        Args:
-            usuario_data: Dict con datos del usuario
-            
-        Returns:
-            bool: True si éxito
-        """
-        conn = get_database_connection()
-        if not conn:
-            return False
-            
-        try:
-            cursor = conn.cursor()
-            
-            # Generar hash de contraseña
-            password_hash = bcrypt.hashpw(
-                usuario_data['password'].encode('utf-8'), 
-                bcrypt.gensalt()
-            ).decode('utf-8')
-            
-            # Insertar usuario
-            cursor.execute("""
-                INSERT INTO Usuarios (
-                    NombreUsuario, 
-                    CorreoElectronico, 
-                    Rol, 
-                    OficinaId, 
-                    ContraseñaHash, 
-                    Activo, 
-                    FechaCreacion
-                ) VALUES (?, ?, ?, ?, ?, 1, GETDATE())
-            """, (
-                usuario_data['usuario'],
-                usuario_data.get('email', usuario_data['usuario']),
-                usuario_data['rol'],
-                usuario_data['oficina_id'],
-                password_hash
-            ))
-            
-            conn.commit()
-            logger.info(f"✅ Usuario manual creado: {sanitizar_username(usuario_data['usuario'])}")
-            return True
-            
-        except Exception as e:
-            logger.error(f"❌ Error creando usuario manual: {type(e).__name__}")
-            conn.rollback()
-            return False
-        finally:
-            if cursor:
-                cursor.close()
-            if conn:
-                conn.close()
-    
-    @staticmethod
-    def crear_usuario_admin_inicial():
-        """
-        Crea un usuario administrador inicial si no existe ninguno
-        Ahora usa contraseña desde variable de entorno
-        """
-        conn = get_database_connection()
-        if not conn:
-            return False
-            
-        try:
-            cursor = conn.cursor()
-            
-            # Verificar si ya existe un usuario admin
-            cursor.execute("SELECT COUNT(*) FROM Usuarios WHERE Rol = 'administrador' AND Activo = 1")
-            admin_count = cursor.fetchone()[0]
-            
-            if admin_count > 0:
-                logger.info("✅ Ya existe al menos un usuario administrador")
-                return True
-            
-            # Verificar si existe la oficina por defecto
-            cursor.execute("SELECT TOP 1 OficinaId FROM Oficinas WHERE Activo = 1 ORDER BY OficinaId")
-            default_office = cursor.fetchone()
-            
-            oficina_id = default_office[0] if default_office else None
-            
-            if not oficina_id:
-                logger.error("❌ No hay oficinas activas para asignar al usuario admin")
-                return False
-            
-            admin_password = os.getenv('ADMIN_DEFAULT_PASSWORD')
-            
-            if not admin_password:
-                logger.error("❌ ADMIN_DEFAULT_PASSWORD no configurado en variables de entorno")
-                return False
-            
-            # Generar hash para contraseña del administrador
-            password_hash = bcrypt.hashpw(
-                admin_password.encode('utf-8'), 
-                bcrypt.gensalt()
-            ).decode('utf-8')
-            
-            # Crear usuario admin - USANDO 'administrador' como rol (no 'admin')
-            cursor.execute("""
-                INSERT INTO Usuarios (
-                    NombreUsuario, 
-                    CorreoElectronico, 
-                    Rol, 
-                    OficinaId, 
-                    ContraseñaHash, 
-                    Activo, 
-                    FechaCreacion
-                ) VALUES ('admin', 'Administrador del Sistema', 'administrador', ?, ?, 1, GETDATE())
-            """, (oficina_id, password_hash))
-            
-            conn.commit()
-            logger.info("✅ Usuario administrador creado exitosamente")
-            return True
-            
-        except Exception as e:
-            logger.error(f"❌ Error creando usuario admin: {type(e).__name__}")
-            if conn:
-                conn.rollback()
-            return False
-        finally:
-            if cursor:
-                cursor.close()
-            if conn:
-                conn.close()
-    
-    @staticmethod
-    def obtener_por_id(usuario_id):
-        """
-        Obtiene usuario por ID
-        """
-        conn = get_database_connection()
-        if not conn:
-            return None
-            
-        try:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT 
-                    u.UsuarioId, 
-                    u.NombreUsuario, 
-                    u.CorreoElectronico,
-                    u.Rol, 
-                    u.OficinaId, 
-                    o.NombreOficina
-                FROM Usuarios u
-                LEFT JOIN Oficinas o ON u.OficinaId = o.OficinaId
-                WHERE u.UsuarioId = ? AND u.Activo = 1
-            """, (usuario_id,))
-            
-            row = cursor.fetchone()
-            
-            if row:
-                email = row[2] if row[2] else ''
-                sanitized_email = sanitizar_email(email)
-                logger.debug(f"Obtenido usuario ID {usuario_id}: {sanitized_email}")
-                
-                return {
-                    'id': row[0],
-                    'usuario': row[1],
-                    'nombre': email if email else row[1],
-                    'rol': row[3],
-                    'oficina_id': row[4],
-                    'oficina_nombre': row[5] if row[5] else ''
-                }
-            return None
-            
-        except Exception as e:
-            logger.error(f"❌ Error obteniendo usuario por ID: {type(e).__name__}")
-            return None
-        finally:
-            if cursor:
-                cursor.close()
-            if conn:
-                conn.close()
-    
-    @staticmethod
-    def obtener_todos():
-        """
-        Obtiene todos los usuarios activos
-        """
-        conn = get_database_connection()
-        if not conn:
-            return []
-            
-        try:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT 
-                    u.UsuarioId, 
-                    u.NombreUsuario, 
-                    u.CorreoElectronico,
-                    u.Rol, 
-                    u.OficinaId, 
-                    o.NombreOficina,
-                    u.FechaCreacion,
-                    u.EsLDAP
-                FROM Usuarios u
-                LEFT JOIN Oficinas o ON u.OficinaId = o.OficinaId
-                WHERE u.Activo = 1
-                ORDER BY u.NombreUsuario
-            """)
-            
-            usuarios = []
-            for row in cursor.fetchall():
-                email = row[2] if row[2] else ''
-                sanitized_email = sanitizar_email(email)
-                
-                usuarios.append({
-                    'id': row[0],
-                    'usuario': row[1],
-                    'nombre': email if email else row[1],
-                    'rol': row[3],
-                    'oficina_id': row[4],
-                    'oficina_nombre': row[5] if row[5] else '',
-                    'fecha_creacion': row[6],
-                    'es_ldap': bool(row[7])
-                })
-            
-            logger.info(f"✅ Se obtuvieron {len(usuarios)} usuarios activos")
-            return usuarios
-            
-        except Exception as e:
-            logger.error(f"❌ Error obteniendo todos los usuarios: {type(e).__name__}")
-            return []
-        finally:
-            if cursor:
-                cursor.close()
-            if conn:
-                conn.close()
-    
-    @staticmethod
-    def map_ad_role_to_system_role(ad_user):
-        """
-        Mapea el rol de AD al rol del sistema según la configuración de permisos
-    
-        Args:
-            ad_user: Diccionario con información del usuario de AD
-        
-        Returns:
-            str: Rol del sistema (debe coincidir con ROLE_PERMISSIONS en config/permissions.py)
-        """
-        # Verificar si ldap_auth ya asignó un rol
-        if 'role' in ad_user:
-            ad_role = ad_user['role']
-        
-            # Mapear roles de AD a roles del sistema
-            role_mapping = {
-                'admin': 'administrador',  # AD dice 'admin', sistema dice 'administrador'
-                'finanzas': 'tesoreria',
-                'almacen': 'lider_inventario',
-                'rrhh': 'usuario',
-                'usuario': 'usuario'
-            }
-        
-            # Si está mapeado, usar el mapeo
-            if ad_role in role_mapping:
-                return role_mapping[ad_role]
-        
-            # Si no, verificar si coincide con algún rol del sistema
-            from config.permissions import ROLE_PERMISSIONS
-            if ad_role in ROLE_PERMISSIONS:
-                return ad_role
-    
-        # Si no hay rol de AD o no está mapeado, usar grupos/departamento
-        groups = ad_user.get('groups', [])
-        department = (ad_user.get('department') or '').lower()
-    
-        # Verificar por grupos
-        if any('administradores' in g.lower() for g in groups):
-            return 'administrador'
-        elif any('tesorer' in g.lower() or 'financ' in g.lower() for g in groups):
-            return 'tesoreria'
-        elif any('lider' in g.lower() and 'invent' in g.lower() for g in groups):
-            return 'lider_inventario'
-        elif any('aprobador' in g.lower() for g in groups):
-            return 'aprobador'
-        elif any('coq' in g.lower() for g in groups):
-            return 'oficina_coq'
-        elif any('polo' in g.lower() for g in groups):
-            return 'oficina_polo_club'
-    
-        # Verificar por departamento
-        if 'tesorer' in department or 'financ' in department:
-            return 'tesoreria'
-        elif 'admin' in department:
-            return 'administrador'
-        elif 'logist' in department or 'almacen' in department:
-            return 'lider_inventario'
-    
-        # Por defecto
-        return 'usuario'
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'usuario_id' not in session:
+            flash('Debe iniciar sesión para acceder', 'warning')
+            return redirect('/login')
+        return f(*args, **kwargs)
+    return decorated_function
 
-    @staticmethod
-    def crear_usuario_ldap_manual(usuario_data):
-        """
-        Crea usuario LDAP manualmente (para administradores)
-        El usuario debe autenticarse primero con LDAP para activarse
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if session.get('rol') != 'administrador':
+            flash('No tiene permisos para gestionar usuarios', 'danger')
+            return redirect(url_for('auth.dashboard'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+@usuarios_bp.route('/')
+@login_required
+@admin_required
+def listar():
+    try:
+        usuarios = UsuarioModel.obtener_todos() or []
         
-        Args:
-            usuario_data: Dict con datos del usuario LDAP
-            
-        Returns:
-            dict: Información del usuario creado o None si error
-        """
-        conn = get_database_connection()
-        if not conn:
-            return None
-            
+        total_usuarios = len(usuarios)
+        total_activos = len([u for u in usuarios if u.get('activo', True)])
+        total_inactivos = total_usuarios - total_activos
+        total_ldap = len([u for u in usuarios if u.get('es_ldap', False)])
+        total_locales = total_usuarios - total_ldap
+        
+        logger.info(f"Listado de usuarios consultado por {sanitizar_username(session.get('usuario', 'desconocido'))}")
+        
+        return render_template('usuarios/listar.html',
+            usuarios=usuarios,
+            total_usuarios=total_usuarios,
+            total_activos=total_activos,
+            total_inactivos=total_inactivos,
+            total_ldap=total_ldap,
+            total_locales=total_locales
+        )
+    except Exception as e:
+        logger.error(f"Error listando usuarios: {e}")
+        flash('Error al cargar usuarios', 'danger')
+        return redirect(url_for('auth.dashboard'))
+
+@usuarios_bp.route('/crear', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def crear():
+    if request.method == 'POST':
         try:
-            cursor = conn.cursor()
+            nombre_usuario = request.form.get('nombre_usuario', '').strip()
+            nombre_completo = request.form.get('nombre_completo', '').strip()
+            email = request.form.get('email', '').strip()
+            rol = request.form.get('rol', '').strip()
+            oficina_id = request.form.get('oficina_id')
+            contraseña = request.form.get('contraseña', '').strip()
+            contraseña_confirmar = request.form.get('contraseña_confirmar', '').strip()
             
-            # Verificar si ya existe
-            cursor.execute("""
-                SELECT UsuarioId FROM Usuarios 
-                WHERE NombreUsuario = ? AND Activo = 1
-            """, (usuario_data['usuario'],))
+            if not all([nombre_usuario, nombre_completo, email, rol, contraseña]):
+                flash('Todos los campos son requeridos', 'danger')
+                return redirect(request.url)
             
-            if cursor.fetchone():
-                logger.warning(f"⚠️ Usuario LDAP ya existe: {sanitizar_username(usuario_data['usuario'])}")
-                return None
+            if contraseña != contraseña_confirmar:
+                flash('Las contraseñas no coinciden', 'danger')
+                return redirect(request.url)
             
-            email = usuario_data.get('email', f"{usuario_data['usuario']}@qualitascolombia.com.co")
-            sanitized_email = sanitizar_email(email)
+            if len(contraseña) < 6:
+                flash('La contraseña debe tener al menos 6 caracteres', 'danger')
+                return redirect(request.url)
             
-            # Insertar usuario LDAP (con hash especial)
-            cursor.execute("""
-                INSERT INTO Usuarios (
-                    NombreUsuario, 
-                    CorreoElectronico, 
-                    Rol, 
-                    OficinaId, 
-                    ContraseñaHash, 
-                    Activo, 
-                    FechaCreacion,
-                    EsLDAP
-                ) VALUES (?, ?, ?, ?, 'LDAP_PENDING', 1, GETDATE(), 1)
-            """, (
-                usuario_data['usuario'],
-                email,
-                usuario_data.get('rol', 'usuario'),
-                usuario_data.get('oficina_id', 1)
-            ))
-            
-            conn.commit()
-            
-            # Obtener el ID del usuario creado
-            cursor.execute("SELECT UsuarioId FROM Usuarios WHERE NombreUsuario = ?", (usuario_data['usuario'],))
-            new_id = cursor.fetchone()[0]
-            
-            usuario_info = {
-                'id': new_id,
-                'usuario': usuario_data['usuario'],
+            usuario_data = {
+                'usuario': nombre_usuario,
                 'email': email,
-                'rol': usuario_data.get('rol', 'usuario'),
-                'oficina_id': usuario_data.get('oficina_id', 1)
+                'password': contraseña,
+                'rol': rol,
+                'oficina_id': int(oficina_id) if oficina_id else None
             }
             
-            logger.info(f"✅ Usuario LDAP manual creado: {sanitizar_username(usuario_data['usuario'])} ({sanitized_email}) (pendiente de autenticación)")
-            return usuario_info
+            success = UsuarioModel.crear_usuario_manual(usuario_data)
+            
+            if success:
+                flash('Usuario creado exitosamente', 'success')
+                logger.info(f"Usuario creado: {sanitizar_username(nombre_usuario)} por {sanitizar_username(session.get('usuario'))}")
+                return redirect(url_for('usuarios.listar'))
+            else:
+                flash('Error al crear usuario', 'danger')
                 
         except Exception as e:
-            logger.error(f"❌ Error creando usuario LDAP manual: {type(e).__name__}")
-            if conn:
-                conn.rollback()
-            return None
-        finally:
-            if cursor:
-                cursor.close()
-            if conn:
-                conn.close()
-
-    @staticmethod
-    def completar_sincronizacion_ldap(username, ad_user_info):
-        """
-        Completa la sincronización de un usuario LDAP después de autenticación exitosa
-        
-        Args:
-            username: Nombre de usuario
-            ad_user_info: Información del usuario desde AD
-            
-        Returns:
-            bool: True si éxito
-        """
-        conn = get_database_connection()
-        if not conn:
-            return False
-            
-        try:
-            cursor = conn.cursor()
-            
-            email = ad_user_info.get('email', f"{username}@qualitascolombia.com.co")
-            sanitized_email = sanitizar_email(email)
-            
-            # Actualizar información del usuario LDAP
-            cursor.execute("""
-                UPDATE Usuarios 
-                SET CorreoElectronico = ?,
-                    ContraseñaHash = 'LDAP_USER',
-                    EsLDAP = 1,
-                    FechaActualizacion = GETDATE()
-                WHERE NombreUsuario = ? AND ContraseñaHash = 'LDAP_PENDING'
-            """, (
-                email,
-                username
-            ))
-            
-            if cursor.rowcount == 0:
-                # Si no estaba pendiente, actualizar igual
-                cursor.execute("""
-                    UPDATE Usuarios 
-                    SET CorreoElectronico = ?,
-                        EsLDAP = 1,
-                        FechaActualizacion = GETDATE()
-                    WHERE NombreUsuario = ?
-                """, (
-                    email,
-                    username
-                ))
-            
-            conn.commit()
-            logger.info(f"✅ Sincronización LDAP completada para: {sanitizar_username(username)} ({sanitized_email})")
-            return True
-                
-        except Exception as e:
-            logger.error(f"❌ Error completando sincronización LDAP: {type(e).__name__}")
-            if conn:
-                conn.rollback()
-            return False
-        finally:
-            if cursor:
-                cursor.close()
-            if conn:
-                conn.close()    
+            logger.error(f"Error creando usuario: {e}")
+            flash('Error al crear usuario', 'danger')
     
-    @staticmethod
-    def obtener_aprobadores_desde_tabla():
-        """
-        Obtiene aprobadores desde la tabla Aprobadores (no desde Usuarios)
-        """
-        conn = get_database_connection()
-        if not conn:
-            return []
-            
+    try:
+        oficinas = OficinaModel.obtener_todas() or []
+    except:
+        oficinas = []
+    
+    roles = [
+        {'value': 'administrador', 'label': 'Administrador'},
+        {'value': 'lider_inventario', 'label': 'Líder de Inventario'},
+        {'value': 'tesoreria', 'label': 'Tesorería'},
+        {'value': 'aprobador', 'label': 'Aprobador'},
+        {'value': 'oficina_coq', 'label': 'Oficina COQ'},
+        {'value': 'oficina_cali', 'label': 'Oficina Cali'},
+        {'value': 'oficina_pereira', 'label': 'Oficina Pereira'},
+        {'value': 'oficina_kennedy', 'label': 'Oficina Kennedy'},
+        {'value': 'usuario', 'label': 'Usuario'}
+    ]
+    
+    return render_template('usuarios/crear.html', oficinas=oficinas, roles=roles)
+
+@usuarios_bp.route('/crear-ldap', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def crear_ldap():
+    if request.method == 'POST':
         try:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT 
-                    AprobadorId,
-                    NombreAprobador,
-                    Email,
-                    Activo,
-                    FechaCreacion
-                FROM Aprobadores 
-                WHERE Activo = 1
-                ORDER BY NombreAprobador
-            """)
+            nombre_usuario = request.form.get('nombre_usuario', '').strip()
+            email = request.form.get('email', '').strip()
+            rol = request.form.get('rol', '').strip()
+            oficina_id = request.form.get('oficina_id')
             
-            aprobadores = []
-            for row in cursor.fetchall():
-                email = row[2] if row[2] else ''
-                sanitized_email = sanitizar_email(email)
-                aprobadores.append({
-                    'AprobadorId': row[0],
-                    'NombreAprobador': row[1],
-                    'Email': sanitized_email,
-                    'Activo': row[3],
-                    'FechaCreacion': row[4]
-                })
+            if not all([nombre_usuario, rol, oficina_id]):
+                flash('Usuario, rol y oficina son requeridos', 'danger')
+                return redirect(request.url)
             
-            logger.info(f"✅ Se encontraron {len(aprobadores)} aprobadores desde tabla Aprobadores")
-            return aprobadores
+            info_ad = None
+            if CONSULTA_AD_DISPONIBLE:
+                try:
+                    info_ad = ad_consulta.buscar_usuario(nombre_usuario)
+                    if info_ad and info_ad.get('encontrado'):
+                        logger.info(f"Usuario encontrado en AD: {nombre_usuario}")
+                        
+                        if not email and info_ad.get('email'):
+                            email = info_ad['email']
+                            flash(f'✓ Email obtenido del AD: {email}', 'info')
+                        
+                        if info_ad.get('nombre_completo'):
+                            flash(f'✓ Usuario encontrado en AD: {info_ad["nombre_completo"]}', 'success')
+                    elif info_ad:
+                        flash('⚠️ Usuario no encontrado en Active Directory. Verifique que exista.', 'warning')
+                        
+                except Exception as e:
+                    logger.error(f"Error consultando AD: {e}")
+                    flash('⚠️ No se pudo consultar el AD. Continuando sin verificación.', 'warning')
             
+            if not email:
+                dominio = "qualitascolombia.com.co"
+                email = f"{nombre_usuario}@{dominio}"
+                flash(f'📧 Email generado: {email}', 'info')
+            
+            usuario_existente = UsuarioModel.obtener_por_usuario(nombre_usuario)
+            if usuario_existente:
+                flash(f'❌ El usuario {nombre_usuario} ya existe en el sistema', 'danger')
+                return redirect(request.url)
+            
+            usuario_data = {
+                'usuario': nombre_usuario,
+                'email': email,
+                'rol': rol,
+                'oficina_id': int(oficina_id) if oficina_id else None
+            }
+            
+            if info_ad and info_ad.get('nombre_completo'):
+                usuario_data['nombre_completo'] = info_ad['nombre_completo']
+            
+            usuario_info = UsuarioModel.crear_usuario_ldap_manual(usuario_data)
+            
+            if usuario_info:
+                mensaje = f'✅ Usuario LDAP pre-registrado: {nombre_usuario}. '
+                mensaje += 'Deberá autenticarse con sus credenciales de dominio para activar su cuenta.'
+                
+                if info_ad and info_ad.get('nombre_completo'):
+                    mensaje += f' (Nombre en AD: {info_ad["nombre_completo"]})'
+                
+                flash(mensaje, 'success')
+                logger.info(f"Usuario LDAP pre-registrado: {nombre_usuario}")
+                return redirect(url_for('usuarios.listar'))
+            else:
+                flash('❌ Error al crear usuario LDAP', 'danger')
+                
         except Exception as e:
-            logger.error(f"❌ Error obteniendo aprobadores desde tabla: {type(e).__name__}")
-            return []
-        finally:
-            if cursor:
-                cursor.close()
-            if conn:
-                conn.close()
+            logger.error(f"Error creando usuario LDAP: {e}")
+            flash(f'Error: {str(e)}', 'danger')
+    
+    try:
+        oficinas = OficinaModel.obtener_todas() or []
+    except:
+        oficinas = []
+    
+    roles = [
+        {'value': 'administrador', 'label': 'Administrador'},
+        {'value': 'lider_inventario', 'label': 'Líder de Inventario'},
+        {'value': 'tesoreria', 'label': 'Tesorería'},
+        {'value': 'aprobador', 'label': 'Aprobador'},
+        {'value': 'oficina_coq', 'label': 'Oficina COQ'},
+        {'value': 'oficina_cali', 'label': 'Oficina Cali'},
+        {'value': 'usuario', 'label': 'Usuario'}
+    ]
+    
+    return render_template('usuarios/crear_ldap.html', 
+                          oficinas=oficinas, 
+                          roles=roles,
+                          consulta_ad_disponible=CONSULTA_AD_DISPONIBLE)
+
+@usuarios_bp.route('/api/consultar-ad')
+@login_required
+@admin_required
+def api_consultar_ad():
+    try:
+        usuario = request.args.get('usuario', '').strip()
+        
+        if not usuario:
+            return jsonify({'error': 'Usuario requerido'}), 400
+        
+        if not CONSULTA_AD_DISPONIBLE:
+            return jsonify({
+                'consulta_disponible': False,
+                'mensaje': 'Consulta AD no disponible'
+            })
+        
+        info_ad = None
+        try:
+            info_ad = ad_consulta.buscar_usuario(usuario)
+        except Exception as e:
+            logger.error(f"Error consultando AD para {usuario}: {e}")
+            return jsonify({
+                'error': 'Error consultando AD',
+                'detalle': str(e)
+            }), 500
+        
+        if info_ad and info_ad.get('encontrado'):
+            return jsonify({
+                'encontrado': True,
+                'usuario': usuario,
+                'nombre_completo': info_ad.get('nombre_completo'),
+                'email': info_ad.get('email'),
+                'departamento': info_ad.get('departamento'),
+                'telefono': info_ad.get('telefono'),
+                'cargo': info_ad.get('cargo')
+            })
+        else:
+            return jsonify({
+                'encontrado': False,
+                'usuario': usuario,
+                'mensaje': info_ad.get('mensaje', 'Usuario no encontrado en AD')
+            })
+            
+    except Exception as e:
+        logger.error(f"Error en API consultar AD: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@usuarios_bp.route('/<int:usuario_id>/editar', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def editar(usuario_id):
+    usuario = UsuarioModel.obtener_por_id(usuario_id)
+    
+    if not usuario:
+        flash('Usuario no encontrado', 'danger')
+        return redirect(url_for('usuarios.listar'))
+    
+    if request.method == 'POST':
+        try:
+            nombre_completo = request.form.get('nombre_completo', '').strip()
+            email = request.form.get('email', '').strip()
+            rol = request.form.get('rol', '').strip()
+            oficina_id = request.form.get('oficina_id')
+            activo = 'activo' in request.form
+            
+            if not all([nombre_completo, email, rol]):
+                flash('Todos los campos son requeridos', 'danger')
+                return redirect(request.url)
+            
+            success = UsuarioModel.actualizar_usuario(
+                usuario_id=usuario_id,
+                nombre_completo=nombre_completo,
+                email=email,
+                rol=rol,
+                oficina_id=int(oficina_id) if oficina_id else None,
+                activo=activo
+            )
+            
+            if success:
+                flash('Usuario actualizado exitosamente', 'success')
+                logger.info(f"Usuario actualizado: ID {usuario_id} por {sanitizar_username(session.get('usuario'))}")
+                return redirect(url_for('usuarios.listar'))
+            else:
+                flash('Error al actualizar usuario', 'danger')
+                
+        except Exception as e:
+            logger.error(f"Error actualizando usuario: {e}")
+            flash('Error al actualizar usuario', 'danger')
+    
+    try:
+        oficinas = OficinaModel.obtener_todas() or []
+    except:
+        oficinas = []
+    
+    roles = [
+        {'value': 'administrador', 'label': 'Administrador'},
+        {'value': 'lider_inventario', 'label': 'Líder de Inventario'},
+        {'value': 'tesoreria', 'label': 'Tesorería'},
+        {'value': 'aprobador', 'label': 'Aprobador'},
+        {'value': 'oficina_coq', 'label': 'Oficina COQ'},
+        {'value': 'oficina_cali', 'label': 'Oficina Cali'},
+        {'value': 'usuario', 'label': 'Usuario'}
+    ]
+    
+    return render_template('usuarios/editar.html', usuario=usuario, oficinas=oficinas, roles=roles)
+
+@usuarios_bp.route('/<int:usuario_id>/eliminar', methods=['POST'])
+@login_required
+@admin_required
+def eliminar(usuario_id):
+    try:
+        if usuario_id == session.get('usuario_id'):
+            return jsonify({'success': False, 'message': 'No puede eliminar su propio usuario'})
+        
+        success = UsuarioModel.desactivar_usuario(usuario_id)
+        
+        if success:
+            logger.info(f"Usuario desactivado: ID {usuario_id} por {sanitizar_username(session.get('usuario'))}")
+            return jsonify({'success': True, 'message': 'Usuario desactivado exitosamente'})
+        else:
+            return jsonify({'success': False, 'message': 'Error al desactivar usuario'})
+            
+    except Exception as e:
+        logger.error(f"Error eliminando usuario: {e}")
+        return jsonify({'success': False, 'message': 'Error al desactivar usuario'})
+
+@usuarios_bp.route('/<int:usuario_id>/activar', methods=['POST'])
+@login_required
+@admin_required
+def activar(usuario_id):
+    try:
+        success = UsuarioModel.activar_usuario(usuario_id)
+        
+        if success:
+            logger.info(f"Usuario activado: ID {usuario_id} por {sanitizar_username(session.get('usuario'))}")
+            return jsonify({'success': True, 'message': 'Usuario activado exitosamente'})
+        else:
+            return jsonify({'success': False, 'message': 'Error al activar usuario'})
+            
+    except Exception as e:
+        logger.error(f"Error activando usuario: {e}")
+        return jsonify({'success': False, 'message': 'Error al activar usuario'})
+
+@usuarios_bp.route('/<int:usuario_id>/cambiar-password', methods=['POST'])
+@login_required
+def cambiar_password(usuario_id):
+    try:
+        if usuario_id != session.get('usuario_id') and session.get('rol') != 'administrador':
+            return jsonify({'success': False, 'message': 'No tiene permisos para cambiar esta contraseña'})
+        
+        data = request.get_json() if request.is_json else request.form
+        
+        password_actual = data.get('password_actual', '').strip()
+        password_nueva = data.get('password_nueva', '').strip()
+        password_confirmar = data.get('password_confirmar', '').strip()
+        
+        if not all([password_actual, password_nueva, password_confirmar]):
+            return jsonify({'success': False, 'message': 'Todos los campos son requeridos'})
+        
+        if password_nueva != password_confirmar:
+            return jsonify({'success': False, 'message': 'Las contraseñas nuevas no coinciden'})
+        
+        if len(password_nueva) < 6:
+            return jsonify({'success': False, 'message': 'La contraseña debe tener al menos 6 caracteres'})
+        
+        success = UsuarioModel.cambiar_contraseña(
+            usuario_id=usuario_id,
+            contraseña_actual=password_actual,
+            contraseña_nueva=password_nueva
+        )
+        
+        if success:
+            logger.info(f"Contraseña cambiada para usuario ID {usuario_id}")
+            return jsonify({'success': True, 'message': 'Contraseña actualizada exitosamente'})
+        else:
+            return jsonify({'success': False, 'message': 'Contraseña actual incorrecta'})
+            
+    except Exception as e:
+        logger.error(f"Error cambiando contraseña: {e}")
+        return jsonify({'success': False, 'message': 'Error al cambiar contraseña'})
+
+@usuarios_bp.route('/<int:usuario_id>/resetear-password', methods=['POST'])
+@login_required
+@admin_required
+def resetear_password(usuario_id):
+    try:
+        data = request.get_json() if request.is_json else request.form
+        nueva_password = data.get('nueva_password', '').strip()
+        
+        if not nueva_password:
+            return jsonify({'success': False, 'message': 'Debe proporcionar una nueva contraseña'})
+        
+        if len(nueva_password) < 6:
+            return jsonify({'success': False, 'message': 'La contraseña debe tener al menos 6 caracteres'})
+        
+        success = UsuarioModel.resetear_contraseña(usuario_id, nueva_password)
+        
+        if success:
+            logger.info(f"Contraseña reseteada para usuario ID {usuario_id} por {sanitizar_username(session.get('usuario'))}")
+            return jsonify({'success': True, 'message': 'Contraseña reseteada exitosamente'})
+        else:
+            return jsonify({'success': False, 'message': 'Error al resetear contraseña'})
+            
+    except Exception as e:
+        logger.error(f"Error reseteando contraseña: {e}")
+        return jsonify({'success': False, 'message': 'Error al resetear contraseña'})
+
+@usuarios_bp.route('/api/buscar')
+@login_required
+def api_buscar():
+    try:
+        termino = request.args.get('q', '').strip()
+        
+        if len(termino) < 2:
+            return jsonify({'usuarios': []})
+        
+        usuarios = UsuarioModel.buscar_usuarios(termino) or []
+        
+        return jsonify({
+            'success': True,
+            'usuarios': usuarios
+        })
+        
+    except Exception as e:
+        logger.error(f"Error buscando usuarios: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@usuarios_bp.route('/api/<int:usuario_id>')
+@login_required
+def api_obtener(usuario_id):
+    try:
+        usuario = UsuarioModel.obtener_por_id(usuario_id)
+        
+        if usuario:
+            return jsonify({
+                'success': True,
+                'usuario': usuario
+            })
+        else:
+            return jsonify({'success': False, 'error': 'Usuario no encontrado'}), 404
+            
+    except Exception as e:
+        logger.error(f"Error obteniendo usuario: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@usuarios_bp.route('/api/estadisticas')
+@login_required
+@admin_required
+def api_estadisticas():
+    try:
+        usuarios = UsuarioModel.obtener_todos() or []
+        
+        stats = {
+            'total': len(usuarios),
+            'activos': len([u for u in usuarios if u.get('activo', True)]),
+            'inactivos': len([u for u in usuarios if not u.get('activo', True)]),
+            'ldap': len([u for u in usuarios if u.get('es_ldap', False)]),
+            'locales': len([u for u in usuarios if not u.get('es_ldap', False)]),
+            'por_rol': {}
+        }
+        
+        for usuario in usuarios:
+            rol = usuario.get('rol', 'sin_rol')
+            stats['por_rol'][rol] = stats['por_rol'].get(rol, 0) + 1
+        
+        return jsonify({
+            'success': True,
+            'estadisticas': stats
+        })
+        
+    except Exception as e:
+        logger.error(f"Error obteniendo estadísticas: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500

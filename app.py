@@ -2,7 +2,6 @@ import sys
 import io
 import os
 import logging
-from utils.helpers import sanitizar_username
 from datetime import datetime, timedelta
 from flask import (
     Flask, render_template, request, redirect, session, flash,
@@ -29,18 +28,18 @@ if sys.platform == "win32":
             if hasattr(record, 'msg'):
                 # Reemplazar emojis con texto seguro para Windows
                 replacements = {
-                    'âœ…': '[OK]',
-                    'âš ï¸': '[WARN]',
-                    'âŒ': '[ERROR]',
-                    'â„¹ï¸': '[INFO]',
-                    'ðŸ“¦': '[INVENTARIO]',
-                    'ðŸ“‹': '[SOLICITUD]',
-                    'ðŸ”': '[LDAP]',
-                    'ðŸ“§': '[EMAIL]',
-                    'ðŸš€': '[INICIO]',
-                    'ðŸ‘¥': '[ROLES]',
-                    'ðŸ”§': '[CONFIG]',
-                    'ðŸ“': '[DIRECTORIO]'
+                    '✅': '[OK]',
+                    '⚠️': '[WARN]',
+                    '❌': '[ERROR]',
+                    'ℹ️': '[INFO]',
+                    '🛠️': '[INVENTARIO]',
+                    '📋': '[SOLICITUD]',
+                    '🔐': '[LDAP]',
+                    '📧': '[EMAIL]',
+                    '🚀': '[INICIO]',
+                    '👑': '[ROLES]',
+                    '⚙️': '[CONFIG]',
+                    '📁': '[DIRECTORIO]'
                 }
                 for emoji, text in replacements.items():
                     record.msg = record.msg.replace(emoji, text)
@@ -78,6 +77,21 @@ logger = logging.getLogger(__name__)
 if sys.platform == "win32":
     for handler in logging.root.handlers:
         handler.addFilter(SafeFilter())
+
+# ============================================================================
+# IMPORTAR FLASK-WTF PARA CSRF PROTECTION
+# ============================================================================
+try:
+    from flask_wtf.csrf import CSRFProtect, generate_csrf
+    FLASK_WTF_AVAILABLE = True
+    logger.info("Flask-WTF CSRF disponible")
+except ImportError:
+    FLASK_WTF_AVAILABLE = False
+    logger.warning("Flask-WTF no instalado. CSRF protection deshabilitado")
+    
+    # Crear función dummy para csrf_token
+    def generate_csrf():
+        return ""
 
 # ============================================================================
 # 3. IMPRESIÓN DE VARIABLES DE ENTORNO (CORREGIDO)
@@ -230,6 +244,18 @@ app.secret_key = os.environ.get('SECRET_KEY', os.urandom(32))
 app.config['JSON_AS_ASCII'] = False
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 
+# ============================================================================
+# 7.1 CONFIGURACIÓN CSRF (AGREGAR ESTO)
+# ============================================================================
+if FLASK_WTF_AVAILABLE:
+    csrf = CSRFProtect(app)
+    app.config['WTF_CSRF_ENABLED'] = True
+    app.config['WTF_CSRF_SECRET_KEY'] = os.environ.get('CSRF_SECRET_KEY', app.secret_key + '-csrf')
+    app.config['WTF_CSRF_TIME_LIMIT'] = 3600  # 1 hora
+    logger.info("CSRF protection habilitado")
+else:
+    logger.warning("CSRF protection DESHABILITADO (Flask-WTF no disponible)")
+
 UPLOAD_FOLDER = 'static/uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
@@ -244,11 +270,8 @@ app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=8)
 
 SESSION_TIMEOUT_MINUTES = 30
 
-# Resto del archivo se mantiene igual desde aquí...
-# [El resto del archivo app.py se mantiene igual desde la línea 7. CONEXIÓN A BASE DE DATOS Y MODELOS]
-
 # ============================================================================
-# 7. CONEXIÓN A BASE DE DATOS Y MODELOS
+# 8. CONEXIÓN A BASE DE DATOS Y MODELOS
 # ============================================================================
 
 # Importación de modelos
@@ -322,7 +345,7 @@ except ImportError as e:
     PERMISSION_FUNCTIONS = {}
 
 # ============================================================================
-# 8. IMPORTACIÓN CONDICIONAL DE BLUEPRINTS
+# 9. IMPORTACIÓN CONDICIONAL DE BLUEPRINTS
 # ============================================================================
 
 # Importación de blueprints principales (siempre disponibles)
@@ -399,16 +422,16 @@ except ImportError as e:
         return redirect('/dashboard')
 
 # ============================================================================
-# 9. MIDDLEWARE DE SESIÓN
+# 10. MIDDLEWARE DE SESIÓN
 # ============================================================================
 
 @app.before_request
 def check_session_timeout():
     """Verifica timeout de sesión antes de cada request"""
     # Rutas públicas que no requieren verificación
-    public_routes = ['/login', '/logout', '/static', '/api/session-check', 
-                     '/auth/login', '/auth/logout', '/auth/test-ldap',
-                     '/certificado', '/certificado/generar']  # ← AÑADIDO
+    public_routes = ['/login', '/logout', '/static', '/api/session-status', '/api/extend-session',
+                     '/test-ldap',
+                     '/certificado', '/certificado/generar']
     
     if any(request.path.startswith(route) for route in public_routes):
         return
@@ -422,10 +445,10 @@ def check_session_timeout():
                 
                 inactive_time = datetime.now() - last_activity
                 if inactive_time > timedelta(minutes=SESSION_TIMEOUT_MINUTES):
-                    logger.info(f"Sesión expirada por inactividad: {sanitizar_username(session.get('usuario', 'desconocido'))}")
+                    logger.info(f"Sesión expirada por inactividad: {session.get('usuario')}")
                     session.clear()
                     flash('Su sesión ha expirado por inactividad. Por favor, inicie sesión nuevamente.', 'warning')
-                    return redirect('/auth/login')
+                    return redirect('/login')
             except Exception as e:
                 logger.warning(f"Error verificando timeout de sesión: {e}")
 
@@ -438,7 +461,7 @@ def update_session_activity(response):
     return response
 
 # ============================================================================
-# 10. FUNCIONES DE PERMISOS PARA TEMPLATES (DEFINIDAS LOCALMENTE)
+# 11. FUNCIONES DE PERMISOS PARA TEMPLATES (DEFINIDAS LOCALMENTE)
 # ============================================================================
 
 # Roles con permisos completos
@@ -528,13 +551,22 @@ def should_show_detalle_button(solicitud):
     return solicitud is not None and can_create_or_view()
 
 # ============================================================================
-# 11. CONTEXT PROCESSOR
+# 12. CONTEXT PROCESSOR
 # ============================================================================
 
 @app.context_processor
 def utility_processor():
     """Inyecta funciones de permisos en todos los templates"""
     all_functions = {}
+    
+    # AGREGAR CSRF_TOKEN SI ESTÁ DISPONIBLE
+    if FLASK_WTF_AVAILABLE:
+        all_functions['csrf_token'] = generate_csrf
+    else:
+        # Función dummy para evitar errores en templates
+        def dummy_csrf_token():
+            return ""
+        all_functions['csrf_token'] = dummy_csrf_token
     
     # Agregar funciones principales de utils.permissions
     try:
@@ -595,12 +627,12 @@ def utility_processor():
     return all_functions
 
 # ============================================================================
-# 12. REGISTRO DE BLUEPRINTS
+# 13. REGISTRO DE BLUEPRINTS
 # ============================================================================
 
 # Registrar auth_bp con url_prefix CORREGIDO
-app.register_blueprint(auth_bp, url_prefix='/auth')
-logger.info("Blueprint de autenticación registrado en /auth")
+app.register_blueprint(auth_bp, url_prefix='')
+logger.info("Blueprint de autenticación registrado en /")
 
 app.register_blueprint(materiales_bp)
 app.register_blueprint(solicitudes_bp, url_prefix='/solicitudes')
@@ -623,7 +655,7 @@ app.register_blueprint(confirmacion_bp, url_prefix='/confirmacion')
 logger.info("Blueprint de confirmaciones registrado")
 
 # ============================================================================
-# 13. RUTAS PRINCIPALES (UNIFICADAS)
+# 14. RUTAS PRINCIPALES (UNIFICADAS)
 # ============================================================================
 
 @app.route('/')
@@ -631,68 +663,7 @@ def index():
     """Redirige usuarios autenticados al dashboard, otros al login"""
     if 'usuario_id' in session:
         return redirect('/dashboard')
-    return redirect('/auth/login')
-
-@app.route('/dashboard')
-def dashboard():
-    """Página principal del dashboard de la aplicación"""
-    if 'usuario_id' not in session:
-        logger.warning("Intento de acceso al dashboard sin autenticación")
-        return redirect('/auth/login')
-    
-    try:
-        oficina_id = None if user_can_view_all() else session.get('oficina_id')
-        
-        materiales = MaterialModel.obtener_todos(oficina_id) or []
-        oficinas = OficinaModel.obtener_todas() or []
-        solicitudes = SolicitudModel.obtener_todas(oficina_id) or []
-        aprobadores = UsuarioModel.obtener_aprobadores() or []
-        
-        return render_template('dashboard.html',
-            materiales=materiales,
-            oficinas=oficinas,
-            solicitudes=solicitudes,
-            aprobadores=aprobadores
-        )
-    except Exception as e:
-        logger.error(f"Error cargando dashboard: {e}")
-        return render_template('dashboard.html',
-            materiales=[],
-            oficinas=[],
-            solicitudes=[],
-            aprobadores=[]
-        )
-
-@app.route('/logout', methods=['GET', 'POST'])
-def logout():
-    """Redirige logout al blueprint de auth"""
-    return redirect('/auth/logout')
-
-@app.route('/test-ldap', methods=['GET', 'POST'])
-def test_ldap():
-    """Redirige a la ruta de test-ldap en auth"""
-    return redirect('/auth/test-ldap')  
-
-# ============================================================================
-# 14. RUTAS DE AUTENTICACIÓN (BACKUP PARA CASO DE ERROR)
-# ============================================================================
-
-@app.route('/login', methods=['GET', 'POST'])
-def login_backup():
-    """Ruta de login de respaldo en caso de error en blueprint"""
-    try:
-        # Si el blueprint de auth funciona, redirigir a él
-        return redirect('/auth/login')
-    except:
-        # Si hay error, mostrar formulario básico
-        if request.method == 'POST':
-            username = request.form.get('username')
-            password = request.form.get('password')
-            
-            # Aquí iría la lógica de autenticación de respaldo
-            flash('Autenticación no disponible temporalmente. Contacte al administrador.', 'danger')
-        
-        return render_template('auth/login_backup.html')
+    return redirect('/login')
 
 # ============================================================================
 # 15. API DE ESTADO DE SESIÓN
@@ -735,7 +706,7 @@ def api_session_check():
 def crear_material_backup():
     """Ruta de respaldo para crear material"""
     if 'usuario_id' not in session:
-        return redirect('/auth/login')
+        return redirect('/login')
     
     if not has_gestion_completa():
         flash('No tiene permisos para crear materiales', 'danger')
@@ -779,7 +750,7 @@ def crear_material_backup():
 def listar_solicitudes_backup():
     """Ruta de respaldo para listar solicitudes"""
     if 'usuario_id' not in session:
-        return redirect('/auth/login')
+        return redirect('/login')
     
     try:
         oficina_id = None if user_can_view_all() else session.get('oficina_id')
@@ -797,7 +768,7 @@ def listar_solicitudes_backup():
 def crear_solicitud_backup():
     """Ruta de respaldo para crear solicitud"""
     if 'usuario_id' not in session:
-        return redirect('/auth/login')
+        return redirect('/login')
     
     if request.method == 'POST':
         try:
@@ -844,7 +815,7 @@ def crear_solicitud_backup():
 def listar_usuarios_backup():
     """Ruta de respaldo para listar usuarios"""
     if 'usuario_id' not in session:
-        return redirect('/auth/login')
+        return redirect('/login')
     
     if not has_gestion_completa():
         flash('No tiene permisos para ver usuarios', 'danger')
@@ -870,7 +841,7 @@ def listar_usuarios_backup():
 def reportes_backup():
     """Ruta de respaldo para reportes"""
     if 'usuario_id' not in session:
-        return redirect('/auth/login')
+        return redirect('/login')
     
     if not has_gestion_completa():
         flash('No tiene permisos para ver reportes', 'danger')
@@ -906,7 +877,7 @@ def no_autorizado(error):
     """Maneja errores 401 - No autorizado"""
     logger.warning(f"Acceso no autorizado: {request.path}")
     flash('No está autorizado para acceder a esta página', 'danger')
-    return redirect('/auth/login')
+    return redirect('/login')
 
 # ============================================================================
 # 21. RUTAS DE SISTEMA
@@ -1029,7 +1000,7 @@ if __name__ == '__main__':
         )
     else:
         logger.info("=" * 70)
-        logger.info("🔧 MODO DESARROLLO")
+        logger.info("⚙️ MODO DESARROLLO")
         logger.info("=" * 70)
         
         # Desarrollo: HTTPS opcional con certificado auto-firmado
@@ -1037,7 +1008,7 @@ if __name__ == '__main__':
         
         if use_https:
             try:
-                logger.info("🔒 HTTPS ACTIVADO (certificado auto-firmado)")
+                logger.info("🔐 HTTPS ACTIVADO (certificado auto-firmado)")
                 logger.info(f"   URL: https://localhost:{port}")
                 logger.info("   Nota: El navegador mostrará advertencia de seguridad")
                 logger.info("=" * 70)
@@ -1059,7 +1030,7 @@ if __name__ == '__main__':
                 )
             except Exception as e:
                 logger.warning(f"⚠️ Error iniciando HTTPS: {e}")
-                logger.info("📡 Iniciando en HTTP normal")
+                logger.info("🔄 Iniciando en HTTP normal")
                 logger.info("=" * 70)
                 app.run(
                     debug=True,
@@ -1067,7 +1038,7 @@ if __name__ == '__main__':
                     port=port
                 )
         else:
-            logger.info(f"📡 HTTP: http://localhost:{port}")
+            logger.info(f"🔄 HTTP: http://localhost:{port}")
             logger.info("   Para activar HTTPS: USE_HTTPS_DEV=true en .env")
             logger.info("=" * 70)
             app.run(

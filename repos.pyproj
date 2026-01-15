@@ -60,9 +60,11 @@
     <Content Include="templates\solicitudes\crear.html" />
     <Content Include="templates\solicitudes\listar.html" />
     <Content Include="templates\usuarios\crear.html" />
+    <Content Include="templates\usuarios\crear_ldap.html" />
     <Content Include="templates\usuarios\editar.html" />
     <Content Include="templates\usuarios\gestionar.html" />
     <Content Include="templates\usuarios\listar.html" />
+    <Content Include="utils\ldap_consulta.py" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="app.py" />

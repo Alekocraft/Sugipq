@@ -1,7 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, session, flash, url_for, current_app
 from models.usuarios_model import UsuarioModel
 from utils.permissions import can_access
-from utils.helpers import sanitizar_username
 import logging
 
 logger = logging.getLogger(__name__)
@@ -14,14 +13,14 @@ def _require_login():
 @aprobadores_bp.route('/')
 def listar_aprobadores():
     if not _require_login():
-        logger.warning("Intento de acceso sin sesión a /aprobadores")
-        flash('Debe iniciar sesión para acceder a esta sección', 'warning')
+        logger.warning("Intento de acceso sin sesiÃ³n a /aprobadores")
+        flash('Debe iniciar sesiÃ³n para acceder a esta secciÃ³n', 'warning')
         return redirect(url_for('auth.login'))
 
     if not can_access('aprobadores', 'view'):
-        logger.warning(f"Usuario {sanitizar_username(str(session.get('usuario_id', 'desconocido')))} sin permisos para ver aprobadores")
-        flash('No tiene permisos para acceder a esta sección', 'danger')
-        return redirect(url_for('dashboard'))
+        logger.warning(f"Usuario {session.get('usuario_id')} sin permisos para ver aprobadores")
+        flash('No tiene permisos para acceder a esta secciÃ³n', 'danger')
+        return redirect(url_for('auth.dashboard'))
 
     try:
         aprobadores = UsuarioModel.obtener_aprobadores_desde_tabla()
@@ -39,5 +38,5 @@ def listar_aprobadores():
 
     except Exception as e:
         logger.error(f"Error obteniendo aprobadores: {str(e)}", exc_info=True)
-        flash('Ocurrió un error al cargar los aprobadores', 'danger')
+        flash('OcurriÃ³ un error al cargar los aprobadores', 'danger')
         return render_template('aprobadores/listar.html', aprobadores=[], debug=False)

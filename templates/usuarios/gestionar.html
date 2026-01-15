@@ -710,7 +710,7 @@
         function desactivarUsuario(usuarioId) {
             if (confirm('¿Está seguro de desactivar este usuario?')) {
                 $.ajax({
-                    url: `/usuarios/desactivar/${usuarioId}`,
+                    url: `/usuarios/eliminar/${usuarioId}`,
                     method: 'POST',
                     success: function(response) {
                         if (response.success) {

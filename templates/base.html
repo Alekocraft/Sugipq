@@ -88,7 +88,7 @@
 
     <nav class="navbar navbar-expand-lg navbar-dark shadow-sm sticky-top" style="background-color: #532D8C;">
         <div class="container-fluid">
-            <a class="navbar-brand fw-bold d-flex align-items-center" href="{{ url_for('dashboard') }}">
+            <a class="navbar-brand fw-bold d-flex align-items-center" href="{{ url_for('auth.dashboard') }}">
                 <img src="{{ url_for('static', filename='images/Qualitas_Logo.svg') }}" alt="Quálitas" height="70" class="me-2">
                 <div class="d-flex flex-column">
                     <span>Sistema de Inventarios</span>
@@ -104,7 +104,7 @@
                 {% if current_path.startswith('/inventario-corporativo') %}
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
-                        <a class="nav-link {% if current_path == '/dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">
+                        <a class="nav-link {% if current_path == '/dashboard' %}active{% endif %}" href="{{ url_for('auth.dashboard') }}">
                             <i class="fas fa-tachometer-alt me-1"></i> Dashboard
                         </a>
                     </li>
@@ -146,7 +146,7 @@
                 {% elif current_path.startswith('/prestamos') %}
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
-                        <a class="nav-link {% if current_path == '/dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">
+                        <a class="nav-link {% if current_path == '/dashboard' %}active{% endif %}" href="{{ url_for('auth.dashboard') }}">
                             <i class="fas fa-tachometer-alt me-1"></i> Dashboard
                         </a>
                     </li>
@@ -191,7 +191,7 @@
                 {% else %}
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
-                        <a class="nav-link {% if current_path == '/dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">
+                        <a class="nav-link {% if current_path == '/dashboard' %}active{% endif %}" href="{{ url_for('auth.dashboard') }}">
                             <i class="fas fa-tachometer-alt me-1"></i> Dashboard
                         </a>
                     </li>
@@ -232,8 +232,8 @@
                     </li>
                     {% endif %}
                     
-                    <!-- Gestión de Usuarios - Solo visible para administrador -->
-                    {% if session.usuario and session.rol == 'administrador' %}
+                    
+                    {% if session.usuario_nombre and session.rol == 'administrador' %}
                     <li class="nav-item">
                         <a class="nav-link {% if current_path.startswith('/usuarios') %}active{% endif %}" href="/usuarios">
                             <i class="fas fa-users me-1"></i>
@@ -283,8 +283,7 @@
                             </li>
                             <li><hr class="dropdown-divider"></li>
                             <li>
-                                <!-- SOLUCIÓN: Usar un enlace simple en lugar de un formulario -->
-                                <a class="dropdown-item text-danger d-flex align-items-center" href="{{ url_for('logout') }}">
+                                <a class="dropdown-item text-danger d-flex align-items-center" href="{{ url_for('auth.logout') }}">
                                     <i class="fas fa-sign-out-alt me-2"></i> Cerrar Sesión
                                 </a>
                             </li>
