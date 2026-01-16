@@ -253,8 +253,9 @@ def dashboard():
         
         # Obtener estadísticas de préstamos
         try:
-            from models.prestamos_model import PrestamoModel
-            prestamos = PrestamoModel.obtener_todos() or []
+            # ✅ CORRECCIÓN: Usar PrestamosModel en lugar de PrestamoModel
+            from models.prestamos_model import PrestamosModel  # <-- CORREGIDO AQUÍ
+            prestamos = PrestamosModel.obtener_todos() or []
             if rol != 'administrador':
                 prestamos = [p for p in prestamos if p.get('oficina_id') == oficina_id]
             stats['prestamos_activos'] = len([
@@ -275,15 +276,15 @@ def dashboard():
         # Obtener módulos accesibles según el rol
         try:
             from config.permissions import get_accessible_modules
-            modulos_accesibles = get_accessible_modules()  # ✅ SIN ARGUMENTOS (como indicas en el comentario)
+            modulos_accesibles = get_accessible_modules()  
         except ImportError:
-            # Si no existe config.permissions, intentar alternativas
+            
             try:
                 from utils.permissions import get_accessible_modules
-                # Si la función en utils.permissions necesita el rol, pasarlo
+                
                 modulos_accesibles = get_accessible_modules(rol)
             except ImportError:
-                # Si no existe ningún módulo permissions, usar configuración básica
+                
                 try:
                     from config.config import Config
                     modulos_accesibles = Config.ROLES.get(rol.lower(), [])

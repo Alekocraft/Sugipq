@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}Productos Devueltos{% endblock %}
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <a href="{{ url_for('inventario_corporativo.listar_inventario_corporativo') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Volver al Inventario
+            </a>
+        </div>
+    </div>
+
+    <h1><i class="fas fa-exclamation-triangle text-danger"></i> Productos Devueltos</h1>
+    <p class="text-muted">Productos en estado DEVUELTO que pueden ser dados de baja</p>
+
+    <div class="alert alert-warning">
+        <i class="fas fa-info-circle me-2"></i>
+        <strong>Importante:</strong> Solo puede dar de baja productos que hayan sido devueltos y aprobados por el Líder de Inventario.
+    </div>
+
+    <div class="card mt-4">
+        <div class="card-header bg-danger text-white">
+            <h5 class="mb-0">
+                <i class="fas fa-box-open me-2"></i>Productos Disponibles para Baja
+                <span class="badge bg-light text-dark ms-2">{{ productos|length }} productos</span>
+            </h5>
+        </div>
+        <div class="card-body">
+            {% if productos %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>ID</th>
+                            <th>Nombre</th>
+                            <th>Categoría</th>
+                            <th>Cantidad</th>
+                            <th>Ubicación</th>
+                            <th>Fecha Devolución</th>
+                            <th>Estado</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for producto in productos %}
+                        <tr>
+                            <td><strong>#{{ producto.get('ProductoId', producto.get('producto_id', '')) }}</strong></td>
+                            <td>
+                                <strong>{{ producto.get('Nombre', producto.get('nombre', '')) }}</strong>
+                                {% if producto.get('Descripcion', producto.get('descripcion', '')) %}
+                                <br><small class="text-muted">{{ producto.get('Descripcion', producto.get('descripcion', ''))[:50] }}...</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge bg-info">{{ producto.get('CategoriaNombre', producto.get('categoria_nombre', 'Sin categoría')) }}</span>
+                            </td>
+                            <td><span class="badge bg-warning text-dark">{{ producto.get('Cantidad', producto.get('cantidad', 0)) }}</span></td>
+                            <td>
+                                {% set ubicacion = producto.get('UbicacionTipo', producto.get('ubicacion_tipo', '')) %}
+                                {% if ubicacion == 'SEDE_PRINCIPAL' %}
+                                <span class="badge bg-primary">Sede Principal</span>
+                                {% else %}
+                                <span class="badge bg-secondary">{{ producto.get('OficinaNombre', producto.get('oficina_nombre', 'Oficina')) }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <small>{{ producto.get('FechaActualizacion', producto.get('fecha_actualizacion', '')) }}</small>
+                            </td>
+                            <td>
+                                <span class="badge bg-info">
+                                    <i class="fas fa-undo me-1"></i>DEVUELTO
+                                </span>
+                            </td>
+                            <td>
+                                <button type="button" class="btn btn-sm btn-danger" 
+                                        onclick="confirmarBaja({{ producto.get('ProductoId', producto.get('producto_id', '')) }}, '{{ producto.get('Nombre', producto.get('nombre', '')) }}')">
+                                    <i class="fas fa-trash me-1"></i>Dar de Baja
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-info text-center">
+                <i class="fas fa-info-circle fa-3x mb-3"></i>
+                <h5>No hay productos devueltos</h5>
+                <p class="mb-0">No hay productos en estado DEVUELTO disponibles para dar de baja.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Información adicional -->
+    <div class="card mt-3 border-info">
+        <div class="card-header bg-info text-white">
+            <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>Proceso de Baja</h6>
+        </div>
+        <div class="card-body">
+            <p><strong>¿Cuándo dar de baja un producto?</strong></p>
+            <ul>
+                <li>El producto está dañado o ya no funciona</li>
+                <li>El producto está obsoleto</li>
+                <li>El producto fue robado o extraviado</li>
+                <li>El producto cumplió su vida útil</li>
+            </ul>
+            <div class="alert alert-danger mt-3 mb-0">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <strong>Advertencia:</strong> Esta acción es <strong>IRREVERSIBLE</strong>. El producto se marcará como DADO_DE_BAJA y no podrá ser utilizado nuevamente en el inventario.
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para confirmar baja -->
+<div class="modal fade" id="modalBaja" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">Confirmar Baja de Producto</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="formBaja" method="POST">
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Esta acción es <strong>IRREVERSIBLE</strong>
+                    </div>
+                    <p>¿Está seguro que desea dar de baja el producto:</p>
+                    <p class="text-center"><strong id="nombreProducto"></strong></p>
+                    <div class="mb-3">
+                        <label class="form-label">Motivo de la baja <span class="text-danger">*</span></label>
+                        <textarea class="form-control" name="motivo_baja" rows="4" required
+                                  placeholder="Explique por qué da de baja este producto (ej: Producto dañado irreparable, obsoleto, extraviado...)"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash me-2"></i>Confirmar Baja
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function confirmarBaja(productoId, nombreProducto) {
+    document.getElementById('nombreProducto').textContent = nombreProducto;
+    document.getElementById('formBaja').action = '/inventario-corporativo/producto/' + productoId + '/dar-de-baja';
+    const modal = new bootstrap.Modal(document.getElementById('modalBaja'));
+    modal.show();
+}
+</script>
+
+<style>
+.table-hover tbody tr:hover {
+    background-color: rgba(220, 53, 69, 0.1);
+}
+</style>
+{% endblock %}

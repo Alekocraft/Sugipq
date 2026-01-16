@@ -32,7 +32,7 @@
         </div>
     </div>
 
-    <!-- Estadísticas -->
+    <!-- EstadÃ­sticas -->
     <div class="row mb-4">
         <div class="col-md-3">
             <div class="card text-white bg-primary">
@@ -83,10 +83,10 @@
                             <th>Usuario</th>
                             <th>Email</th>
                             <th>Oficina</th>
-                            <th>Fecha Asignación</th>
+                            <th>Fecha AsignaciÃ³n</th>
                             <th>Estado</th>
-                            <th>Fecha Confirmación</th>
-                            <th>Días Restantes</th>
+                            <th>Fecha ConfirmaciÃ³n</th>
+                            <th>DÃ­as Restantes</th>
                             <th>Acciones</th>
                         </tr>
                     </thead>
@@ -139,11 +139,11 @@
                                     {% if asig.DiasRestantes <= 2 %}
                                     <span class="text-danger fw-bold">
                                         <i class="fas fa-exclamation-triangle"></i>
-                                        {{ asig.DiasRestantes }} día(s)
+                                        {{ asig.DiasRestantes }} dÃ­a(s)
                                     </span>
                                     {% else %}
                                     <span class="text-success">
-                                        {{ asig.DiasRestantes }} días
+                                        {{ asig.DiasRestantes }} dÃ­as
                                     </span>
                                     {% endif %}
                                 {% elif asig.EstadoConfirmacion == 'EXPIRADO' %}
@@ -179,18 +179,18 @@
         </div>
     </div>
 
-    <!-- Información adicional -->
+    <!-- InformaciÃ³n adicional -->
     <div class="row mt-4">
         <div class="col-md-6">
             <div class="card">
                 <div class="card-header bg-light">
-                    <h6><i class="fas fa-info-circle"></i> Información del Sistema</h6>
+                    <h6><i class="fas fa-info-circle"></i> InformaciÃ³n del Sistema</h6>
                 </div>
                 <div class="card-body">
                     <ul class="mb-0">
-                        <li>Los tokens de confirmación tienen una validez de <strong>8 días</strong></li>
-                        <li>Los usuarios reciben un email con el link de confirmación</li>
-                        <li>Las confirmaciones requieren autenticación con Active Directory</li>
+                        <li>Los tokens de confirmaciÃ³n tienen una validez de <strong>8 dÃ­as</strong></li>
+                        <li>Los usuarios reciben un email con el link de confirmaciÃ³n</li>
+                        <li>Las confirmaciones requieren autenticaciÃ³n con Active Directory</li>
                         <li>Los tokens expirados pueden ser regenerados por administradores</li>
                     </ul>
                 </div>
@@ -199,7 +199,7 @@
         <div class="col-md-6">
             <div class="card">
                 <div class="card-header bg-light">
-                    <h6><i class="fas fa-chart-pie"></i> Análisis</h6>
+                    <h6><i class="fas fa-chart-pie"></i> AnÃ¡lisis</h6>
                 </div>
                 <div class="card-body">
                     <canvas id="chartConfirmaciones" style="max-height: 200px;"></canvas>
@@ -226,13 +226,13 @@
 </style>
 
 <script>
-// Función para reenviar notificación
+// FunciÃ³n para reenviar notificaciÃ³n
 function reenviarNotificacion(asignacionId) {
-    if (!confirm('¿Desea reenviar la notificación de confirmación?')) {
+    if (!confirm('Â¿Desea reenviar la notificaciÃ³n de confirmaciÃ³n?')) {
         return;
     }
     
-    // Aquí implementar llamada AJAX para reenviar
+    // AquÃ­ implementar llamada AJAX para reenviar
     fetch(`/api/reenviar-confirmacion/${asignacionId}`, {
         method: 'POST',
         headers: {
@@ -242,9 +242,9 @@ function reenviarNotificacion(asignacionId) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert('Notificación reenviada exitosamente');
+            alert('NotificaciÃ³n reenviada exitosamente');
         } else {
-            alert('Error al reenviar notificación: ' + data.message);
+            alert('Error al reenviar notificaciÃ³n: ' + data.message);
         }
     })
     .catch(error => {
@@ -252,13 +252,13 @@ function reenviarNotificacion(asignacionId) {
     });
 }
 
-// Función para regenerar token
+// FunciÃ³n para regenerar token
 function regenerarToken(asignacionId) {
-    if (!confirm('¿Desea regenerar el token de confirmación? Se enviará un nuevo email al usuario.')) {
+    if (!confirm('Â¿Desea regenerar el token de confirmaciÃ³n? Se enviarÃ¡ un nuevo email al usuario.')) {
         return;
     }
     
-    // Aquí implementar llamada AJAX para regenerar
+    // AquÃ­ implementar llamada AJAX para regenerar
     fetch(`/api/regenerar-token/${asignacionId}`, {
         method: 'POST',
         headers: {
@@ -268,7 +268,7 @@ function regenerarToken(asignacionId) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert('Token regenerado y notificación enviada');
+            alert('Token regenerado y notificaciÃ³n enviada');
             location.reload();
         } else {
             alert('Error al regenerar token: ' + data.message);
@@ -279,7 +279,7 @@ function regenerarToken(asignacionId) {
     });
 }
 
-// Gráfico de confirmaciones (requiere Chart.js)
+// GrÃ¡fico de confirmaciones (requiere Chart.js)
 {% if asignaciones %}
 document.addEventListener('DOMContentLoaded', function() {
     var ctx = document.getElementById('chartConfirmaciones');
@@ -317,13 +317,13 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 {% endif %}
 
-// DataTables (opcional, si está disponible)
+// DataTables (opcional, si estÃ¡ disponible)
 if (typeof $.fn.dataTable !== 'undefined') {
     $('#tablaConfirmaciones').DataTable({
         language: {
             url: '//cdn.datatables.net/plug-ins/1.13.7/i18n/es-ES.json'
         },
-        order: [[3, 'desc']], // Ordenar por fecha de asignación
+        order: [[3, 'desc']], // Ordenar por fecha de asignaciÃ³n
         pageLength: 25
     });
 }

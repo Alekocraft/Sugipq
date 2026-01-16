@@ -1,10 +1,10 @@
 # models/inventario_corporativo_model_extended.py
 """
 Extensiones al modelo de inventario corporativo para soportar:
-- Asignación a usuarios del Active Directory
-- Búsqueda de usuarios AD
+- AsignaciÃ³n a usuarios del Active Directory
+- BÃºsqueda de usuarios AD
 - Notificaciones por email
-- Sistema de confirmación con tokens
+- Sistema de confirmaciÃ³n con tokens
 """
 from database import get_database_connection
 import logging
@@ -14,32 +14,32 @@ logger = logging.getLogger(__name__)
 
 class InventarioCorporativoModelExtended:
     """
-    Métodos adicionales para el modelo de inventario corporativo.
-    Estos métodos pueden ser agregados a la clase InventarioCorporativoModel existente.
+    MÃ©todos adicionales para el modelo de inventario corporativo.
+    Estos mÃ©todos pueden ser agregados a la clase InventarioCorporativoModel existente.
     """
     
     @staticmethod
     def asignar_a_usuario_ad(producto_id, oficina_id, cantidad, usuario_ad_info, usuario_accion):
         """
-        Asigna un producto a un usuario específico del Active Directory.
+        Asigna un producto a un usuario especÃ­fico del Active Directory.
         
         Args:
             producto_id: ID del producto a asignar
             oficina_id: ID de la oficina destino
             cantidad: Cantidad a asignar
-            usuario_ad_info: Diccionario con información del usuario AD
+            usuario_ad_info: Diccionario con informaciÃ³n del usuario AD
                 - username: Nombre de usuario AD
                 - full_name: Nombre completo
-                - email: Correo electrónico
+                - email: Correo electrÃ³nico
                 - department: Departamento
-            usuario_accion: Usuario que realiza la acción
+            usuario_accion: Usuario que realiza la acciÃ³n
             
         Returns:
-            dict: Resultado de la operación con 'success' y 'message'
+            dict: Resultado de la operaciÃ³n con 'success' y 'message'
         """
         conn = get_database_connection()
         if not conn:
-            return {'success': False, 'message': 'Error de conexión a la base de datos'}
+            return {'success': False, 'message': 'Error de conexiÃ³n a la base de datos'}
         
         cursor = None
         try:
@@ -95,7 +95,7 @@ class InventarioCorporativoModelExtended:
                 usuario_ad_info.get('email', '')
             ))
             
-            # 5. Registrar en historial con información del usuario AD
+            # 5. Registrar en historial con informaciÃ³n del usuario AD
             cursor.execute("""
                 INSERT INTO AsignacionesCorporativasHistorial
                     (ProductoId, OficinaId, Accion, Cantidad, UsuarioAccion, 
@@ -135,25 +135,25 @@ class InventarioCorporativoModelExtended:
     def asignar_a_usuario_ad_con_confirmacion(producto_id, oficina_id, cantidad, 
                                                usuario_ad_info, usuario_accion):
         """
-        Asigna un producto a un usuario del Active Directory y genera token de confirmación.
+        Asigna un producto a un usuario del Active Directory y genera token de confirmaciÃ³n.
         
         Args:
             producto_id: ID del producto a asignar
             oficina_id: ID de la oficina destino
             cantidad: Cantidad a asignar
-            usuario_ad_info: Diccionario con información del usuario AD
+            usuario_ad_info: Diccionario con informaciÃ³n del usuario AD
                 - username: Nombre de usuario AD
                 - full_name: Nombre completo
-                - email: Correo electrónico
+                - email: Correo electrÃ³nico
                 - department: Departamento
-            usuario_accion: Usuario que realiza la acción
+            usuario_accion: Usuario que realiza la acciÃ³n
             
         Returns:
-            dict: Resultado de la operación con 'success', 'message', 'token', 'asignacion_id'
+            dict: Resultado de la operaciÃ³n con 'success', 'message', 'token', 'asignacion_id'
         """
         conn = get_database_connection()
         if not conn:
-            return {'success': False, 'message': 'Error de conexión a la base de datos'}
+            return {'success': False, 'message': 'Error de conexiÃ³n a la base de datos'}
         
         cursor = None
         try:
@@ -210,11 +210,11 @@ class InventarioCorporativoModelExtended:
                 usuario_ad_info.get('email', '')
             ))
             
-            # Obtener el ID de la asignación recién creada
+            # Obtener el ID de la asignaciÃ³n reciÃ©n creada
             asignacion_result = cursor.fetchone()
             if not asignacion_result:
                 conn.rollback()
-                return {'success': False, 'message': 'Error al crear la asignación'}
+                return {'success': False, 'message': 'Error al crear la asignaciÃ³n'}
             
             asignacion_id = asignacion_result[0]
             
@@ -233,10 +233,10 @@ class InventarioCorporativoModelExtended:
                 usuario_ad_info.get('email', '')
             ))
             
-            # Commit para que se guarde la asignación antes de generar el token
+            # Commit para que se guarde la asignaciÃ³n antes de generar el token
             conn.commit()
             
-            # 6. Generar token de confirmación
+            # 6. Generar token de confirmaciÃ³n
             token = None
             usuario_email = usuario_ad_info.get('email')
             if usuario_email:
@@ -250,7 +250,7 @@ class InventarioCorporativoModelExtended:
                     )
                     
                     if not token:
-                        logger.warning(f"No se pudo generar token para asignación {asignacion_id}")
+                        logger.warning(f"No se pudo generar token para asignaciÃ³n {asignacion_id}")
                 except ImportError:
                     logger.warning("Modelo de confirmaciones no disponible, continuando sin token")
                 except Exception as e:
@@ -280,13 +280,13 @@ class InventarioCorporativoModelExtended:
     @staticmethod
     def obtener_asignaciones_con_estado_confirmacion(producto_id=None):
         """
-        Obtiene asignaciones con su estado de confirmación.
+        Obtiene asignaciones con su estado de confirmaciÃ³n.
         
         Args:
             producto_id: ID del producto (opcional, para filtrar)
             
         Returns:
-            list: Lista de asignaciones con estado de confirmación
+            list: Lista de asignaciones con estado de confirmaciÃ³n
         """
         conn = get_database_connection()
         if not conn:
@@ -337,7 +337,7 @@ class InventarioCorporativoModelExtended:
             return [dict(zip(cols, r)) for r in cursor.fetchall()]
             
         except Exception as e:
-            logger.error(f"Error obteniendo asignaciones con confirmación: {e}")
+            logger.error(f"Error obteniendo asignaciones con confirmaciÃ³n: {e}")
             return []
         finally:
             if cursor: cursor.close()
@@ -350,7 +350,7 @@ class InventarioCorporativoModelExtended:
         
         Args:
             cursor: Cursor de la base de datos
-            usuario_ad_info: Información del usuario AD
+            usuario_ad_info: InformaciÃ³n del usuario AD
             
         Returns:
             int: ID del usuario o None si falla
@@ -412,7 +412,7 @@ class InventarioCorporativoModelExtended:
     @staticmethod
     def obtener_asignaciones_por_usuario(usuario_ad_nombre):
         """
-        Obtiene todas las asignaciones de un usuario específico del AD.
+        Obtiene todas las asignaciones de un usuario especÃ­fico del AD.
         
         Args:
             usuario_ad_nombre: Nombre del usuario en AD
@@ -461,7 +461,7 @@ class InventarioCorporativoModelExtended:
     @staticmethod
     def historial_asignaciones_extendido(producto_id):
         """
-        Obtiene el historial de asignaciones con información extendida del usuario AD.
+        Obtiene el historial de asignaciones con informaciÃ³n extendida del usuario AD.
         
         Args:
             producto_id: ID del producto

@@ -1,5 +1,4 @@
 # blueprints/materiales.py
-# VERSIÓN CORREGIDA - Mejor manejo de errores
 
 from __future__ import annotations
 
@@ -8,7 +7,7 @@ import os
 from datetime import datetime
 
 # Third-party
-from flask import Blueprint, render_template, request, redirect, session, flash, url_for, current_app
+from flask import Blueprint, render_template, request, redirect, session, flash, url_for, current_app, jsonify
 from werkzeug.utils import secure_filename
 
 # Local
@@ -17,7 +16,7 @@ from models.oficinas_model import OficinaModel
 from utils.permissions import can_access
 from utils.filters import verificar_acceso_oficina, filtrar_por_oficina_usuario
 
-# ✅ Importación segura de SolicitudModel
+ 
 try:
     from models.solicitudes_model import SolicitudModel
     SOLICITUD_MODEL_DISPONIBLE = True
@@ -357,3 +356,65 @@ def eliminar_material(material_id):
         print(f"❌ Error eliminando material: {e}")
         flash('Error interno al eliminar el material', 'danger')
         return redirect('/materiales')
+
+@materiales_bp.route('/api/estadisticas-dashboard')
+def api_estadisticas_dashboard():
+    """API para obtener estadísticas de materiales POP para el dashboard"""
+    if not _require_login():
+        from flask import jsonify
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        from flask import jsonify
+        
+        # Obtener todos los materiales
+        materiales = MaterialModel.obtener_todos() or []
+        
+        # Calcular estadísticas
+        total_materiales = len(materiales)
+        stock_total = sum(m.get('cantidad', 0) or 0 for m in materiales)
+        valor_total = sum(m.get('valor_total', 0) or 0 for m in materiales)
+        
+        # Materiales con stock bajo (menos de cantidad mínima)
+        stock_bajo = sum(1 for m in materiales 
+                        if (m.get('cantidad', 0) or 0) < (m.get('cantidad_minima', 0) or 0))
+        
+        # Obtener estadísticas de solicitudes si está disponible
+        solicitudes_pendientes = 0
+        solicitudes_activas = 0
+        
+        if SOLICITUD_MODEL_DISPONIBLE:
+            try:
+                todas_solicitudes = SolicitudModel.obtener_todas() or []
+                # Estados: 1=Pendiente, 2=Aprobada, 4=Entregada Parcial
+                solicitudes_pendientes = sum(1 for s in todas_solicitudes 
+                                            if s.get('estado_id') == 1)
+                solicitudes_activas = sum(1 for s in todas_solicitudes 
+                                         if s.get('estado_id') in [1, 2, 4])
+            except Exception as e:
+                print(f"Error obteniendo solicitudes: {e}")
+        
+        return jsonify({
+            'total_materiales': total_materiales,
+            'stock_total': stock_total,
+            'valor_total': round(valor_total, 2),
+            'stock_bajo': stock_bajo,
+            'solicitudes_pendientes': solicitudes_pendientes,
+            'solicitudes_activas': solicitudes_activas
+        })
+        
+    except Exception as e:
+        print(f"Error en API estadísticas materiales: {e}")
+        import traceback
+        traceback.print_exc()
+        from flask import jsonify
+        return jsonify({
+            'total_materiales': 0,
+            'stock_total': 0,
+            'valor_total': 0,
+            'stock_bajo': 0,
+            'solicitudes_pendientes': 0,
+            'solicitudes_activas': 0
+        })
+
+ 

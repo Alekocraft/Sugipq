@@ -1,12 +1,4 @@
-﻿"""
-Blueprint de Préstamos con Sistema de Notificaciones
-====================================================
-Este archivo debe reemplazar: blueprints/prestamos.py
-
-Cambios principales:
-- Integración con NotificationService
-- Notificaciones en: crear, aprobar, rechazar, devolver
-"""
+﻿# blueprints/prestamos.py
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, send_file, after_this_request, jsonify, current_app
 from utils.permissions import can_access
@@ -1476,3 +1468,100 @@ def crear_material():
         return redirect('/prestamos')
 
     return render_template('prestamos/elemento_crear.html')
+
+@prestamos_bp.route('/api/estadisticas-dashboard')
+def api_estadisticas_dashboard():
+    """API para obtener estadísticas de préstamos para el dashboard"""
+    if not _require_login():
+        return jsonify({'error': 'No autorizado'}), 401
+    
+    try:
+        # Obtener todos los préstamos usando el modelo existente
+        from models.prestamos_model import PrestamosModel
+        prestamos = PrestamosModel.obtener_todos() or []
+        
+        # Calcular estadísticas
+        total_prestamos = len(prestamos)
+        
+        # Préstamos activos: estados que no son DEVUELTO o RECHAZADO
+        estados_activos = ['PENDIENTE', 'APROBADO', 'APROBADO_PARCIAL', 'ENTREGADO']
+        prestamos_activos = sum(1 for p in prestamos 
+                               if p.get('Estado', '').upper() in estados_activos)
+        
+        # Préstamos pendientes
+        prestamos_pendientes = sum(1 for p in prestamos 
+                                  if p.get('Estado', '').upper() == 'PENDIENTE')
+        
+        # Préstamos vencidos (fecha de devolución pasada y no devuelto)
+        from datetime import datetime
+        hoy = datetime.now().date()
+        prestamos_vencidos = 0
+        
+        for p in prestamos:
+            estado = p.get('Estado', '').upper()
+            if estado in estados_activos:
+                fecha_devolucion = p.get('FechaDevolucionPrevista')
+                if fecha_devolucion:
+                    # Si es string, convertir a date
+                    if isinstance(fecha_devolucion, str):
+                        try:
+                            fecha_devolucion = datetime.strptime(fecha_devolucion, '%Y-%m-%d').date()
+                        except:
+                            try:
+                                fecha_devolucion = datetime.strptime(fecha_devolucion.split(' ')[0], '%Y-%m-%d').date()
+                            except:
+                                continue
+                    # Si es datetime, convertir a date
+                    elif hasattr(fecha_devolucion, 'date'):
+                        fecha_devolucion = fecha_devolucion.date()
+                    
+                    if fecha_devolucion < hoy:
+                        prestamos_vencidos += 1
+        
+        # Préstamos del mes actual
+        inicio_mes = datetime.now().replace(day=1).date()
+        prestamos_mes = 0
+        
+        for p in prestamos:
+            fecha_prestamo = p.get('FechaPrestamo')
+            if fecha_prestamo:
+                # Si es string, convertir a date
+                if isinstance(fecha_prestamo, str):
+                    try:
+                        fecha_prestamo = datetime.strptime(fecha_prestamo, '%Y-%m-%d').date()
+                    except:
+                        try:
+                            fecha_prestamo = datetime.strptime(fecha_prestamo.split(' ')[0], '%Y-%m-%d').date()
+                        except:
+                            continue
+                # Si es datetime, convertir a date
+                elif hasattr(fecha_prestamo, 'date'):
+                    fecha_prestamo = fecha_prestamo.date()
+                
+                if fecha_prestamo >= inicio_mes:
+                    prestamos_mes += 1
+        
+        logger.info(f"Estadísticas préstamos: Total={total_prestamos}, Activos={prestamos_activos}, Vencidos={prestamos_vencidos}")
+        
+        return jsonify({
+            'total_prestamos': total_prestamos,
+            'prestamos_activos': prestamos_activos,
+            'prestamos_pendientes': prestamos_pendientes,
+            'prestamos_vencidos': prestamos_vencidos,
+            'prestamos_mes': prestamos_mes
+        })
+        
+    except Exception as e:
+        logger.error(f"Error en API estadísticas préstamos: {e}", exc_info=True)
+        # Retornar valores en 0 en caso de error, no un 500
+        return jsonify({
+            'total_prestamos': 0,
+            'prestamos_activos': 0,
+            'prestamos_pendientes': 0,
+            'prestamos_vencidos': 0,
+            'prestamos_mes': 0
+        })
+ 
+
+
+ 

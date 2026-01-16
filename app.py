@@ -388,23 +388,34 @@ except ImportError as e:
         flash('Módulo de préstamos no disponible', 'warning')
         return redirect('/dashboard')
 
-# Importación condicional de blueprint de inventario corporativo
+# Importación condicional de blueprint de inventario corporativo - MODIFICADO
 try:
+    logger.info("Intentando importar inventario_corporativo_bp desde blueprints...")
     from blueprints.inventario_corporativo import inventario_corporativo_bp
-    logger.info("Blueprint de inventario corporativo cargado desde blueprints")
+    logger.info(f"✅ Blueprint de inventario corporativo cargado exitosamente. Nombre: {inventario_corporativo_bp.name}")
+    
+    # Verificar funciones disponibles
+    logger.info(f"Funciones en blueprint: {[rule.endpoint for rule in inventario_corporativo_bp.url_map.iter_rules()]}")
+    
 except ImportError as e:
-    logger.warning(f"Blueprint de inventario corporativo no encontrado en blueprints: {e}")
+    logger.error(f"❌ Error importando inventario_corporativo_bp desde blueprints: {e}", exc_info=True)
+    logger.warning("Intentando ruta alternativa...")
     try:
         from routes_inventario_corporativo import bp_inv as inventario_corporativo_bp
         logger.info("Blueprint de inventario corporativo cargado desde routes_inventario_corporativo")
     except ImportError as e2:
-        logger.warning(f"Blueprint de inventario corporativo no disponible: {e2}")
+        logger.error(f"❌ Error en ruta alternativa: {e2}", exc_info=True)
+        logger.warning("Creando blueprint dummy para inventario corporativo")
         from flask import Blueprint
         inventario_corporativo_bp = Blueprint('inventario_corporativo', __name__)
         
         @inventario_corporativo_bp.route('/')
         def inventario_vacio():
             flash('Módulo de inventario corporativo no disponible', 'warning')
+            return redirect('/dashboard')
+        
+        @inventario_corporativo_bp.route('/listar')
+        def listar_inventario_corporativo():
             return redirect('/dashboard')
 
 # Importación condicional de blueprint de confirmaciones (NUEVO)
@@ -664,6 +675,21 @@ def index():
     if 'usuario_id' in session:
         return redirect('/dashboard')
     return redirect('/login')
+
+# AGREGAR ESTA RUTA DE RESPALDO - Solución temporal
+@app.route('/inventario-corporativo')
+def inventario_corporativo_respaldo():
+    """Ruta de respaldo para inventario corporativo"""
+    if 'usuario_id' not in session:
+        return redirect('/login')
+    
+    try:
+        # Intentar usar el blueprint si está disponible
+        from blueprints.inventario_corporativo import listar_inventario_corporativo
+        return listar_inventario_corporativo()
+    except ImportError:
+        flash('Módulo de inventario corporativo temporalmente no disponible', 'warning')
+        return redirect('/dashboard')
 
 # ============================================================================
 # 15. API DE ESTADO DE SESIÓN

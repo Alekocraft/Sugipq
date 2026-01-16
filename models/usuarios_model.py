@@ -1,11 +1,11 @@
-﻿# models/usuarios_model.py 
+﻿# models/usuarios_model.py (corregido)
 
 from database import get_database_connection
 import logging
 from config.config import Config
 import bcrypt
 import os
-from utils.helpers import sanitizar_username, sanitizar_email, sanitizar_ip  # ✅ Usar funciones de sanitización
+from utils.helpers import sanitizar_username, sanitizar_email, sanitizar_ip, sanitizar_texto_generico  # ✅ Añadida sanitizar_texto_generico
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,11 @@ class UsuarioModel:
         Verifica credenciales PRIORIZANDO BD local, luego LDAP como fallback
         Maneja usuarios LDAP pendientes de sincronización
         """
+        # ✅ Usar sanitizar_username para el usuario en el log
         logger.info(f"🔐 Intentando autenticación para: {sanitizar_username(usuario)}")   
+        
+        # ✅ Sanitizar la contraseña para logging (solo mostrar longitud)
+        logger.debug(f"📏 Longitud de contraseña recibida: {len(contraseña) if contraseña else 0} caracteres")
         
         # 1. PRIMERO: Intentar autenticación local
         logger.info(f"🔄 1. Intentando autenticación LOCAL para: {sanitizar_username(usuario)}")   
@@ -202,7 +206,6 @@ class UsuarioModel:
                     logger.error(f"❌ Hash de contraseña vacío para: {sanitizar_username(usuario)}")
                     return None                
                 try:
-                    # IMPORTANTE: bcrypt.checkpw necesita ambos parámetros como bytes
                     password_bytes = contraseña.encode('utf-8')
                     hash_bytes = stored_hash.encode('utf-8')
                     
@@ -220,14 +223,18 @@ class UsuarioModel:
                         logger.info(f"📊 Info usuario final: usuario_id={usuario_info['id']}, rol={usuario_info['rol']}")
                         return usuario_info
                     else:
-                        logger.error(f"❌ Contraseña INCORRECTA para: {sanitizar_username(usuario)}")
-                        return None
+                       logger.error(f"❌ Contraseña INCORRECTA para: {sanitizar_username(usuario)}")
+                       return None
                         
                 except Exception as bcrypt_error:
+                    # ✅ CORREGIDO: Sanitizar información sensible
                     logger.error(f"❌ Error en bcrypt.checkpw: {bcrypt_error}")
                     logger.error(f"❌ Tipo de hash: {type(stored_hash)}")
-                    # ✅ CORRECCIÓN: NO mostrar la contraseña real
-                    logger.error(f"❌ Error verificando contraseña para: {sanitizar_username(usuario)}")
+                    # ✅ Solo mostrar primeros caracteres del hash, no toda la información
+                    hash_preview = str(stored_hash)[:15] if stored_hash else "vacio"
+                    logger.error(f"❌ Hash (sanitizado): {sanitizar_texto_generico(hash_preview)}...")
+                    # ✅ NO mostrar información de la contraseña proporcionada
+                    logger.error(f"❌ Error verificando credenciales para: {sanitizar_username(usuario)}")
                     return None
             else:
                 logger.warning(f"⚠️ Usuario NO encontrado en BD local: {sanitizar_username(usuario)}")
@@ -555,11 +562,17 @@ class UsuarioModel:
                 logger.error("   Configurar en .env: ADMIN_DEFAULT_PASSWORD=tu_contraseña_segura")
                 return False
             
+            # ✅ NO mostrar la contraseña real en logs
+            logger.debug(f"🔑 Configurando usuario admin, contraseña obtenida de variable de entorno (longitud: {len(admin_password) if admin_password else 0})")
+            
             # Generar hash para contraseña del administrador
             password_hash = bcrypt.hashpw(
                 admin_password.encode('utf-8'), 
                 bcrypt.gensalt()
             ).decode('utf-8')
+            
+            # ✅ Sanitizar el hash para logging
+            logger.debug(f"📝 Hash generado (primeros 10 chars): {sanitizar_texto_generico(password_hash[:10])}...")
             
             # Crear usuario admin - USANDO 'administrador' como rol (no 'admin')
             cursor.execute("""

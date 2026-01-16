@@ -122,6 +122,11 @@
         transform: translateY(-2px);
         box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     }
+    
+    .loading-stats {
+        color: #999;
+        font-style: italic;
+    }
 </style>
 {% endblock %}
 
@@ -201,10 +206,10 @@
                  data-bs-toggle="modal" data-bs-target="#modalPrestamos">
                 <div class="card-body">
                     <div class="mb-3">
-                        <i class="fas fa-exchange-alt fa-3x mb-3" style="color:#A73493;"></i>
+                        <i class="fas fa-exchange-alt fa-3x mb-3"></i>
                     </div>
-                    <h4 class="fw-bold mb-2">Préstamo de Material</h4>
-                    <p class="mb-0 opacity-90">Control y seguimiento de préstamos</p>
+                    <h4 class="fw-bold mb-2">Préstamo Material</h4>
+                    <p class="mb-0 opacity-90">Gestión de préstamos</p>
                 </div>
             </div>
         </div>
@@ -213,8 +218,8 @@
 </div>
 
 <div class="modal fade" id="modalMaterialPOP" tabindex="-1" aria-labelledby="modalMaterialPOPLabel" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-centered">
-        <div class="modal-content border-0 shadow-lg">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-3">
             <div class="modal-header" style="background-color: #A73493; color: #fff;">
                 <h4 class="modal-title fw-bold d-flex align-items-center" id="modalMaterialPOPLabel">
                     <i class="fas fa-bullhorn me-3"></i> Material POP
@@ -223,102 +228,136 @@
             </div>
 
             <div class="modal-body text-dark" style="background-color: #F8F9FA;">
+                <p class="text-muted mb-4 fs-5">Elige una acción para gestionar materiales POP del sistema.</p>
                 <div class="row g-4 mb-4">
-                    {% if can_access('materiales', 'view') %}
-                    <div class="col-xl-3 col-md-6">
+                    <!-- Total Materiales -->
+                    <div class="col-xl-4 col-md-6">
                         <div class="card stats-card border-0 shadow-sm text-center p-4 bg-white h-100 text-dark">
                             <div class="stats-icon mb-3" style="color: #A73493;">
-                                <i class="fas fa-box fa-3x"></i>
+                                <i class="fas fa-boxes fa-3x"></i>
                             </div>
-                            <h5 class="fw-semibold mb-2 text-dark">Materiales</h5>
-                            <div class="stats-number" style="color: #A73493;">{{ materiales|length }}</div>
-                            <p class="stats-label">Materiales registrados</p>
-                            <a href="{{ url_for('materiales.listar_materiales') }}" class="btn btn-primary btn-sm w-100 btn-modulo">
-                                <i class="fas fa-cog me-2"></i>Gestionar
-                            </a>
+                            <h5 class="fw-semibold mb-2 text-dark">Total Materiales</h5>
+                            <div class="stats-number loading-stats" style="color: #A73493;" id="total-materiales-pop">
+                                <i class="fas fa-spinner fa-spin"></i>
+                            </div>
+                            <p class="stats-label">Materiales en inventario</p>
                         </div>
                     </div>
-                    {% endif %}
 
-                    {% if can_access('oficinas', 'view') %}
-                    <div class="col-xl-3 col-md-6">
-                        <div class="card stats-card border-0 shadow-sm text-center p-4 bg-white h-100 text-dark">
-                            <div class="stats-icon mb-3" style="color: #0098B1;">
-                                <i class="fas fa-building fa-3x"></i>
-                            </div>
-                            <h5 class="fw-semibold mb-2 text-dark">Oficinas</h5>
-                            <div class="stats-number" style="color: #0098B1;">{{ oficinas|length }}</div>
-                            <p class="stats-label">Oficinas registradas</p>
-                            <a href="/oficinas" class="btn btn-primary btn-sm w-100 btn-modulo">
-                                <i class="fas fa-eye me-2"></i>Ver
-                            </a>
-                        </div>
-                    </div>
-                    {% endif %}
-
-                    {% if can_access('solicitudes', 'view') %}
-                    <div class="col-xl-3 col-md-6">
+                    <!-- Stock Total -->
+                    <div class="col-xl-4 col-md-6">
                         <div class="card stats-card border-0 shadow-sm text-center p-4 bg-white h-100 text-dark">
                             <div class="stats-icon mb-3" style="color: #28a745;">
-                                <i class="fas fa-clipboard-list fa-3x"></i>
+                                <i class="fas fa-cubes fa-3x"></i>
                             </div>
-                            <h5 class="fw-semibold mb-2 text-dark">Solicitudes</h5>
-                            <div class="stats-number" style="color: #28a745;">{{ solicitudes|length }}</div>
-                            <p class="stats-label">Solicitudes activas</p>
-                            <a href="/solicitudes" class="btn btn-primary btn-sm w-100 btn-modulo">
-                                <i class="fas fa-tasks me-2"></i>Gestionar
-                            </a>
+                            <h5 class="fw-semibold mb-2 text-dark">Stock Total</h5>
+                            <div class="stats-number loading-stats" style="color: #28a745;" id="stock-total-pop">
+                                <i class="fas fa-spinner fa-spin"></i>
+                            </div>
+                            <p class="stats-label">Unidades disponibles</p>
                         </div>
                     </div>
-                    {% endif %}
 
-                    {% if can_access('aprobadores', 'view') %}
-                    <div class="col-xl-3 col-md-6">
+                    <!-- Solicitudes Pendientes -->
+                    <div class="col-xl-4 col-md-6">
                         <div class="card stats-card border-0 shadow-sm text-center p-4 bg-white h-100 text-dark">
                             <div class="stats-icon mb-3" style="color: #ffc107;">
-                                <i class="fas fa-user-check fa-3x"></i>
+                                <i class="fas fa-clock fa-3x"></i>
                             </div>
-                            <h5 class="fw-semibold mb-2 text-dark">Aprobadores</h5>
-                            <div class="stats-number" style="color: #ffc107;">{{ aprobadores|length }}</div>
-                            <p class="stats-label">Aprobadores activos</p>
-                            <a href="/aprobadores" class="btn btn-primary btn-sm w-100 btn-modulo">
-                                <i class="fas fa-list me-2"></i>Ver
-                            </a>
+                            <h5 class="fw-semibold mb-2 text-dark">Solicitudes Pendientes</h5>
+                            <div class="stats-number loading-stats" style="color: #ffc107;" id="solicitudes-pendientes">
+                                <i class="fas fa-spinner fa-spin"></i>
+                            </div>
+                            <p class="stats-label">Esperando aprobación</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-4">
+                    {% if can_access('materiales', 'create') %}
+                    <div class="col-md-4">
+                        <div class="card h-100 border-0 shadow-sm stats-card">
+                            <div class="card-body text-dark d-flex flex-column">
+                                <div class="text-center mb-3">
+                                    <i class="fas fa-plus-circle fa-3x mb-3" style="color: #A73493;"></i>
+                                </div>
+                                <h5 class="fw-semibold mb-2 text-dark text-center">Crear Material</h5>
+                                <p class="text-muted small mb-3 text-center">Agregar nuevo material al inventario</p>
+                                <div class="mt-auto">
+                                    <a href="{{ url_for('materiales.mostrar_formulario_creacion') }}" class="btn btn-outline-primary w-100 btn-modulo">
+                                        <i class="fas fa-plus-square me-2"></i> Crear
+                                    </a>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     {% endif %}
+
+                    {% if can_access('solicitudes', 'create') %}
+                    <div class="col-md-4">
+                        <div class="card h-100 border-0 shadow-sm stats-card">
+                            <div class="card-body text-dark d-flex flex-column">
+                                <div class="text-center mb-3">
+                                    <i class="fas fa-clipboard-list fa-3x mb-3" style="color: #0098B1;"></i>
+                                </div>
+                                <h5 class="fw-semibold mb-2 text-dark text-center">Nueva Solicitud</h5>
+                                <p class="text-muted small mb-3 text-center">Solicitar material para tu oficina</p>
+                                <div class="mt-auto">
+                                    <a href="{{ url_for('solicitudes.crear') }}" class="btn btn-primary w-100 btn-modulo">
+                                        <i class="fas fa-plus me-2"></i> Solicitar
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <div class="col-md-4">
+                        <div class="card h-100 border-0 shadow-sm stats-card">
+                            <div class="card-body text-dark d-flex flex-column">
+                                <div class="text-center mb-3">
+                                    <i class="fas fa-box-open fa-3x mb-3" style="color: #6f42c1;"></i>
+                                </div>
+                                <h5 class="fw-semibold mb-2 text-dark text-center">Ver Materiales</h5>
+                                <p class="text-muted small mb-3 text-center">Consultar stock, solicitudes y entregas</p>
+                                <div class="mt-auto">
+                                    <a href="{{ url_for('materiales.listar_materiales') }}" class="btn btn-outline-primary w-100 btn-modulo">
+                                        <i class="fas fa-list me-2"></i> Ver Materiales
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="card border-0 shadow-sm">
-                    <div class="card-body text-dark">
-                        <h5 class="fw-semibold mb-3" style="color: #A73493;">
-                            <i class="fas fa-bolt me-2"></i> Acciones Rápidas
-                        </h5>
+                <!-- Botón adicional para ver solicitudes -->
+                <div class="row g-4 mt-3">
+                    <div class="col-12">
+                        <div class="card border-0 shadow-sm" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                            <div class="card-body text-white text-center py-3">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <div class="d-flex align-items-center">
+                                        <i class="fas fa-clipboard-check fa-2x me-3"></i>
+                                        <div class="text-start">
+                                            <h6 class="mb-0 fw-bold">Ver Todas las Solicitudes</h6>
+                                            <small class="opacity-90">Gestionar y consultar solicitudes de material</small>
+                                        </div>
+                                    </div>
+                                    <a href="{{ url_for('solicitudes.listar') }}" class="btn btn-light btn-lg">
+                                        <i class="fas fa-arrow-right me-2"></i>Ir a Solicitudes
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-                        <div class="d-flex flex-wrap gap-3 acciones-rapidas">
-                            {% if can_access('materiales', 'create') %}
-                            <a href="/materiales/crear" class="btn btn-primary btn-lg">
-                                <i class="fas fa-plus me-2"></i> Crear Material
-                            </a>
-                            {% endif %}
-
-                            {% if can_access('solicitudes', 'create') %}
-                            <a href="/solicitudes/crear" class="btn btn-success btn-lg">
-                                <i class="fas fa-edit me-2"></i> Nueva Solicitud
-                            </a>
-                            {% endif %}
-
-                            {% if can_access('reportes', 'view_all') or can_access('reportes', 'view_own') %}
-                            <a href="/reportes" class="btn btn-info btn-lg">
-                                <i class="fas fa-chart-bar me-2"></i> Ver Reportes
-                            </a>
-                            {% endif %}
-
-                            {% if can_access('solicitudes', 'approve') %}
-                            <a href="/solicitudes" class="btn btn-warning btn-lg">
-                                <i class="fas fa-clipboard-check me-2"></i> Revisar Pendientes
-                            </a>
-                            {% endif %}
+                <div class="alert alert-light border mt-4 mb-0 text-dark">
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-info-circle me-3 fs-4 text-primary"></i>
+                        <div>
+                            <strong>Consejo:</strong> Asegúrate de revisar el 
+                            <span class="badge bg-success">stock disponible</span> antes de solicitar material.
                         </div>
                     </div>
                 </div>
@@ -335,7 +374,7 @@
 
 <div class="modal fade" id="modalInventarioCorporativo" tabindex="-1" aria-labelledby="modalInventarioCorporativoLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered">
-        <div class="modal-content border-0 shadow-lg">
+        <div class="modal-content border-0 shadow-lg rounded-3">
             <div class="modal-header" style="background-color: #0098B1; color: #fff;">
                 <h4 class="modal-title fw-bold d-flex align-items-center" id="modalInventarioCorporativoLabel">
                     <i class="fas fa-warehouse me-3"></i> Inventario Corporativo
@@ -351,9 +390,12 @@
                                 <i class="fas fa-boxes fa-3x"></i>
                             </div>
                             <h5 class="fw-semibold mb-2 text-dark">Productos Totales</h5>
-                            <div class="stats-number" style="color: #0098B1;" id="total-productos">0</div>
+                            <div class="stats-number loading-stats" style="color: #0098B1;" id="total-productos">
+                                <i class="fas fa-spinner fa-spin"></i>
+                            </div>
                             <p class="stats-label">Total de productos en inventario</p>
-                            <a href="{{ url_for('inventario_corporativo.listar_inventario_corporativo') }}" class="btn btn-primary btn-sm w-100 btn-modulo">
+                            <!-- CORREGIDO: URL directa -->
+                            <a href="/inventario-corporativo" class="btn btn-primary btn-sm w-100 btn-modulo">
                                 <i class="fas fa-list me-2"></i>Ver Todos
                             </a>
                         </div>
@@ -365,9 +407,12 @@
                                 <i class="fas fa-building fa-3x"></i>
                             </div>
                             <h5 class="fw-semibold mb-2 text-dark">Sede Principal</h5>
-                            <div class="stats-number" style="color: #A73493;" id="productos-sede">0</div>
+                            <div class="stats-number loading-stats" style="color: #A73493;" id="productos-sede">
+                                <i class="fas fa-spinner fa-spin"></i>
+                            </div>
                             <p class="stats-label">Productos en COQ</p>
-                            <a href="{{ url_for('inventario_corporativo.listar_sede_principal') }}" class="btn btn-primary btn-sm w-100 btn-modulo">
+                            <!-- CORREGIDO: URL directa -->
+                            <a href="/inventario-corporativo/sede-principal" class="btn btn-primary btn-sm w-100 btn-modulo">
                                 <i class="fas fa-eye me-2"></i>Ver
                             </a>
                         </div>
@@ -379,9 +424,12 @@
                                 <i class="fas fa-map-marker-alt fa-3x"></i>
                             </div>
                             <h5 class="fw-semibold mb-2 text-dark">Oficinas de Servicio</h5>
-                            <div class="stats-number" style="color: #28a745;" id="productos-oficinas">0</div>
+                            <div class="stats-number loading-stats" style="color: #28a745;" id="productos-oficinas">
+                                <i class="fas fa-spinner fa-spin"></i>
+                            </div>
                             <p class="stats-label">Productos en oficinas de servicio</p>
-                            <a href="{{ url_for('inventario_corporativo.listar_oficinas_servicio') }}" class="btn btn-primary btn-sm w-100 btn-modulo">
+                            <!-- CORREGIDO: URL directa -->
+                            <a href="/inventario-corporativo/oficinas-servicio" class="btn btn-primary btn-sm w-100 btn-modulo">
                                 <i class="fas fa-location-arrow me-2"></i>Ver
                             </a>
                         </div>
@@ -396,16 +444,19 @@
 
                         <div class="d-flex flex-wrap gap-3 acciones-rapidas">
                             {% if can_access('inventario_corporativo', 'create') %}
-                            <a href="{{ url_for('inventario_corporativo.crear_inventario_corporativo') }}" class="btn btn-primary btn-lg">
+                            <!-- CORREGIDO: URL directa -->
+                            <a href="/inventario-corporativo/crear" class="btn btn-primary btn-lg">
                                 <i class="fas fa-plus me-2"></i> Nuevo Producto
                             </a>
                             {% endif %}
 
-                            <a href="{{ url_for('inventario_corporativo.listar_inventario_corporativo') }}" class="btn btn-success btn-lg">
+                            <!-- CORREGIDO: URL directa -->
+                            <a href="/inventario-corporativo" class="btn btn-success btn-lg">
                                 <i class="fas fa-search me-2"></i> Buscar Productos
                             </a>
 
                             {% if can_access('reportes', 'view_all') or can_access('reportes', 'view_own') %}
+                            <!-- CORREGIDO: URL directa -->
                             <a href="/reportes" class="btn btn-info btn-lg">
                                 <i class="fas fa-chart-bar me-2"></i> Ver Reportes
                             </a>
@@ -436,6 +487,49 @@
 
       <div class="modal-body text-dark" style="background-color:#F8F9FA;">
         <p class="text-muted mb-4 fs-5">Elige una acción para gestionar los préstamos del sistema.</p>
+                <div class="row g-4 mb-4">
+                    <!-- Total Préstamos -->
+                    <div class="col-xl-4 col-md-6">
+                        <div class="card stats-card border-0 shadow-sm text-center p-4 bg-white h-100 text-dark">
+                            <div class="stats-icon mb-3" style="color: #A73493;">
+                                <i class="fas fa-exchange-alt fa-3x"></i>
+                            </div>
+                            <h5 class="fw-semibold mb-2 text-dark">Total Préstamos</h5>
+                            <div class="stats-number loading-stats" style="color: #A73493;" id="total-prestamos">
+                                <i class="fas fa-spinner fa-spin"></i>
+                            </div>
+                            <p class="stats-label">Préstamos registrados</p>
+                        </div>
+                    </div>
+
+                    <!-- Préstamos Activos -->
+                    <div class="col-xl-4 col-md-6">
+                        <div class="card stats-card border-0 shadow-sm text-center p-4 bg-white h-100 text-dark">
+                            <div class="stats-icon mb-3" style="color: #28a745;">
+                                <i class="fas fa-check-circle fa-3x"></i>
+                            </div>
+                            <h5 class="fw-semibold mb-2 text-dark">Préstamos Activos</h5>
+                            <div class="stats-number loading-stats" style="color: #28a745;" id="prestamos-activos">
+                                <i class="fas fa-spinner fa-spin"></i>
+                            </div>
+                            <p class="stats-label">No devueltos</p>
+                        </div>
+                    </div>
+
+                    <!-- Préstamos Vencidos -->
+                    <div class="col-xl-4 col-md-6">
+                        <div class="card stats-card border-0 shadow-sm text-center p-4 bg-white h-100 text-dark">
+                            <div class="stats-icon mb-3" style="color: #dc3545;">
+                                <i class="fas fa-exclamation-triangle fa-3x"></i>
+                            </div>
+                            <h5 class="fw-semibold mb-2 text-dark">Préstamos Vencidos</h5>
+                            <div class="stats-number loading-stats" style="color: #dc3545;" id="prestamos-vencidos">
+                                <i class="fas fa-spinner fa-spin"></i>
+                            </div>
+                            <p class="stats-label">Requieren atención</p>
+                        </div>
+                    </div>
+                </div>
 
         <div class="row g-4">
           {% if can_access('prestamos', 'manage_materials') %}
@@ -543,30 +637,156 @@ document.addEventListener('DOMContentLoaded', function () {
     // Actualizar solo la hora cada minuto
     setInterval(actualizarHora, 60000);
 
-    const invModal = document.getElementById('modalInventarioCorporativo');
-
-    if (invModal) {
-        invModal.addEventListener('show.bs.modal', function () {
-            fetch('{{ url_for("inventario_corporativo.api_estadisticas_dashboard") }}')
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('Error en la respuesta: ' + response.status);
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    document.getElementById('total-productos').textContent = data.total_productos || 0;
-                    document.getElementById('productos-sede').textContent = data.productos_sede || 0;
-                    document.getElementById('productos-oficinas').textContent = data.productos_oficinas || 0;
-                })
-                .catch(error => {
-                    console.error('Error cargando estadísticas:', error);
-                    document.getElementById('total-productos').textContent = '0';
-                    document.getElementById('productos-sede').textContent = '0';
-                    document.getElementById('productos-oficinas').textContent = '0';
-                });
-        });
+    // Función para cargar estadísticas del inventario corporativo
+    function cargarEstadisticasInventario() {
+        const totalElem = document.getElementById('total-productos');
+        const sedeElem = document.getElementById('productos-sede');
+        const oficinasElem = document.getElementById('productos-oficinas');
+        
+        // Mostrar spinner de carga
+        if (totalElem) totalElem.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        if (sedeElem) sedeElem.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        if (oficinasElem) oficinasElem.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        
+        // CORREGIDO: URL directa para la API
+        fetch('/inventario-corporativo/api/estadisticas-dashboard')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Error en la respuesta: ' + response.status);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Estadísticas cargadas:', data);
+                if (totalElem) {
+                    totalElem.textContent = data.total_productos || 0;
+                    totalElem.classList.remove('loading-stats');
+                }
+                if (sedeElem) {
+                    sedeElem.textContent = data.productos_sede || 0;
+                    sedeElem.classList.remove('loading-stats');
+                }
+                if (oficinasElem) {
+                    oficinasElem.textContent = data.productos_oficinas || 0;
+                    oficinasElem.classList.remove('loading-stats');
+                }
+            })
+            .catch(error => {
+                console.error('Error cargando estadísticas:', error);
+                if (totalElem) totalElem.textContent = 'Error';
+                if (sedeElem) sedeElem.textContent = 'Error';
+                if (oficinasElem) oficinasElem.textContent = 'Error';
+            });
     }
+
+    // Función para cargar estadísticas de Material POP
+    function cargarEstadisticasMaterialPOP() {
+        const totalElem = document.getElementById('total-materiales-pop');
+        const stockElem = document.getElementById('stock-total-pop');
+        const solicitudesElem = document.getElementById('solicitudes-pendientes');
+        
+        if (totalElem) totalElem.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        if (stockElem) stockElem.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        if (solicitudesElem) solicitudesElem.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        
+        fetch('{{ url_for("materiales.api_estadisticas_dashboard") }}')
+            .then(response => {
+                if (!response.ok) throw new Error('Error: ' + response.status);
+                return response.json();
+            })
+            .then(data => {
+                console.log('Estadísticas Material POP:', data);
+                if (totalElem) {
+                    totalElem.textContent = data.total_materiales || 0;
+                    totalElem.classList.remove('loading-stats');
+                }
+                if (stockElem) {
+                    stockElem.textContent = data.stock_total || 0;
+                    stockElem.classList.remove('loading-stats');
+                }
+                if (solicitudesElem) {
+                    solicitudesElem.textContent = data.solicitudes_pendientes || 0;
+                    solicitudesElem.classList.remove('loading-stats');
+                }
+            })
+            .catch(error => {
+                console.error('Error cargando estadísticas Material POP:', error);
+                if (totalElem) totalElem.textContent = 'Error';
+                if (stockElem) stockElem.textContent = 'Error';
+                if (solicitudesElem) solicitudesElem.textContent = 'Error';
+            });
+    }
+
+    // Función para cargar estadísticas de Préstamos
+    function cargarEstadisticasPrestamos() {
+        const totalElem = document.getElementById('total-prestamos');
+        const activosElem = document.getElementById('prestamos-activos');
+        const vencidosElem = document.getElementById('prestamos-vencidos');
+        
+        if (totalElem) totalElem.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        if (activosElem) activosElem.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        if (vencidosElem) vencidosElem.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        
+        fetch('{{ url_for("prestamos.api_estadisticas_dashboard") }}')
+            .then(response => {
+                if (!response.ok) throw new Error('Error: ' + response.status);
+                return response.json();
+            })
+            .then(data => {
+                console.log('Estadísticas Préstamos:', data);
+                if (totalElem) {
+                    totalElem.textContent = data.total_prestamos || 0;
+                    totalElem.classList.remove('loading-stats');
+                }
+                if (activosElem) {
+                    activosElem.textContent = data.prestamos_activos || 0;
+                    activosElem.classList.remove('loading-stats');
+                }
+                if (vencidosElem) {
+                    vencidosElem.textContent = data.prestamos_vencidos || 0;
+                    vencidosElem.classList.remove('loading-stats');
+                }
+            })
+            .catch(error => {
+                console.error('Error cargando estadísticas Préstamos:', error);
+                if (totalElem) totalElem.textContent = 'Error';
+                if (activosElem) activosElem.textContent = 'Error';
+                if (vencidosElem) vencidosElem.textContent = 'Error';
+            });
+    }
+
+    // Cargar estadísticas cuando se abre el modal
+    const invModal = document.getElementById('modalInventarioCorporativo');
+    if (invModal) {
+        invModal.addEventListener('show.bs.modal', cargarEstadisticasInventario);
+    }
+
+    // NUEVO: Cargar estadísticas automáticamente al cargar la página
+    // Solo si el usuario tiene acceso a inventario corporativo
+    {% if can_access('inventario_corporativo') %}
+    // Esperar 500ms para que el modal esté completamente renderizado
+    setTimeout(cargarEstadisticasInventario, 500);
+    {% endif %}
+
+    // Event listeners para cargar estadísticas al abrir modales
+    const popModal = document.getElementById('modalMaterialPOP');
+    if (popModal) {
+        popModal.addEventListener('show.bs.modal', cargarEstadisticasMaterialPOP);
+    }
+
+    const prestamosModal = document.getElementById('modalPrestamos');
+    if (prestamosModal) {
+        prestamosModal.addEventListener('show.bs.modal', cargarEstadisticasPrestamos);
+    }
+
+    // Cargar estadísticas automáticamente al cargar la página
+    {% if can_access('material_pop') %}
+    setTimeout(cargarEstadisticasMaterialPOP, 600);
+    {% endif %}
+
+    {% if can_access('prestamo_material') %}
+    setTimeout(cargarEstadisticasPrestamos, 700);
+    {% endif %}
 
     const cards = document.querySelectorAll('.stats-card, .card-modulo');
     cards.forEach(card => {

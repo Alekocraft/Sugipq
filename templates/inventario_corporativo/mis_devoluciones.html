@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}Mis Devoluciones{% endblock %}
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <a href="{{ url_for('inventario_corporativo.listar_inventario_corporativo') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Volver al Inventario
+            </a>
+        </div>
+    </div>
+
+    <h1><i class="fas fa-list-alt text-info"></i> Mis Solicitudes de Devolución</h1>
+    <p class="text-muted">Historial de todas tus solicitudes de devolución</p>
+
+    <div class="card mt-4">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0">
+                <i class="fas fa-history me-2"></i>Mis Solicitudes
+                <span class="badge bg-light text-dark ms-2">{{ devoluciones|length }} solicitudes</span>
+            </h5>
+        </div>
+        <div class="card-body">
+            {% if devoluciones %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>ID</th>
+                            <th>Producto</th>
+                            <th>Oficina</th>
+                            <th>Cantidad</th>
+                            <th>Motivo</th>
+                            <th>Estado</th>
+                            <th>Fecha Solicitud</th>
+                            <th>Fecha Respuesta</th>
+                            <th>Observaciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for dev in devoluciones %}
+                        <tr>
+                            <td><strong>#{{ dev.get('DevolucionId', dev.get('devolucion_id', '')) }}</strong></td>
+                            <td>
+                                <strong>{{ dev.get('ProductoNombre', dev.get('producto_nombre', '')) }}</strong>
+                                <br><small class="text-muted">ID: {{ dev.get('ProductoId', dev.get('producto_id', '')) }}</small>
+                            </td>
+                            <td>{{ dev.get('OficinaNombre', dev.get('oficina_nombre', '')) }}</td>
+                            <td><span class="badge bg-info">{{ dev.get('Cantidad', dev.get('cantidad', 0)) }}</span></td>
+                            <td>
+                                <small title="{{ dev.get('Motivo', dev.get('motivo', '')) }}">
+                                    {{ dev.get('Motivo', dev.get('motivo', ''))[:30] }}...
+                                </small>
+                            </td>
+                            <td>
+                                {% set estado = dev.get('Estado', dev.get('estado', '')) %}
+                                {% if estado == 'PENDIENTE' %}
+                                <span class="badge bg-warning text-dark">
+                                    <i class="fas fa-clock me-1"></i>Pendiente
+                                </span>
+                                {% elif estado == 'APROBADA' %}
+                                <span class="badge bg-success">
+                                    <i class="fas fa-check me-1"></i>Aprobada
+                                </span>
+                                {% elif estado == 'RECHAZADA' %}
+                                <span class="badge bg-danger">
+                                    <i class="fas fa-times me-1"></i>Rechazada
+                                </span>
+                                {% else %}
+                                <span class="badge bg-secondary">{{ estado }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <small>{{ dev.get('FechaSolicitud', dev.get('fecha_solicitud', '')) }}</small>
+                            </td>
+                            <td>
+                                <small>
+                                    {% if dev.get('FechaAprobacion', dev.get('fecha_aprobacion', '')) %}
+                                        {{ dev.get('FechaAprobacion', dev.get('fecha_aprobacion', '')) }}
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </small>
+                            </td>
+                            <td>
+                                {% if dev.get('ObservacionesAprobador', dev.get('observaciones_aprobador', '')) %}
+                                <button type="button" class="btn btn-sm btn-outline-info" 
+                                        onclick="verObservaciones('{{ dev.get('ObservacionesAprobador', dev.get('observaciones_aprobador', '')) }}')">
+                                    <i class="fas fa-comment"></i>
+                                </button>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-info text-center">
+                <i class="fas fa-info-circle fa-3x mb-3"></i>
+                <h5>No has solicitado devoluciones</h5>
+                <p class="mb-0">Cuando solicites una devolución, aparecerá aquí.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Leyenda de estados -->
+    <div class="card mt-3">
+        <div class="card-body">
+            <h6><i class="fas fa-info-circle me-2"></i>Estados de solicitud:</h6>
+            <div class="row">
+                <div class="col-md-4">
+                    <span class="badge bg-warning text-dark me-2">Pendiente</span>
+                    <small>En espera de revisión</small>
+                </div>
+                <div class="col-md-4">
+                    <span class="badge bg-success me-2">Aprobada</span>
+                    <small>El stock fue devuelto al inventario</small>
+                </div>
+                <div class="col-md-4">
+                    <span class="badge bg-danger me-2">Rechazada</span>
+                    <small>La solicitud fue rechazada</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para ver observaciones -->
+<div class="modal fade" id="modalObservaciones" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title">Observaciones del Aprobador</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p id="textoObservaciones"></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function verObservaciones(texto) {
+    document.getElementById('textoObservaciones').textContent = texto;
+    const modal = new bootstrap.Modal(document.getElementById('modalObservaciones'));
+    modal.show();
+}
+</script>
+
+<style>
+.table-hover tbody tr:hover {
+    background-color: rgba(23, 162, 184, 0.1);
+}
+</style>
+{% endblock %}

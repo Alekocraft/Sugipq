@@ -1,14 +1,16 @@
 ESTRUCTURA DEL PROYECTO FLASK 
 ============================= 
-Fecha: Wed 01/14/2026 15:30:13.49 
+Fecha: Fri 01/16/2026 11:58:11.04 
 Directorio actual: C:\Users\sinventarios\source\repos\sugipq 
  
 [ARCHIVOS PRINCIPALES .PY] 
 -------------------------- 
 app.py 
+cache.py 
 certificado_route.py 
 database.py 
 solicitudes.py 
+validar_dia8.py 
 blueprints\api.py 
 blueprints\aprobacion.py 
 blueprints\aprobadores.py 
@@ -47,6 +49,7 @@ utils\filters.py
 utils\helpers.py 
 utils\initialization.py 
 utils\ldap_auth.py 
+utils\ldap_consulta.py 
 utils\permissions.py 
 utils\permissions_functions.py 
 utils\__init__.py 
@@ -69,10 +72,18 @@ templates\inventario_corporativo\asignar.html
 templates\inventario_corporativo\confirmaciones.html 
 templates\inventario_corporativo\crear.html 
 templates\inventario_corporativo\detalle.html 
+templates\inventario_corporativo\devoluciones_pendientes.html 
 templates\inventario_corporativo\editar.html 
+templates\inventario_corporativo\inventario_corporativo.html 
 templates\inventario_corporativo\listar.html 
 templates\inventario_corporativo\listar_con_filtros.html 
+templates\inventario_corporativo\mis_devoluciones.html 
+templates\inventario_corporativo\mis_traspasos.html 
+templates\inventario_corporativo\productos_devueltos.html 
 templates\inventario_corporativo\reportes.html 
+templates\inventario_corporativo\solicitar_devolucion.html 
+templates\inventario_corporativo\solicitar_traspaso.html 
+templates\inventario_corporativo\traspasos_pendientes.html 
 templates\materials\crear.html 
 templates\materials\editar.html 
 templates\materials\listar.html 
@@ -93,6 +104,7 @@ templates\solicitudes\crear.html
 templates\solicitudes\listar.html 
 templates\solicitudes\solicitudes.html 
 templates\usuarios\crear.html 
+templates\usuarios\crear_ldap.html 
 templates\usuarios\editar.html 
 templates\usuarios\gestionar.html 
 templates\usuarios\listar.html 
@@ -145,8 +157,8 @@ logs\ldap.log
  
 Resumen: 
 --------- 
-Archivos .py: 4181 
-Archivos HTML: 43 
+Archivos .py: 4184 
+Archivos HTML: 52 
 Archivos CSS: 5 
 Archivos JS: 0 
 Archivos de entorno: 2 

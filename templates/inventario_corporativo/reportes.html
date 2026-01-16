@@ -12,7 +12,7 @@
         <div class="row align-items-center">
             <div class="col-md-8">
                 <h1 class="h2 mb-2"><i class="fas fa-chart-bar me-2"></i>Reportes del Inventario</h1>
-                <p class="mb-0 opacity-75">Análisis completo y estadísticas del inventario corporativo</p>
+                <p class="mb-0 opacity-75">AnÃ¡lisis completo y estadÃ­sticas del inventario corporativo</p>
             </div>
             <div class="col-md-4 text-end">
                 <div class="btn-group">
@@ -27,7 +27,7 @@
         </div>
     </div>
 
-    <!-- Estadísticas Rápidas -->
+    <!-- EstadÃ­sticas RÃ¡pidas -->
     <div class="row mb-4">
         <div class="col-xl-2 col-md-4 mb-3">
             <div class="inv-stats-card stats-primary p-3">
@@ -85,7 +85,7 @@
             <div class="inv-stats-card p-3" style="border-left-color: #6f42c1;">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h6 class="text-muted mb-1">Categorías</h6>
+                        <h6 class="text-muted mb-1">CategorÃ­as</h6>
                         <h3 class="fw-bold mb-0" style="color: #6f42c1;">{{ estadisticas.total_categorias }}</h3>
                     </div>
                     <div class="icon-container" style="background: #6f42c1; color: white;">
@@ -96,7 +96,7 @@
         </div>
     </div>
 
-    <!-- Sección de Reportes -->
+    <!-- SecciÃ³n de Reportes -->
     <div class="row">
         <!-- Productos por Oficina -->
         <div class="col-lg-6 mb-4">
@@ -139,7 +139,7 @@
         <div class="col-lg-6 mb-4">
             <div class="inv-card">
                 <div class="card-header bg-transparent border-bottom">
-                    <h5 class="mb-0"><i class="fas fa-exclamation-triangle me-2 text-warning"></i>Stock Bajo/Crítico</h5>
+                    <h5 class="mb-0"><i class="fas fa-exclamation-triangle me-2 text-warning"></i>Stock Bajo/CrÃ­tico</h5>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
@@ -148,7 +148,7 @@
                                 <tr>
                                     <th>Producto</th>
                                     <th class="text-end">Stock</th>
-                                    <th class="text-end">Mínimo</th>
+                                    <th class="text-end">MÃ­nimo</th>
                                     <th>Estado</th>
                                 </tr>
                             </thead>
@@ -159,14 +159,14 @@
                                     <td class="text-end">{{ producto.CantidadDisponible }}</td>
                                     <td class="text-end">{{ producto.CantidadMinima }}</td>
                                     <td>
-                                        <span class="badge {% if producto.estado_stock == 'Crítico' %}stock-critico{% else %}stock-bajo{% endif %}">
+                                        <span class="badge {% if producto.estado_stock == 'CrÃ­tico' %}stock-critico{% else %}stock-bajo{% endif %}">
                                             {{ producto.estado_stock }}
                                         </span>
                                     </td>
                                 </tr>
                                 {% else %}
                                 <tr>
-                                    <td colspan="4" class="text-center text-muted">¡Excelente! No hay productos con stock bajo</td>
+                                    <td colspan="4" class="text-center text-muted">Â¡Excelente! No hay productos con stock bajo</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -190,7 +190,7 @@
                                     <th>Fecha</th>
                                     <th>Producto</th>
                                     <th>Oficina</th>
-                                    <th>Acción</th>
+                                    <th>AcciÃ³n</th>
                                     <th class="text-end">Cantidad</th>
                                     <th>Usuario</th>
                                 </tr>

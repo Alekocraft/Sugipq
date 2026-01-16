@@ -1,14 +1,12 @@
 # blueprints/oficinas.py
 
-from flask import Blueprint, render_template, request, redirect, session, flash, jsonify
+from flask import Blueprint, render_template, request, redirect, session, flash, jsonify, url_for
 from models.oficinas_model import OficinaModel
 from utils.permissions import can_access
 from utils.helpers import sanitizar_email, sanitizar_username, sanitizar_texto_generico
 import logging
 
-
-
-# Configurar logger específico para este blueprint
+# Configurar logger especifico para este blueprint
 logger = logging.getLogger(__name__)
 
 oficinas_bp = Blueprint('oficinas', __name__, url_prefix='/oficinas')
@@ -19,16 +17,16 @@ def _require_login():
 @oficinas_bp.route('/')
 def listar_oficinas():
     """Listar todas las oficinas"""
-    logger.info("📋 Accediendo a listar oficinas...")
+    logger.info("Accediendo a listar oficinas...")
     
     if not _require_login():
-        logger.warning("⚠️ Usuario no autenticado")
+        logger.warning("Usuario no autenticado")
         return redirect('/login')
     
     if not can_access('oficinas', 'view'):
-        logger.warning(f"⚠️ Usuario {sanitizar_username(session.get('usuario', 'desconocido'))} sin permisos para ver oficinas")
-        flash('No tienes permisos para acceder a esta sección', 'danger')
-        return redirect('/dashboard')
+        logger.warning(f"Usuario {sanitizar_username(session.get('usuario', 'desconocido'))} sin permisos para ver oficinas")
+        flash('No tienes permisos para acceder a esta seccion', 'danger')
+        return redirect(url_for('auth.dashboard'))
     
     # Contexto con valores por defecto
     context = {
@@ -38,12 +36,12 @@ def listar_oficinas():
     }
     
     try:
-        logger.info("🔍 Obteniendo oficinas desde el modelo...")
+        logger.info("Obteniendo oficinas desde el modelo...")
         oficinas = OficinaModel.obtener_todas()
-        logger.info(f"✅ Oficinas obtenidas: {len(oficinas) if oficinas else 0}")
+        logger.info(f"Oficinas obtenidas: {len(oficinas) if oficinas else 0}")
         
         if oficinas:
-            # Calcular estadísticas
+            # Calcular estadisticas
             oficinas_activas = sum(1 for o in oficinas if o.get('activo', True))
             
             context.update({
@@ -52,11 +50,11 @@ def listar_oficinas():
                 'oficinas_activas': oficinas_activas
             })
         
-        logger.info("📄 Renderizando template oficinas/listar.html")
+        logger.info("Renderizando template oficinas/listar.html")
         return render_template('oficinas/listar.html', **context)
         
     except Exception as e:
-        logger.error(f"❌ Error listando oficinas: {e}", exc_info=True)
+        logger.error(f"Error listando oficinas: {e}", exc_info=True)
         flash('Error al cargar las oficinas. Por favor, intente nuevamente.', 'danger')
         
         # Renderizar con valores por defecto
@@ -93,7 +91,7 @@ def crear_oficina():
             )
             
             if oficina_id:
-                logger.info(f"✅ Oficina creada: {sanitizar_texto_generico(nombre)} (ID: {oficina_id})")
+                logger.info(f"Oficina creada: {sanitizar_texto_generico(nombre)} (ID: {oficina_id})")
                 flash('Oficina creada exitosamente', 'success')
                 return redirect('/oficinas')
             else:
@@ -101,7 +99,7 @@ def crear_oficina():
                 return render_template('oficinas/crear.html')
                 
         except Exception as e:
-            logger.error(f"❌ Error al crear oficina: {e}", exc_info=True)
+            logger.error(f"Error al crear oficina: {e}", exc_info=True)
             flash('Error interno al crear la oficina', 'danger')
             return render_template('oficinas/crear.html')
     
@@ -139,7 +137,7 @@ def editar_oficina(oficina_id):
             )
             
             if actualizado:
-                logger.info(f"✅ Oficina actualizada: ID {oficina_id}")
+                logger.info(f"Oficina actualizada: ID {oficina_id}")
                 flash('Oficina actualizada exitosamente', 'success')
             else:
                 flash('Error al actualizar la oficina', 'danger')
@@ -147,7 +145,7 @@ def editar_oficina(oficina_id):
             return redirect('/oficinas')
             
         except Exception as e:
-            logger.error(f"❌ Error al actualizar oficina {oficina_id}: {e}", exc_info=True)
+            logger.error(f"Error al actualizar oficina {oficina_id}: {e}", exc_info=True)
             flash('Error interno al actualizar la oficina', 'danger')
             return redirect(f'/oficinas/editar/{oficina_id}')
     
@@ -159,7 +157,7 @@ def editar_oficina(oficina_id):
         
         return render_template('oficinas/editar.html', oficina=oficina)
     except Exception as e:
-        logger.error(f"❌ Error al obtener oficina {oficina_id}: {e}", exc_info=True)
+        logger.error(f"Error al obtener oficina {oficina_id}: {e}", exc_info=True)
         flash('Error al cargar la oficina', 'danger')
         return redirect('/oficinas')
 
@@ -176,12 +174,12 @@ def eliminar_oficina(oficina_id):
     try:
         eliminado = OficinaModel.eliminar(oficina_id)
         if eliminado:
-            logger.info(f"✅ Oficina eliminada: ID {oficina_id}")
+            logger.info(f"Oficina eliminada: ID {oficina_id}")
             flash('Oficina eliminada exitosamente', 'success')
         else:
             flash('Error al eliminar la oficina', 'danger')
     except Exception as e:
-        logger.error(f"❌ Error al eliminar oficina {oficina_id}: {e}", exc_info=True)
+        logger.error(f"Error al eliminar oficina {oficina_id}: {e}", exc_info=True)
         flash('Error interno al eliminar la oficina', 'danger')
     
     return redirect('/oficinas')
@@ -203,7 +201,7 @@ def api_oficinas():
         
         return jsonify(oficinas_data)
     except Exception as e:
-        logger.error(f"❌ Error en API oficinas: {e}", exc_info=True)
+        logger.error(f"Error en API oficinas: {e}", exc_info=True)
         return jsonify({'error': 'Error interno del servidor'}), 500
 
 @oficinas_bp.route('/detalle/<int:oficina_id>')
@@ -214,7 +212,7 @@ def detalle_oficina(oficina_id):
     
     if not can_access('oficinas', 'view'):
         flash('No tienes permisos para ver oficinas', 'danger')
-        return redirect('/dashboard')
+        return redirect(url_for('auth.dashboard'))
     
     try:
         oficina = OficinaModel.obtener_por_id(oficina_id)
@@ -224,6 +222,41 @@ def detalle_oficina(oficina_id):
         
         return render_template('oficinas/detalle.html', oficina=oficina)
     except Exception as e:
-        logger.error(f"❌ Error al obtener detalle de oficina {oficina_id}: {e}", exc_info=True)
+        logger.error(f"Error al obtener detalle de oficina {oficina_id}: {e}", exc_info=True)
         flash('Error al cargar los detalles de la oficina', 'danger')
         return redirect('/oficinas')
+
+@oficinas_bp.route('/mi-inventario')
+def mi_inventario():
+    """Ver el inventario asignado a mi oficina - SOLO OFICINAS"""
+    if not _require_login():
+        return redirect('/login')
+    
+    # Solo para usuarios de oficina
+    rol = session.get('rol', '').lower()
+    if not rol.startswith('oficina_'):
+        flash('Esta seccion es solo para oficinas', 'danger')
+        return redirect(url_for('auth.dashboard'))
+    
+    try:
+        from models.inventario_corporativo_model import InventarioCorporativoModel
+        
+        # Obtener la oficina del usuario
+        oficina_codigo = session.get('oficina', '')
+        
+        # Obtener productos asignados a esta oficina
+        productos = InventarioCorporativoModel.obtener_por_oficina(oficina_codigo)
+        
+        # Estadisticas
+        total_productos = len(productos) if productos else 0
+        valor_total = sum(p.get('ValorUnitario', 0) * p.get('Cantidad', 0) for p in productos) if productos else 0
+        
+        return render_template('oficinas/mi_inventario.html',
+                             productos=productos,
+                             total_productos=total_productos,
+                             valor_total_inventario=valor_total,
+                             oficina_codigo=oficina_codigo)
+    except Exception as e:
+        logger.error(f"Error al obtener inventario de oficina: {e}", exc_info=True)
+        flash('Error al cargar el inventario', 'danger')
+        return redirect(url_for('auth.dashboard'))

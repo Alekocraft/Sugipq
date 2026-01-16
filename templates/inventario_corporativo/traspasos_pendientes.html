@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% block title %}Traspasos Pendientes{% endblock %}
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <a href="{{ url_for('inventario_corporativo.listar_inventario_corporativo') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left me-2"></i>Volver al Inventario
+            </a>
+        </div>
+    </div>
+
+    <h1><i class="fas fa-exchange-alt text-primary"></i> Traspasos Pendientes de Aprobación</h1>
+    <p class="text-muted">Revise y apruebe o rechace las solicitudes de traspaso</p>
+
+    <div class="card mt-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">
+                <i class="fas fa-list me-2"></i>Solicitudes Pendientes
+                <span class="badge bg-light text-dark ms-2">{{ traspasos|length }} solicitudes</span>
+            </h5>
+        </div>
+        <div class="card-body">
+            {% if traspasos %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>ID</th>
+                            <th>Producto</th>
+                            <th>Oficina Origen</th>
+                            <th>Oficina Destino</th>
+                            <th>Cantidad</th>
+                            <th>Solicitante</th>
+                            <th>Motivo</th>
+                            <th>Fecha</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for traspaso in traspasos %}
+                        <tr>
+                            <td><strong>#{{ traspaso.get('TraspasoId', traspaso.get('traspaso_id', '')) }}</strong></td>
+                            <td>
+                                <strong>{{ traspaso.get('ProductoNombre', traspaso.get('producto_nombre', '')) }}</strong>
+                                <br><small class="text-muted">ID: {{ traspaso.get('ProductoId', traspaso.get('producto_id', '')) }}</small>
+                            </td>
+                            <td>
+                                <span class="badge bg-secondary">
+                                    {{ traspaso.get('OficinaOrigenNombre', traspaso.get('oficina_origen_nombre', '')) }}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge bg-primary">
+                                    {{ traspaso.get('OficinaDestinoNombre', traspaso.get('oficina_destino_nombre', '')) }}
+                                </span>
+                            </td>
+                            <td><span class="badge bg-info">{{ traspaso.get('Cantidad', traspaso.get('cantidad', 0)) }}</span></td>
+                            <td>{{ traspaso.get('UsuarioSolicitante', traspaso.get('usuario_solicitante', '')) }}</td>
+                            <td>
+                                <small>{{ traspaso.get('Motivo', traspaso.get('motivo', ''))[:50] }}...</small>
+                            </td>
+                            <td>
+                                <small>{{ traspaso.get('FechaSolicitud', traspaso.get('fecha_solicitud', '')) }}</small>
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <button type="button" class="btn btn-success" 
+                                            onclick="aprobarTraspaso({{ traspaso.get('TraspasoId', traspaso.get('traspaso_id', '')) }})">
+                                        <i class="fas fa-check"></i> Aprobar
+                                    </button>
+                                    <button type="button" class="btn btn-danger" 
+                                            onclick="rechazarTraspaso({{ traspaso.get('TraspasoId', traspaso.get('traspaso_id', '')) }})">
+                                        <i class="fas fa-times"></i> Rechazar
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-info text-center">
+                <i class="fas fa-info-circle fa-3x mb-3"></i>
+                <h5>No hay traspasos pendientes</h5>
+                <p class="mb-0">Todas las solicitudes han sido procesadas.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Modal para aprobar -->
+<div class="modal fade" id="modalAprobar" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">Aprobar Traspaso</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="formAprobar" method="POST">
+                <div class="modal-body">
+                    <p>¿Está seguro que desea <strong>APROBAR</strong> este traspaso?</p>
+                    <p class="text-muted">El producto cambiará de oficina automáticamente.</p>
+                    <div class="mb-3">
+                        <label class="form-label">Observaciones (opcional)</label>
+                        <textarea class="form-control" name="observaciones" rows="3" 
+                                  placeholder="Agregue comentarios si lo desea..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-check me-2"></i>Aprobar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para rechazar -->
+<div class="modal fade" id="modalRechazar" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">Rechazar Traspaso</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="formRechazar" method="POST">
+                <div class="modal-body">
+                    <p>¿Está seguro que desea <strong>RECHAZAR</strong> este traspaso?</p>
+                    <div class="mb-3">
+                        <label class="form-label">Motivo del rechazo <span class="text-danger">*</span></label>
+                        <textarea class="form-control" name="observaciones" rows="3" required
+                                  placeholder="Explique por qué rechaza este traspaso..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-times me-2"></i>Rechazar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function aprobarTraspaso(traspasoId) {
+    const modal = new bootstrap.Modal(document.getElementById('modalAprobar'));
+    document.getElementById('formAprobar').action = '/inventario-corporativo/traspaso/' + traspasoId + '/aprobar';
+    modal.show();
+}
+
+function rechazarTraspaso(traspasoId) {
+    const modal = new bootstrap.Modal(document.getElementById('modalRechazar'));
+    document.getElementById('formRechazar').action = '/inventario-corporativo/traspaso/' + traspasoId + '/rechazar';
+    modal.show();
+}
+</script>
+
+<style>
+.table-hover tbody tr:hover {
+    background-color: rgba(0, 123, 255, 0.1);
+}
+</style>
+{% endblock %}

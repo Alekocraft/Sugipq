@@ -10,12 +10,12 @@
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
         <div class="container">
-            <a class="navbar-brand" href="/dashboard">🏢 Sistema Inventarios</a>
+            <a class="navbar-brand" href="/dashboard">ðŸ¢ Sistema Inventarios</a>
             <div class="navbar-nav ms-auto">
                 <span class="navbar-text me-3">
                     <i class="fas fa-user"></i> Hola, {{ session.get('usuario_nombre', 'Usuario') }}
                 </span>
-                <a class="nav-link" href="/logout"><i class="fas fa-sign-out-alt"></i> Cerrar Sesión</a>
+                <a class="nav-link" href="/logout"><i class="fas fa-sign-out-alt"></i> Cerrar SesiÃ³n</a>
             </div>
         </div>
     </nav>
@@ -43,12 +43,12 @@
                     <div class="card-body">
                         {% if producto %}
                         <form method="POST" enctype="multipart/form-data">
-                            <!-- Código Único -->
+                            <!-- CÃ³digo Ãšnico -->
                             <div class="mb-3">
-                                <label for="codigo_unico" class="form-label">Código Único:</label>
+                                <label for="codigo_unico" class="form-label">CÃ³digo Ãšnico:</label>
                                 <input type="text" class="form-control" id="codigo_unico" name="codigo_unico"
                                        value="{{ producto.codigo_unico }}" required>
-                                <div class="form-text">Código único del producto</div>
+                                <div class="form-text">CÃ³digo Ãºnico del producto</div>
                             </div>
 
                             <!-- Nombre -->
@@ -58,19 +58,19 @@
                                        value="{{ producto.nombre }}" required>
                             </div>
 
-                            <!-- Descripción -->
+                            <!-- DescripciÃ³n -->
                             <div class="mb-3">
-                                <label for="descripcion" class="form-label">Descripción:</label>
+                                <label for="descripcion" class="form-label">DescripciÃ³n:</label>
                                 <textarea class="form-control" id="descripcion" name="descripcion" rows="3">{{ producto.descripcion }}</textarea>
                             </div>
 
-                            <!-- Categoría y Proveedor -->
+                            <!-- CategorÃ­a y Proveedor -->
                             <div class="row">
                                 <div class="col-md-6">
                                     <div class="mb-3">
-                                        <label for="categoria_id" class="form-label">Categoría:</label>
+                                        <label for="categoria_id" class="form-label">CategorÃ­a:</label>
                                         <select class="form-control" id="categoria_id" name="categoria_id" required>
-                                            <option value="">Seleccione una categoría</option>
+                                            <option value="">Seleccione una categorÃ­a</option>
                                             {% for categoria in categorias %}
                                             <option value="{{ categoria.id }}" 
                                                     {% if producto.categoria_id == categoria.id %}selected{% endif %}>
@@ -107,10 +107,10 @@
                                 </div>
                                 <div class="col-md-4">
                                     <div class="mb-3">
-                                        <label for="cantidad_minima" class="form-label">Cantidad Mínima:</label>
+                                        <label for="cantidad_minima" class="form-label">Cantidad MÃ­nima:</label>
                                         <input type="number" class="form-control" id="cantidad_minima" name="cantidad_minima"
                                                value="{{ producto.cantidad_minima }}" min="0" required>
-                                        <div class="form-text">Stock mínimo para alertas</div>
+                                        <div class="form-text">Stock mÃ­nimo para alertas</div>
                                     </div>
                                 </div>
                                 <div class="col-md-4">
@@ -122,12 +122,12 @@
                                 </div>
                             </div>
 
-                            <!-- Ubicación -->
+                            <!-- UbicaciÃ³n -->
                             <div class="mb-3">
-                                <label for="ubicacion" class="form-label">Ubicación:</label>
+                                <label for="ubicacion" class="form-label">UbicaciÃ³n:</label>
                                 <input type="text" class="form-control" id="ubicacion" name="ubicacion"
                                        value="{{ producto.ubicacion }}">
-                                <div class="form-text">Ubicación física del producto</div>
+                                <div class="form-text">UbicaciÃ³n fÃ­sica del producto</div>
                             </div>
 
                             <!-- Es Asignable -->
@@ -171,7 +171,7 @@
                         </form>
                         {% else %}
                         <div class="alert alert-danger">
-                            <i class="fas fa-exclamation-triangle"></i> No se pudo cargar la información del producto.
+                            <i class="fas fa-exclamation-triangle"></i> No se pudo cargar la informaciÃ³n del producto.
                         </div>
                         <a href="/inventario-corporativo" class="btn btn-secondary">
                             <i class="fas fa-arrow-left"></i> Volver al Inventario

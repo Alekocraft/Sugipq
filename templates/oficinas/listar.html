@@ -25,13 +25,13 @@
             <h1 class="h2">🏢 Gestión de Oficinas</h1>
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
+                    <li class="breadcrumb-item"><a href="{{ url_for('auth.dashboard') }}">Dashboard</a></li>
                     <li class="breadcrumb-item active">Oficinas</li>
                 </ol>
             </nav>
         </div>
         <div class="col-auto">
-            <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
+            <a href="{{ url_for('auth.dashboard') }}" class="btn btn-secondary">
                 <i class="bi bi-arrow-left"></i> Volver al Dashboard
             </a>
         </div>

@@ -123,28 +123,28 @@ def reporte_solicitudes():
                 elif estado_filtro == 'devuelta' and 'devuelta' not in estado_solicitud:
                     continue
             
-            # Filtro por oficina - CORRECCIÓN: Usar ID en lugar de nombre
+            
             if filtro_oficina != 'todas':
                 oficina_solicitud_id = solicitud.get('oficina_id')
-                # Intentar convertir ambos a string para comparación
+               
                 if str(oficina_solicitud_id) != str(filtro_oficina):
                     continue
             
-            # Filtro por material (búsqueda por parte del nombre) - CORRECCIÓN
+           
             if filtro_material:
                 material_nombre = str(solicitud.get('material_nombre', '')).lower()
                 material_filtro = filtro_material.lower().strip()
                 if material_filtro not in material_nombre:
                     continue
             
-            # Filtro por solicitante (búsqueda por parte del nombre) - CORRECCIÓN
+      
             if filtro_solicitante:
                 solicitante = str(solicitud.get('usuario_solicitante', '')).lower()
                 solicitante_filtro = filtro_solicitante.lower().strip()
                 if solicitante_filtro not in solicitante:
                     continue
             
-            # Filtro por fecha
+            
             if filtro_fecha_inicio:
                 try:
                     fecha_solicitud_str = solicitud.get('fecha_solicitud', '')
@@ -759,7 +759,7 @@ def reporte_oficinas():
                 materiales.append(material)
             cursor_prod.close()
             
-            # Obtener movimientos/asignaciones CON AsignacionId (CRÍTICO para certificados)
+             
             cursor_mov = conn.cursor()
             cursor_mov.execute("""
                 SELECT 
@@ -796,19 +796,19 @@ def reporte_oficinas():
                     'cantidad': mov_row[3],
                     'usuario': mov_row[4] or 'Sistema',
                     'observaciones': mov_row[5] or '',
-                    'asignacion_id': mov_row[6]  # ✅ CRÍTICO para botones de certificado
+                    'asignacion_id': mov_row[6]   
                 }
                 movimientos.append(movimiento)
             cursor_mov.close()
             
-            # Calcular totales
+             
             oficina['materiales'] = materiales
             oficina['movimientos'] = movimientos
             oficina['total_materiales'] = len(materiales)
             oficina['total_movimientos'] = len(movimientos)
             oficina['valor_total'] = sum([m['valor_total'] for m in materiales])
             
-            # Contar solicitudes (opcional, puede fallar si no existe la tabla)
+            
             try:
                 cursor_sol = conn.cursor()
                 cursor_sol.execute("""
@@ -1111,7 +1111,7 @@ def exportar_inventario_corporativo_pdf():
         
         conn = get_database_connection()
         
-        # CONSULTA CORREGIDA - USANDO LA TABLA MATERIALES REAL
+         
         query = """
         SELECT 
             o.NombreOficina as Oficina,
