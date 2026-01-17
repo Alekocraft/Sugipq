@@ -198,26 +198,24 @@ def crear_materiales():
                 valor_unitario=material['valor_unitario'],
                 cantidad=material['cantidad'],
                 oficina_id=oficina_id,
-                usuario_creador=usuario_creador,
                 ruta_imagen=material['ruta_imagen'],
-                cantidad_minima=material['cantidad_minima']
+                cantidad_minima=material['cantidad_minima'],
+                usuario_creador=usuario_creador
             )
             
             if material_id:
                 materiales_creados += 1
-                print(f"✅ Material creado: {material['nombre']} (ID: {material_id})")
-            else:
-                flash(f'❌ Error al crear el material: {material["nombre"]}', 'danger')
+                print(f"✅ Material '{material['nombre']}' creado con ID: {material_id}")
         
         if materiales_creados > 0:
-            flash(f'✅ {materiales_creados} materiales creados exitosamente', 'success')
+            flash(f'✅ Se crearon {materiales_creados} materiales exitosamente', 'success')
         else:
-            flash('❌ No se pudo crear ningún material', 'danger')
+            flash('⚠️ No se pudo crear ningún material', 'warning')
         
         return redirect('/materiales')
-        
+    
     except Exception as e:
-        print(f"❌ Error al crear materiales: {e}")
+        print(f"❌ Error creando materiales: {e}")
         import traceback
         print(traceback.format_exc())
         flash('Error al crear los materiales', 'danger')
@@ -416,5 +414,3 @@ def api_estadisticas_dashboard():
             'solicitudes_pendientes': 0,
             'solicitudes_activas': 0
         })
-
- 

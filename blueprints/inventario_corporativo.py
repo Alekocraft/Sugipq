@@ -172,7 +172,7 @@ def listar_oficinas_servicio():
     # Obtener TODOS los productos de oficinas
     productos = InventarioCorporativoModel.obtener_por_oficinas_servicio() or []
     
-    # ✅ APLICAR FILTRO POR OFICINA DEL USUARIO
+    
     from utils.filters import filtrar_por_oficina_usuario
     productos = filtrar_por_oficina_usuario(productos, campo_oficina_id='oficina_id')
     

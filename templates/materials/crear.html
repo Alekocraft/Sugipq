@@ -1,148 +1,359 @@
 {% extends "base.html" %}
-{% block title %}Crear Materiales{% endblock %}
-{% block content %}
-<h1>➕ Crear Materiales (hasta 10)</h1>
-<a href="/dashboard" class="btn btn-secondary">← Volver a Dashboard</a>
+{% block title %}Crear Material POP - Inventario{% endblock %}
 
-{% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-        {% for category, message in messages %}
-<div class="alert alert-{{ 'danger' if category == 'danger' else 'success' }} alert-dismissible fade show mt-3">
-    {{ message }}
-    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-</div>
-        {% endfor %}
-    {% endif %}
-{% endwith %}
-
-<form method="POST" enctype="multipart/form-data" id="materialesForm" class="mt-3">
-    <div id="materiales-container">
-        <div class="material-entry card mb-3" data-index="0">
-            <div class="card-header">
-                <h5 class="mb-0">Material 1</h5>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-3">
-                        <label class="form-label">Nombre del Material *</label>
-                        <input type="text" name="nombre_0" class="form-control" required>
-                    </div>
-                    <div class="col-md-2">
-                        <label class="form-label">Valor Unitario ($)*</label>
-                        <input type="number" step="0.01" name="valor_unitario_0" class="form-control" required min="0.01">
-                    </div>
-                    <div class="col-md-2">
-                        <label class="form-label">Cantidad *</label>
-                        <input type="number" name="cantidad_0" class="form-control" required min="1">
-                    </div>
-                    <div class="col-md-2">
-                        <label class="form-label">Cantidad Mínima *</label>
-                        <input type="number" name="cantidad_minima_0" class="form-control" required min="0">
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Foto *</label>
-                        <input type="file" name="imagen_0" class="form-control" accept="image/*" required onchange="previewImage(this, 0)">
-                        <img id="preview_0" class="preview-img mt-2 d-none" style="max-width: 100px; max-height: 100px; border: 1px solid #dee2e6; border-radius: 4px;">
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <button type="button" class="btn btn-outline-primary mb-3" id="addMaterialBtn">+ Agregar otro elemento</button>
-    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-        <a href="/materiales" class="btn btn-secondary me-md-2">Cancelar</a>
-        <button type="submit" class="btn btn-success">💾 Guardar Todos los Materiales</button>
-    </div>
-</form>
-{% endblock %}
-
-{% block scripts %}
-<script>
-    let materialCount = 1;
-    const MAX_MATERIALES = 10;
-
-    function previewImage(input, index) {
-        const preview = document.getElementById('preview_' + index);
-        if (input.files && input.files[0]) {
-            const reader = new FileReader();
-            reader.onload = function (e) {
-                preview.src = e.target.result;
-                preview.classList.remove('d-none');
-            }
-            reader.readAsDataURL(input.files[0]);
-        }
-    }
-
-    document.getElementById('addMaterialBtn').addEventListener('click', function () {
-        if (materialCount >= MAX_MATERIALES) {
-            alert('⚠️ Máximo 10 materiales permitidos.');
-            return;
-        }
-
-        const container = document.getElementById('materiales-container');
-        const newIndex = materialCount;
-        const html = `
-            <div class="material-entry card mb-3" data-index="${newIndex}">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">Material ${newIndex + 1}</h5>
-                    <button type="button" class="btn btn-sm btn-danger" onclick="this.closest('.material-entry').remove(); materialCount--; updateAddButton();">🗑️ Eliminar</button>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-3">
-                            <label class="form-label">Nombre del Material *</label>
-                            <input type="text" name="nombre_${newIndex}" class="form-control" required>
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label">Valor Unitario ($)*</label>
-                            <input type="number" step="0.01" name="valor_unitario_${newIndex}" class="form-control" required min="0.01">
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label">Cantidad *</label>
-                            <input type="number" name="cantidad_${newIndex}" class="form-control" required min="1">
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label">Cantidad Mínima *</label>
-                            <input type="number" name="cantidad_minima_${newIndex}" class="form-control" required min="0">
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Foto *</label>
-                            <input type="file" name="imagen_${newIndex}" class="form-control" accept="image/*" required onchange="previewImage(this, ${newIndex})">
-                            <img id="preview_${newIndex}" class="preview-img mt-2 d-none" style="max-width: 100px; max-height: 100px; border: 1px solid #dee2e6; border-radius: 4px;">
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-        container.insertAdjacentHTML('beforeend', html);
-        materialCount++;
-        updateAddButton();
-    });
-
-    function updateAddButton() {
-        const btn = document.getElementById('addMaterialBtn');
-        if (materialCount >= MAX_MATERIALES) {
-            btn.disabled = true;
-            btn.textContent = 'Límite alcanzado (10)';
-        } else {
-            btn.disabled = false;
-            btn.textContent = '+ Agregar otro elemento';
-        }
-    }
-</script>
-
+{% block styles %}
 <style>
-    .material-entry {
-        border-left: 4px solid #007bff;
-        background-color: #f8f9fa;
+    .card-materiales {
+        border-radius: 0.75rem;
     }
-    .material-entry:nth-child(even) {
-        border-left-color: #28a745;
+    .card-materiales .card-header {
+        border-top-left-radius: 0.75rem;
+        border-top-right-radius: 0.75rem;
     }
     .preview-img {
-        display: block;
-        margin-top: 8px;
+        max-width: 150px;
+        max-height: 150px;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        object-fit: cover;
+    }
+    .material-item {
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 15px;
+        background-color: #f8f9fa;
+    }
+    .material-item.hidden {
+        display: none;
+    }
+    .btn-remove-material {
+        position: absolute;
+        top: 10px;
+        right: 10px;
     }
 </style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid fade-in">
+    <div class="row justify-content-center mt-3">
+        <div class="col-lg-10">
+
+            <h2 class="mb-3 fw-bold text-primary text-center">
+                <i class="fas fa-plus-circle"></i> Crear Material POP
+            </h2>
+
+            <div class="card card-materiales shadow-sm">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-plus"></i> Nuevo Material POP
+                    </h5>
+                    <a href="/materiales" class="btn btn-sm btn-light">
+                        <i class="fas fa-arrow-left"></i> Volver
+                    </a>
+                </div>
+
+                <div class="card-body">
+
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <div class="alert alert-{{ category }} alert-dismissible fade show">
+                                    {{ message }}
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+
+                    <form method="POST" enctype="multipart/form-data" id="formCrearMateriales" autocomplete="off">
+                        <!-- ✅ TOKEN CSRF AGREGADO -->
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i> 
+                            Puede crear hasta 10 materiales a la vez. Complete los campos necesarios para cada material.
+                        </div>
+
+                        <!-- Contenedor de materiales -->
+                        <div id="materialesContainer">
+                            <!-- Material 1 (siempre visible) -->
+                            <div class="material-item position-relative" id="material_0">
+                                <h6 class="fw-bold text-primary mb-3">
+                                    <i class="fas fa-box"></i> Material #1
+                                </h6>
+                                
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <!-- Nombre -->
+                                        <div class="mb-3">
+                                            <label class="form-label">Nombre *</label>
+                                            <input type="text" name="nombre_0" class="form-control" required>
+                                        </div>
+
+                                        <!-- Valor unitario -->
+                                        <div class="mb-3">
+                                            <label class="form-label">Valor Unitario *</label>
+                                            <input type="number" name="valor_unitario_0" class="form-control" 
+                                                   min="0.01" step="0.01" required>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-md-6">
+                                        <!-- Cantidad -->
+                                        <div class="mb-3">
+                                            <label class="form-label">Cantidad *</label>
+                                            <input type="number" name="cantidad_0" class="form-control" 
+                                                   min="1" required>
+                                        </div>
+
+                                        <!-- Cantidad mínima -->
+                                        <div class="mb-3">
+                                            <label class="form-label">Cantidad Mínima *</label>
+                                            <input type="number" name="cantidad_minima_0" class="form-control" 
+                                                   min="1" required>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Imagen (AHORA OBLIGATORIA) -->
+                                <div class="mb-3">
+                                    <label class="form-label">Imagen *</label>
+                                    <input type="file" name="imagen_0" class="form-control" 
+                                           accept="image/*" onchange="previewImage(this, 0)" required>
+                                    <img id="preview_0" class="preview-img d-none mt-2" alt="Vista previa">
+                                    <div class="form-text">La imagen es obligatoria para cada material.</div>
+                                </div>
+                            </div>
+
+                            <!-- Materiales adicionales (2-10, ocultos inicialmente) -->
+                            {% for i in range(1, 10) %}
+                            <div class="material-item position-relative hidden" id="material_{{ i }}">
+                                <button type="button" class="btn btn-sm btn-danger btn-remove-material" 
+                                        onclick="removeMaterial({{ i }})">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                                
+                                <h6 class="fw-bold text-primary mb-3">
+                                    <i class="fas fa-box"></i> Material #{{ i + 1 }}
+                                </h6>
+                                
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Nombre *</label>
+                                            <input type="text" name="nombre_{{ i }}" class="form-control">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Valor Unitario *</label>
+                                            <input type="number" name="valor_unitario_{{ i }}" 
+                                                   class="form-control" min="0.01" step="0.01">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Cantidad *</label>
+                                            <input type="number" name="cantidad_{{ i }}" 
+                                                   class="form-control" min="1">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Cantidad Mínima *</label>
+                                            <input type="number" name="cantidad_minima_{{ i }}" 
+                                                   class="form-control" min="1">
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Imagen (AHORA OBLIGATORIA) -->
+                                <div class="mb-3">
+                                    <label class="form-label">Imagen *</label>
+                                    <input type="file" name="imagen_{{ i }}" class="form-control" 
+                                           accept="image/*" onchange="previewImage(this, {{ i }})">
+                                    <img id="preview_{{ i }}" class="preview-img d-none mt-2" alt="Vista previa">
+                                    <div class="form-text">La imagen es obligatoria para cada material.</div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+
+                        <!-- Botón para agregar más materiales -->
+                        <div class="mb-3">
+                            <button type="button" class="btn btn-outline-primary" 
+                                    onclick="addMaterial()" id="btnAddMaterial">
+                                <i class="fas fa-plus"></i> Agregar otro material
+                            </button>
+                            <span class="text-muted ms-2" id="materialCount">1/10 materiales</span>
+                        </div>
+
+                        <hr>
+
+                        <div class="d-flex justify-content-between">
+                            <a href="/materiales" class="btn btn-secondary">
+                                <i class="fas fa-arrow-left"></i> Cancelar
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i> Guardar Materiales
+                            </button>
+                        </div>
+                    </form>
+
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script>
+let materialCount = 1;
+const maxMaterials = 10;
+
+function addMaterial() {
+    if (materialCount >= maxMaterials) {
+        alert('Máximo 10 materiales por vez');
+        return;
+    }
+    
+    const nextMaterial = document.getElementById(`material_${materialCount}`);
+    if (nextMaterial) {
+        nextMaterial.classList.remove('hidden');
+        // Hacer required TODOS los campos del nuevo material, incluyendo imagen
+        const inputs = nextMaterial.querySelectorAll('input[type="text"], input[type="number"], input[type="file"]');
+        inputs.forEach(input => {
+            input.required = true;
+        });
+        materialCount++;
+        updateMaterialCount();
+        
+        if (materialCount >= maxMaterials) {
+            document.getElementById('btnAddMaterial').disabled = true;
+        }
+    }
+}
+
+function removeMaterial(index) {
+    const material = document.getElementById(`material_${index}`);
+    if (material && index > 0) {  // No permitir eliminar el primer material
+        material.classList.add('hidden');
+        // Limpiar campos y quitar required
+        const inputs = material.querySelectorAll('input');
+        inputs.forEach(input => {
+            input.value = '';
+            input.required = false;
+            // Para inputs de tipo file, también limpiar el preview
+            if (input.type === 'file') {
+                const previewId = input.name.replace('imagen_', 'preview_');
+                const preview = document.getElementById(previewId);
+                if (preview) {
+                    preview.src = '';
+                    preview.classList.add('d-none');
+                }
+            }
+        });
+        
+        // Reordenar conteo
+        materialCount = 0;
+        for (let i = 0; i < maxMaterials; i++) {
+            const mat = document.getElementById(`material_${i}`);
+            if (mat && !mat.classList.contains('hidden')) {
+                materialCount++;
+            }
+        }
+        
+        updateMaterialCount();
+        document.getElementById('btnAddMaterial').disabled = false;
+    }
+}
+
+function updateMaterialCount() {
+    document.getElementById('materialCount').textContent = `${materialCount}/${maxMaterials} materiales`;
+}
+
+function previewImage(input, index) {
+    const preview = document.getElementById(`preview_${index}`);
+    
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        
+        reader.onload = function(e) {
+            preview.src = e.target.result;
+            preview.classList.remove('d-none');
+        }
+        
+        reader.readAsDataURL(input.files[0]);
+    } else {
+        preview.src = '';
+        preview.classList.add('d-none');
+    }
+}
+
+// Validación mejorada antes de enviar
+document.getElementById('formCrearMateriales').addEventListener('submit', function(e) {
+    let hasValidData = true;
+    let errorMessage = '';
+    
+    // Verificar que todos los materiales visibles tengan todos los campos completos
+    for (let i = 0; i < maxMaterials; i++) {
+        const materialDiv = document.getElementById(`material_${i}`);
+        
+        // Solo verificar materiales visibles
+        if (materialDiv && !materialDiv.classList.contains('hidden')) {
+            // Verificar campos obligatorios
+            const nombreInput = document.querySelector(`input[name="nombre_${i}"]`);
+            const valorInput = document.querySelector(`input[name="valor_unitario_${i}"]`);
+            const cantidadInput = document.querySelector(`input[name="cantidad_${i}"]`);
+            const cantidadMinInput = document.querySelector(`input[name="cantidad_minima_${i}"]`);
+            const imagenInput = document.querySelector(`input[name="imagen_${i}"]`);
+            
+            // Verificar que todos los campos tengan valor
+            if (!nombreInput || !nombreInput.value.trim()) {
+                hasValidData = false;
+                errorMessage = `El material #${i + 1} requiere un nombre`;
+                break;
+            }
+            
+            if (!valorInput || !valorInput.value || parseFloat(valorInput.value) <= 0) {
+                hasValidData = false;
+                errorMessage = `El material #${i + 1} requiere un valor unitario válido`;
+                break;
+            }
+            
+            if (!cantidadInput || !cantidadInput.value || parseInt(cantidadInput.value) < 1) {
+                hasValidData = false;
+                errorMessage = `El material #${i + 1} requiere una cantidad válida`;
+                break;
+            }
+            
+            if (!cantidadMinInput || !cantidadMinInput.value || parseInt(cantidadMinInput.value) < 1) {
+                hasValidData = false;
+                errorMessage = `El material #${i + 1} requiere una cantidad mínima válida`;
+                break;
+            }
+            
+            // Verificar que se haya seleccionado una imagen
+            if (!imagenInput || !imagenInput.files || !imagenInput.files[0]) {
+                hasValidData = false;
+                errorMessage = `El material #${i + 1} requiere una imagen`;
+                break;
+            }
+            
+            // Verificar que el archivo sea una imagen
+            const file = imagenInput.files[0];
+            if (!file.type.startsWith('image/')) {
+                hasValidData = false;
+                errorMessage = `El archivo del material #${i + 1} debe ser una imagen`;
+                break;
+            }
+        }
+    }
+    
+    if (!hasValidData) {
+        e.preventDefault();
+        alert(`Error: ${errorMessage}`);
+        return false;
+    }
+    
+    return true;
+});
+</script>
 {% endblock %}
