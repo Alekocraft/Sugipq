@@ -158,26 +158,30 @@ def crear_materiales():
             cantidad_minima = request.form.get(f'cantidad_minima_{i}')
             imagen = request.files.get(f'imagen_{i}')
             
-            # Validar que todos los campos requeridos estén presentes
+            # Validar que todos los campos requeridos estén presentes (incluida la imagen)
             if not all([nombre, valor_unitario, cantidad, cantidad_minima]):
                 flash(f'Faltan campos requeridos en el material {i+1}', 'danger')
                 continue
             
-            # Procesar imagen y guardar ruta
+            # ✅ Validar que la imagen es obligatoria
+            if not imagen or not imagen.filename:
+                flash(f'La imagen es obligatoria para el material {i+1}: {nombre}', 'danger')
+                continue
+            
+            # Procesar imagen (obligatoria)
             ruta_imagen = None
-            if imagen and imagen.filename:
-                filename = secure_filename(imagen.filename)
-                # Crear nombre único para evitar colisiones
-                unique_filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{filename}"
-                
-                # Asegurar que el directorio de uploads existe
-                upload_folder = current_app.config.get('UPLOAD_FOLDER', 'static/uploads')
-                os.makedirs(upload_folder, exist_ok=True)
-                
-                filepath = os.path.join(upload_folder, unique_filename)
-                imagen.save(filepath)
-                ruta_imagen = unique_filename
-                print(f"✅ Imagen guardada en: {filepath}")
+            filename = secure_filename(imagen.filename)
+            # Crear nombre único para evitar colisiones
+            unique_filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{filename}"
+            
+            # Asegurar que el directorio de uploads existe
+            upload_folder = current_app.config.get('UPLOAD_FOLDER', 'static/uploads')
+            os.makedirs(upload_folder, exist_ok=True)
+            
+            filepath = os.path.join(upload_folder, unique_filename)
+            imagen.save(filepath)
+            ruta_imagen = unique_filename
+            print(f"✅ Imagen guardada en: {filepath}")
             
             materiales_data.append({
                 'nombre': nombre,

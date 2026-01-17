@@ -10,7 +10,7 @@
         </div>
     </div>
 
-    <h1><i class="fas fa-exchange-alt text-primary"></i> Traspasos Pendientes de Aprobación</h1>
+    <h1><i class="fas fa-exchange-alt text-primary"></i> Traspasos Pendientes de AprobaciÃ³n</h1>
     <p class="text-muted">Revise y apruebe o rechace las solicitudes de traspaso</p>
 
     <div class="card mt-4">
@@ -100,9 +100,12 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <form id="formAprobar" method="POST">
+                <!-- ✅ TOKEN CSRF AGREGADO -->
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                
                 <div class="modal-body">
-                    <p>¿Está seguro que desea <strong>APROBAR</strong> este traspaso?</p>
-                    <p class="text-muted">El producto cambiará de oficina automáticamente.</p>
+                    <p>Â¿EstÃ¡ seguro que desea <strong>APROBAR</strong> este traspaso?</p>
+                    <p class="text-muted">El producto cambiarÃ¡ de oficina automÃ¡ticamente.</p>
                     <div class="mb-3">
                         <label class="form-label">Observaciones (opcional)</label>
                         <textarea class="form-control" name="observaciones" rows="3" 
@@ -129,12 +132,15 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <form id="formRechazar" method="POST">
+                <!-- ✅ TOKEN CSRF AGREGADO -->
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                
                 <div class="modal-body">
-                    <p>¿Está seguro que desea <strong>RECHAZAR</strong> este traspaso?</p>
+                    <p>Â¿EstÃ¡ seguro que desea <strong>RECHAZAR</strong> este traspaso?</p>
                     <div class="mb-3">
                         <label class="form-label">Motivo del rechazo <span class="text-danger">*</span></label>
                         <textarea class="form-control" name="observaciones" rows="3" required
-                                  placeholder="Explique por qué rechaza este traspaso..."></textarea>
+                                  placeholder="Explique por quÃ© rechaza este traspaso..."></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">

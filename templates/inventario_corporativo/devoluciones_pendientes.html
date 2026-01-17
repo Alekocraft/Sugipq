@@ -10,8 +10,8 @@
         </div>
     </div>
 
-    <h1><i class="fas fa-clipboard-check text-warning"></i> Devoluciones Pendientes de Aprobación</h1>
-    <p class="text-muted">Revise y apruebe o rechace las solicitudes de devolución</p>
+    <h1><i class="fas fa-clipboard-check text-warning"></i> Devoluciones Pendientes de AprobaciÃ³n</h1>
+    <p class="text-muted">Revise y apruebe o rechace las solicitudes de devoluciÃ³n</p>
 
     <div class="card mt-4">
         <div class="card-header bg-warning text-white">
@@ -86,12 +86,15 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header bg-success text-white">
-                <h5 class="modal-title">Aprobar Devolución</h5>
+                <h5 class="modal-title">Aprobar DevoluciÃ³n</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <form id="formAprobar" method="POST">
+                <!-- ✅ TOKEN CSRF AGREGADO -->
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                
                 <div class="modal-body">
-                    <p>¿Está seguro que desea <strong>APROBAR</strong> esta devolución?</p>
+                    <p>Â¿EstÃ¡ seguro que desea <strong>APROBAR</strong> esta devoluciÃ³n?</p>
                     <div class="mb-3">
                         <label class="form-label">Observaciones (opcional)</label>
                         <textarea class="form-control" name="observaciones" rows="3" 
@@ -114,16 +117,19 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title">Rechazar Devolución</h5>
+                <h5 class="modal-title">Rechazar DevoluciÃ³n</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <form id="formRechazar" method="POST">
+                <!-- ✅ TOKEN CSRF AGREGADO -->
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                
                 <div class="modal-body">
-                    <p>¿Está seguro que desea <strong>RECHAZAR</strong> esta devolución?</p>
+                    <p>Â¿EstÃ¡ seguro que desea <strong>RECHAZAR</strong> esta devoluciÃ³n?</p>
                     <div class="mb-3">
                         <label class="form-label">Motivo del rechazo <span class="text-danger">*</span></label>
                         <textarea class="form-control" name="observaciones" rows="3" required
-                                  placeholder="Explique por qué rechaza esta devolución..."></textarea>
+                                  placeholder="Explique por quÃ© rechaza esta devoluciÃ³n..."></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">

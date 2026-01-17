@@ -31,6 +31,9 @@
                 </div>
                 <div class="card-body">
                     <form method="POST">
+                        <!-- ✅ TOKEN CSRF AGREGADO -->
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        
                         <div class="row">
                             <div class="col-md-6 mb-3">
                                 <label for="oficina_origen_id" class="form-label">

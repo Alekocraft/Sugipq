@@ -49,6 +49,9 @@
         </div>
         <div class="card-body">
             <form method="POST" action="/solicitudes/crear">
+                <!-- ✅ TOKEN CSRF AGREGADO -->
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
                 <div class="row">
                     <div class="col-md-6">
                         <!-- Oficina Solicitante -->
