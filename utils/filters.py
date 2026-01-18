@@ -1,4 +1,4 @@
-# utils/filters.py - CORREGIDO
+# utils/filters.py - CORREGIDO CON FORMATO DE NÚMEROS
 from flask import session
 
 def filtrar_por_oficina_usuario(datos, campo_oficina_id='oficina_id'):
@@ -76,3 +76,71 @@ def verificar_acceso_oficina(oficina_id):
     # Para otros casos (filtro por nombre de oficina), necesitarías más lógica
     # Por ahora, devolvemos False ya que no hay forma directa de comparar
     return False
+
+
+# ✅ FILTROS JINJA2 PARA FORMATEO DE NÚMEROS
+def formato_numero(valor, decimales=0):
+    """
+    Formatea un número con separador de miles (punto) y decimales (coma).
+    Ejemplos:
+        100000 -> 100.000
+        1500000 -> 1.500.000
+        1234.56 con decimales=2 -> 1.234,56
+    """
+    try:
+        valor = float(valor) if valor else 0
+        
+        if decimales > 0:
+            # Con decimales: usar coma como separador decimal
+            formato = f"{{:,.{decimales}f}}"
+            resultado = formato.format(valor)
+            # Cambiar coma por punto (miles) y punto por coma (decimales)
+            resultado = resultado.replace(',', 'X').replace('.', ',').replace('X', '.')
+        else:
+            # Sin decimales
+            resultado = f"{int(valor):,}".replace(',', '.')
+        
+        return resultado
+    except (ValueError, TypeError):
+        return '0'
+
+
+def formato_moneda(valor, simbolo='$', decimales=0):
+    """
+    Formatea un número como moneda.
+    Ejemplos:
+        100000 -> $100.000
+        1500000.50 con decimales=2 -> $1.500.000,50
+    """
+    numero_formateado = formato_numero(valor, decimales)
+    return f"{simbolo}{numero_formateado}"
+
+
+def formato_porcentaje(valor, decimales=1):
+    """
+    Formatea un número como porcentaje.
+    Ejemplos:
+        0.25 -> 25%
+        0.333 con decimales=1 -> 33,3%
+    """
+    try:
+        valor = float(valor) if valor else 0
+        porcentaje = valor * 100 if valor < 1 else valor
+        
+        if decimales > 0:
+            return f"{porcentaje:.{decimales}f}%".replace('.', ',')
+        else:
+            return f"{int(porcentaje)}%"
+    except (ValueError, TypeError):
+        return '0%'
+
+
+# Función para registrar los filtros en la aplicación Flask
+def registrar_filtros_jinja(app):
+    """
+    Registra todos los filtros personalizados en la aplicación Flask.
+    Debe llamarse desde el archivo principal de la aplicación.
+    """
+    app.jinja_env.filters['formato_numero'] = formato_numero
+    app.jinja_env.filters['formato_moneda'] = formato_moneda
+    app.jinja_env.filters['formato_porcentaje'] = formato_porcentaje

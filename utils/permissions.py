@@ -210,6 +210,76 @@ def can_view_inventario_actions() -> bool:
     return can_manage_inventario_corporativo()
 
 
+# ==============================================
+# ✅ NUEVAS FUNCIONES - Devoluciones y Traspasos
+# ==============================================
+
+def puede_solicitar_devolucion() -> bool:
+    """
+    Verifica si el usuario puede solicitar devoluciones de inventario corporativo.
+    TODOS los usuarios autenticados pueden solicitar devoluciones.
+    
+    Returns:
+        bool: True si puede solicitar devoluciones, False de lo contrario
+    """
+    # Verificar que el usuario esté autenticado
+    if 'usuario_id' not in session:
+        logger.debug("Usuario no autenticado - no puede solicitar devoluciones")
+        return False
+    
+    # TODOS los usuarios autenticados pueden solicitar devoluciones
+    logger.debug("Usuario autenticado puede solicitar devoluciones")
+    return True
+
+
+def puede_solicitar_traspaso() -> bool:
+    """
+    Verifica si el usuario puede solicitar traspasos de inventario corporativo.
+    TODOS los usuarios autenticados pueden solicitar traspasos.
+    
+    Returns:
+        bool: True si puede solicitar traspasos, False de lo contrario
+    """
+    # Verificar que el usuario esté autenticado
+    if 'usuario_id' not in session:
+        logger.debug("Usuario no autenticado - no puede solicitar traspasos")
+        return False
+    
+    # TODOS los usuarios autenticados pueden solicitar traspasos
+    logger.debug("Usuario autenticado puede solicitar traspasos")
+    return True
+
+
+def puede_aprobar_devolucion() -> bool:
+    """
+    Verifica si el usuario puede aprobar devoluciones de inventario corporativo.
+    
+    Returns:
+        bool: True si puede aprobar devoluciones, False de lo contrario
+    """
+    # Solo administradores y líderes de inventario pueden aprobar
+    puede = can_manage_inventario_corporativo()
+    logger.debug(f"Usuario puede aprobar devoluciones: {puede}")
+    return puede
+
+
+def puede_aprobar_traspaso() -> bool:
+    """
+    Verifica si el usuario puede aprobar traspasos de inventario corporativo.
+    
+    Returns:
+        bool: True si puede aprobar traspasos, False de lo contrario
+    """
+    # Solo administradores y líderes de inventario pueden aprobar
+    puede = can_manage_inventario_corporativo()
+    logger.debug(f"Usuario puede aprobar traspasos: {puede}")
+    return puede
+
+
+# ==============================================
+# FUNCIONES DE MENÚ Y MÓDULOS
+# ==============================================
+
 def should_show_materiales_menu() -> bool:
     """Determina si debe mostrar el menú de materiales en la interfaz"""
     should_show = can_access('materiales', 'view')
@@ -269,7 +339,7 @@ def user_can_view_all() -> bool:
 
 
 # ==============================================
-# FUNCIONES DE PERMISOS ESPECÍFICOS (mantener las existentes)
+# FUNCIONES DE PERMISOS ESPECÍFICOS
 # ==============================================
 
 def can_create_solicitud() -> bool:
@@ -468,4 +538,8 @@ PERMISSION_FUNCTIONS = {
     'return_solicitud': can_return_solicitud,
     'can_access': can_access,
     'can_view_actions': can_view_actions,
+    'puede_solicitar_devolucion': puede_solicitar_devolucion,
+    'puede_solicitar_traspaso': puede_solicitar_traspaso,
+    'puede_aprobar_devolucion': puede_aprobar_devolucion,
+    'puede_aprobar_traspaso': puede_aprobar_traspaso,
 }

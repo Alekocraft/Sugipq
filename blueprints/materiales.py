@@ -22,7 +22,7 @@ try:
     SOLICITUD_MODEL_DISPONIBLE = True
 except ImportError:
     SOLICITUD_MODEL_DISPONIBLE = False
-    print("⚠️ SolicitudModel no disponible - estadísticas deshabilitadas")
+    print("âš ï¸ SolicitudModel no disponible - estadÃ­sticas deshabilitadas")
 
 materiales_bp = Blueprint('materiales', __name__, url_prefix='/materiales')
 
@@ -33,8 +33,8 @@ def _require_login() -> bool:
 
 def _obtener_estadisticas_material(material_id):
     """
-    Obtiene estadísticas de un material de forma segura.
-    Retorna None si hay error o el modelo no está disponible.
+    Obtiene estadÃ­sticas de un material de forma segura.
+    Retorna None si hay error o el modelo no estÃ¡ disponible.
     """
     if not SOLICITUD_MODEL_DISPONIBLE:
         return None
@@ -42,7 +42,7 @@ def _obtener_estadisticas_material(material_id):
     try:
         return SolicitudModel.obtener_estadisticas_por_material(material_id)
     except Exception as e:
-        print(f"⚠️ Error obteniendo estadísticas para material {material_id}: {e}")
+        print(f"âš ï¸ Error obteniendo estadÃ­sticas para material {material_id}: {e}")
         return None
 
 
@@ -50,8 +50,8 @@ def _obtener_estadisticas_material(material_id):
 def listar_materiales():
     """Listar todos los materiales (protegido por permisos)."""
     if not can_access('materiales', 'view'):
-        flash('❌ No tienes permisos para acceder a materiales', 'danger')
-        print(f"🚫 Acceso denegado a /materiales - Usuario: {session.get('usuario_nombre')}")
+        flash('âŒ No tienes permisos para acceder a materiales', 'danger')
+        print(f"ðŸš« Acceso denegado a /materiales - Usuario: {session.get('usuario_nombre')}")
         return redirect('/dashboard')
 
     # Inicializar variables con valores por defecto
@@ -62,25 +62,25 @@ def listar_materiales():
     total_entregado = 0
 
     try:
-        print("📦 Cargando lista de materiales...")
+        print("ðŸ“¦ Cargando lista de materiales...")
         
-        # ✅ Obtener todos los materiales
+        # âœ… Obtener todos los materiales
         todos_materiales = MaterialModel.obtener_todos() or []
         
-        # ✅ Aplicar filtro por oficina según permisos del usuario
+        # âœ… Aplicar filtro por oficina segÃºn permisos del usuario
         materiales = filtrar_por_oficina_usuario(todos_materiales, 'oficina_id')
         
-        print(f"📦 Se cargaron {len(materiales)} materiales para mostrar (filtrados por oficina)")
+        print(f"ðŸ“¦ Se cargaron {len(materiales)} materiales para mostrar (filtrados por oficina)")
         
     except Exception as e:
-        print(f"❌ Error obteniendo materiales: {e}")
+        print(f"âŒ Error obteniendo materiales: {e}")
         import traceback
         print(traceback.format_exc())
         flash('Error al cargar los materiales', 'danger')
-        # Continuar con lista vacía en lugar de fallar completamente
+        # Continuar con lista vacÃ­a en lugar de fallar completamente
         materiales = []
 
-    # ✅ OBTENER ESTADÍSTICAS DE FORMA SEGURA (separado del bloque principal)
+    # âœ… OBTENER ESTADÃSTICAS DE FORMA SEGURA (separado del bloque principal)
     try:
         for material in materiales:
             try:
@@ -88,7 +88,7 @@ def listar_materiales():
                 if not material_id:
                     continue
                     
-                # Obtener estadísticas de solicitudes para este material (de forma segura)
+                # Obtener estadÃ­sticas de solicitudes para este material (de forma segura)
                 stats = _obtener_estadisticas_material(material_id)
                 if stats:
                     stats_dict[material_id] = stats
@@ -102,13 +102,13 @@ def listar_materiales():
                     total_entregado += int(stats[3] or 0)
                     
             except Exception as e:
-                print(f"⚠️ Error procesando estadísticas del material {material.get('id', 'desconocido')}: {e}")
+                print(f"âš ï¸ Error procesando estadÃ­sticas del material {material.get('id', 'desconocido')}: {e}")
                 # Continuar con el siguiente material
                 continue
                 
     except Exception as e:
-        print(f"⚠️ Error general en cálculo de estadísticas: {e}")
-        # Las estadísticas fallan pero los materiales se muestran igual
+        print(f"âš ï¸ Error general en cÃ¡lculo de estadÃ­sticas: {e}")
+        # Las estadÃ­sticas fallan pero los materiales se muestran igual
 
     return render_template('materials/listar.html', 
                          materiales=materiales,
@@ -118,7 +118,7 @@ def listar_materiales():
                          total_entregado=total_entregado)
 
 
-# RUTA GET PARA MOSTRAR EL FORMULARIO DE CREACIÓN
+# RUTA GET PARA MOSTRAR EL FORMULARIO DE CREACIÃ“N
 @materiales_bp.route('/crear', methods=['GET'])
 def mostrar_formulario_creacion():
     """Mostrar el formulario para crear materiales"""
@@ -126,21 +126,21 @@ def mostrar_formulario_creacion():
         return redirect('/login')
 
     if not can_access('materiales', 'create'):
-        flash('❌ No tienes permisos para crear materiales', 'danger')
+        flash('âŒ No tienes permisos para crear materiales', 'danger')
         return redirect('/materiales')
 
     return render_template('materials/crear.html')
 
 
-# RUTA POST PARA PROCESAR LA CREACIÓN DE MATERIALES
+# RUTA POST PARA PROCESAR LA CREACIÃ“N DE MATERIALES
 @materiales_bp.route('/crear', methods=['POST'])
 def crear_materiales():
-    """Procesar la creación de materiales"""
+    """Procesar la creaciÃ³n de materiales"""
     if not _require_login():
         return redirect('/login')
 
     if not can_access('materiales', 'create'):
-        flash('❌ No tienes permisos para crear materiales', 'danger')
+        flash('âŒ No tienes permisos para crear materiales', 'danger')
         return redirect('/materiales')
 
     try:
@@ -150,7 +150,7 @@ def crear_materiales():
         # Iterar sobre los materiales (hasta 10)
         for i in range(10):
             nombre = request.form.get(f'nombre_{i}')
-            if not nombre:  # Si no hay nombre, asumir que no hay más materiales
+            if not nombre:  # Si no hay nombre, asumir que no hay mÃ¡s materiales
                 continue
                 
             valor_unitario = request.form.get(f'valor_unitario_{i}')
@@ -158,30 +158,26 @@ def crear_materiales():
             cantidad_minima = request.form.get(f'cantidad_minima_{i}')
             imagen = request.files.get(f'imagen_{i}')
             
-            # Validar que todos los campos requeridos estén presentes (incluida la imagen)
+            # Validar que todos los campos requeridos estÃ©n presentes
             if not all([nombre, valor_unitario, cantidad, cantidad_minima]):
                 flash(f'Faltan campos requeridos en el material {i+1}', 'danger')
                 continue
             
-            # ✅ Validar que la imagen es obligatoria
-            if not imagen or not imagen.filename:
-                flash(f'La imagen es obligatoria para el material {i+1}: {nombre}', 'danger')
-                continue
-            
-            # Procesar imagen (obligatoria)
+            # Procesar imagen y guardar ruta
             ruta_imagen = None
-            filename = secure_filename(imagen.filename)
-            # Crear nombre único para evitar colisiones
-            unique_filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{filename}"
-            
-            # Asegurar que el directorio de uploads existe
-            upload_folder = current_app.config.get('UPLOAD_FOLDER', 'static/uploads')
-            os.makedirs(upload_folder, exist_ok=True)
-            
-            filepath = os.path.join(upload_folder, unique_filename)
-            imagen.save(filepath)
-            ruta_imagen = unique_filename
-            print(f"✅ Imagen guardada en: {filepath}")
+            if imagen and imagen.filename:
+                filename = secure_filename(imagen.filename)
+                # Crear nombre Ãºnico para evitar colisiones
+                unique_filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{filename}"
+                
+                # Asegurar que el directorio de uploads existe
+                upload_folder = current_app.config.get('UPLOAD_FOLDER', 'static/uploads')
+                os.makedirs(upload_folder, exist_ok=True)
+                
+                filepath = os.path.join(upload_folder, unique_filename)
+                imagen.save(filepath)
+                ruta_imagen = unique_filename
+                print(f"âœ… Imagen guardada en: {filepath}")
             
             materiales_data.append({
                 'nombre': nombre,
@@ -202,24 +198,26 @@ def crear_materiales():
                 valor_unitario=material['valor_unitario'],
                 cantidad=material['cantidad'],
                 oficina_id=oficina_id,
+                usuario_creador=usuario_creador,
                 ruta_imagen=material['ruta_imagen'],
-                cantidad_minima=material['cantidad_minima'],
-                usuario_creador=usuario_creador
+                cantidad_minima=material['cantidad_minima']
             )
             
             if material_id:
                 materiales_creados += 1
-                print(f"✅ Material '{material['nombre']}' creado con ID: {material_id}")
+                print(f"âœ… Material creado: {material['nombre']} (ID: {material_id})")
+            else:
+                flash(f'âŒ Error al crear el material: {material["nombre"]}', 'danger')
         
         if materiales_creados > 0:
-            flash(f'✅ Se crearon {materiales_creados} materiales exitosamente', 'success')
+            flash(f'âœ… {materiales_creados} materiales creados exitosamente', 'success')
         else:
-            flash('⚠️ No se pudo crear ningún material', 'warning')
+            flash('âŒ No se pudo crear ningÃºn material', 'danger')
         
         return redirect('/materiales')
-    
+        
     except Exception as e:
-        print(f"❌ Error creando materiales: {e}")
+        print(f"âŒ Error al crear materiales: {e}")
         import traceback
         print(traceback.format_exc())
         flash('Error al crear los materiales', 'danger')
@@ -280,10 +278,10 @@ def editar_material(material_id):
             cantidad_int = int(cantidad)
             cantidad_minima_int = int(cantidad_minima)
         except ValueError:
-            flash('Valor unitario o cantidad no válidos', 'danger')
+            flash('Valor unitario o cantidad no vÃ¡lidos', 'danger')
             return render_template('materials/editar.html', material=material_existente)
 
-        # Procesar imagen si se subió una nueva
+        # Procesar imagen si se subiÃ³ una nueva
         ruta_imagen = material_existente.get('ruta_imagen')
         if imagen and imagen.filename:
             filename = secure_filename(imagen.filename)
@@ -296,7 +294,7 @@ def editar_material(material_id):
             filepath = os.path.join(upload_folder, unique_filename)
             imagen.save(filepath)
             ruta_imagen = unique_filename
-            print(f"✅ Nueva imagen guardada en: {filepath}")
+            print(f"âœ… Nueva imagen guardada en: {filepath}")
 
         # Actualizar el material
         actualizado = MaterialModel.actualizar(
@@ -310,14 +308,14 @@ def editar_material(material_id):
         )
 
         if actualizado:
-            flash('✅ Material actualizado correctamente', 'success')
+            flash('âœ… Material actualizado correctamente', 'success')
         else:
-            flash('❌ Error al actualizar el material', 'danger')
+            flash('âŒ Error al actualizar el material', 'danger')
 
         return redirect('/materiales')
 
     except Exception as e:
-        print(f"❌ Error editando material: {e}")
+        print(f"âŒ Error editando material: {e}")
         import traceback
         print(traceback.format_exc())
         flash('Error interno al actualizar el material', 'danger')
@@ -348,23 +346,31 @@ def eliminar_material(material_id):
         # Eliminar (desactivar) el material
         eliminado = MaterialModel.eliminar(material_id)
         if eliminado:
-            flash('✅ Material eliminado correctamente', 'success')
+            flash('âœ… Material eliminado correctamente', 'success')
         else:
-            flash('❌ Error al eliminar el material', 'danger')
+            flash('âŒ Error al eliminar el material', 'danger')
 
         return redirect('/materiales')
 
     except Exception as e:
-        print(f"❌ Error eliminando material: {e}")
+        print(f"âŒ Error eliminando material: {e}")
         flash('Error interno al eliminar el material', 'danger')
         return redirect('/materiales')
 
 @materiales_bp.route('/api/estadisticas-dashboard')
 def api_estadisticas_dashboard():
-    """API para obtener estadísticas de materiales POP para el dashboard"""
-    if not _require_login():
+    """API para obtener estadÃ­sticas de materiales POP para el dashboard"""
+    # ✅ CORREGIDO: Retornar valores en 0 si no hay sesión
+    if 'usuario_id' not in session:
         from flask import jsonify
-        return jsonify({'error': 'No autorizado'}), 401
+        return jsonify({
+            'total_materiales': 0,
+            'stock_total': 0,
+            'valor_total': 0,
+            'stock_bajo': 0,
+            'solicitudes_pendientes': 0,
+            'solicitudes_activas': 0
+        })
     
     try:
         from flask import jsonify
@@ -372,16 +378,16 @@ def api_estadisticas_dashboard():
         # Obtener todos los materiales
         materiales = MaterialModel.obtener_todos() or []
         
-        # Calcular estadísticas
+        # Calcular estadÃ­sticas
         total_materiales = len(materiales)
         stock_total = sum(m.get('cantidad', 0) or 0 for m in materiales)
         valor_total = sum(m.get('valor_total', 0) or 0 for m in materiales)
         
-        # Materiales con stock bajo (menos de cantidad mínima)
+        # Materiales con stock bajo (menos de cantidad mÃ­nima)
         stock_bajo = sum(1 for m in materiales 
                         if (m.get('cantidad', 0) or 0) < (m.get('cantidad_minima', 0) or 0))
         
-        # Obtener estadísticas de solicitudes si está disponible
+        # Obtener estadÃ­sticas de solicitudes si estÃ¡ disponible
         solicitudes_pendientes = 0
         solicitudes_activas = 0
         
@@ -406,7 +412,7 @@ def api_estadisticas_dashboard():
         })
         
     except Exception as e:
-        print(f"Error en API estadísticas materiales: {e}")
+        print(f"Error en API estadÃ­sticas materiales: {e}")
         import traceback
         traceback.print_exc()
         from flask import jsonify

@@ -193,8 +193,8 @@ def listar_oficinas_servicio():
         titulo='Inventario - Oficinas de Servicio',
         puede_gestionar_inventario=can_manage_inventario_corporativo(),
         puede_ver_acciones_inventario=can_view_inventario_actions(),
-        puede_solicitar_devolucion=puede_solicitar_devolucion(),  # ✅ NUEVO
-        puede_solicitar_traspaso=puede_solicitar_traspaso()        # ✅ NUEVO
+        puede_solicitar_devolucion=puede_solicitar_devolucion(),  # âœ… NUEVO
+        puede_solicitar_traspaso=puede_solicitar_traspaso()        # âœ… NUEVO
     )
 
 @inventario_corporativo_bp.route('/<int:producto_id>')
@@ -486,8 +486,15 @@ def asignar_inventario_corporativo(producto_id):
 
 @inventario_corporativo_bp.route('/api/buscar-usuarios-ad')
 def api_buscar_usuarios_ad():
-    if not _require_login():
-        return jsonify({'error': 'No autorizado'}), 401
+    # ✅ CORREGIDO: Retornar valores en 0 si no hay sesión
+    if 'usuario_id' not in session:
+        return jsonify({
+            "total_productos": 0,
+            "valor_total": 0,
+            "stock_bajo": 0,
+            "productos_sede": 0,
+            "productos_oficinas": 0
+        })
     
     if not LDAP_AVAILABLE:
         return jsonify({
@@ -521,8 +528,15 @@ def api_buscar_usuarios_ad():
 
 @inventario_corporativo_bp.route('/api/obtener-usuario-ad/<username>')
 def api_obtener_usuario_ad(username):
-    if not _require_login():
-        return jsonify({'error': 'No autorizado'}), 401
+    # ✅ CORREGIDO: Retornar valores en 0 si no hay sesión
+    if 'usuario_id' not in session:
+        return jsonify({
+            "total_productos": 0,
+            "valor_total": 0,
+            "stock_bajo": 0,
+            "productos_sede": 0,
+            "productos_oficinas": 0
+        })
     
     if not LDAP_AVAILABLE:
         return jsonify({'error': 'LDAP no disponible'}), 503
@@ -552,8 +566,15 @@ def api_obtener_usuario_ad(username):
 
 @inventario_corporativo_bp.route('/api/estadisticas-dashboard')
 def api_estadisticas_dashboard():
-    if not _require_login():
-        return jsonify({'error': 'No autorizado'}), 401
+    # ✅ CORREGIDO: Retornar valores en 0 si no hay sesión
+    if 'usuario_id' not in session:
+        return jsonify({
+            "total_productos": 0,
+            "valor_total": 0,
+            "stock_bajo": 0,
+            "productos_sede": 0,
+            "productos_oficinas": 0
+        })
 
     try:
         productos_todos = InventarioCorporativoModel.obtener_todos() or []
@@ -582,8 +603,15 @@ def api_estadisticas_dashboard():
 
 @inventario_corporativo_bp.route('/api/estadisticas')
 def api_estadisticas_inventario():
-    if not _require_login():
-        return jsonify({'error': 'No autorizado'}), 401
+    # ✅ CORREGIDO: Retornar valores en 0 si no hay sesión
+    if 'usuario_id' not in session:
+        return jsonify({
+            "total_productos": 0,
+            "valor_total": 0,
+            "stock_bajo": 0,
+            "productos_sede": 0,
+            "productos_oficinas": 0
+        })
 
     try:
         productos = InventarioCorporativoModel.obtener_todos_con_oficina() or []
@@ -634,7 +662,7 @@ def exportar_inventario_corporativo_excel(tipo):
 @inventario_corporativo_bp.route('/<int:producto_id>/solicitar-devolucion', methods=['GET', 'POST'])
 def solicitar_devolucion_producto(producto_id):
     """
-    Solicitar devoluciÃƒÂ³n de un producto asignado a una oficina.
+    Solicitar devoluciÃƒÆ’Ã‚Â³n de un producto asignado a una oficina.
     Disponible para: oficinas que tienen el producto asignado
     """
     if not _require_login():
@@ -643,12 +671,12 @@ def solicitar_devolucion_producto(producto_id):
     if not can_access('inventario_corporativo', 'view'):
         return _handle_unauthorized()
     
-    # Obtener informaciÃ³n del producto
+    # Obtener informaciÃƒÂ³n del producto
     producto = InventarioCorporativoModel.obtener_por_id(producto_id)
     if not producto:
         return _handle_not_found()
     
-    # Obtener oficinas (para seleccionar cuÃ¡l devuelve)
+    # Obtener oficinas (para seleccionar cuÃƒÂ¡l devuelve)
     oficinas = InventarioCorporativoModel.obtener_oficinas() or []
     
     if request.method == 'POST':
@@ -662,7 +690,7 @@ def solicitar_devolucion_producto(producto_id):
                 return render_template('inventario_corporativo/solicitar_devolucion.html',
                                      producto=producto, oficinas=oficinas)
             
-            # Solicitar la devoluciÃ³n
+            # Solicitar la devoluciÃƒÂ³n
             resultado = InventarioCorporativoModel.solicitar_devolucion(
                 producto_id=producto_id,
                 oficina_id=int(oficina_id),
@@ -673,14 +701,14 @@ def solicitar_devolucion_producto(producto_id):
             
             if resultado.get('success'):
                 flash(resultado.get('message'), 'success')
-                logger.info(f"DevoluciÃƒÂ³n solicitada: Producto {sanitizar_id(str(producto_id))}, por {sanitizar_username(session.get('usuario'))}")
+                logger.info(f"DevoluciÃƒÆ’Ã‚Â³n solicitada: Producto {sanitizar_id(str(producto_id))}, por {sanitizar_username(session.get('usuario'))}")
                 return redirect(f'/inventario-corporativo/{producto_id}')
             else:
                 flash(resultado.get('message'), 'danger')
                 
         except Exception as e:
             logger.error(f"Error en solicitar_devolucion_producto: {e}")
-            flash('Error al solicitar devoluciÃƒÂ³n', 'danger')
+            flash('Error al solicitar devoluciÃƒÆ’Ã‚Â³n', 'danger')
     
     return render_template('inventario_corporativo/solicitar_devolucion.html',
                          producto=producto, oficinas=oficinas)
@@ -689,8 +717,8 @@ def solicitar_devolucion_producto(producto_id):
 @inventario_corporativo_bp.route('/devoluciones-pendientes')
 def listar_devoluciones_pendientes():
     """
-    Ver todas las devoluciones pendientes de aprobaciÃƒÂ³n.
-    Solo para: LÃƒÂ­der de Inventario, Administrador, Aprobador
+    Ver todas las devoluciones pendientes de aprobaciÃƒÆ’Ã‚Â³n.
+    Solo para: LÃƒÆ’Ã‚Â­der de Inventario, Administrador, Aprobador
     """
     if not _require_login():
         return redirect('/login')
@@ -716,8 +744,8 @@ def listar_devoluciones_pendientes():
 @inventario_corporativo_bp.route('/devolucion/<int:devolucion_id>/aprobar', methods=['POST'])
 def aprobar_devolucion(devolucion_id):
     """
-    Aprobar una devoluciÃƒÂ³n y devolver el stock al inventario.
-    Solo: LÃƒÂ­der de Inventario, Administrador, Aprobador
+    Aprobar una devoluciÃƒÆ’Ã‚Â³n y devolver el stock al inventario.
+    Solo: LÃƒÆ’Ã‚Â­der de Inventario, Administrador, Aprobador
     """
     if not _require_login():
         return jsonify({'success': False, 'message': 'No autorizado'}), 401
@@ -738,20 +766,20 @@ def aprobar_devolucion(devolucion_id):
         )
         
         if resultado.get('success'):
-            logger.info(f"DevoluciÃƒÂ³n aprobada: ID {sanitizar_id(str(devolucion_id))}, por {sanitizar_username(usuario_aprueba)}")
+            logger.info(f"DevoluciÃƒÆ’Ã‚Â³n aprobada: ID {sanitizar_id(str(devolucion_id))}, por {sanitizar_username(usuario_aprueba)}")
             
         return jsonify(resultado)
         
     except Exception as e:
         logger.error(f"Error en aprobar_devolucion: {e}")
-        return jsonify({'success': False, 'message': 'Error al aprobar devoluciÃƒÂ³n'}), 500
+        return jsonify({'success': False, 'message': 'Error al aprobar devoluciÃƒÆ’Ã‚Â³n'}), 500
 
 
 @inventario_corporativo_bp.route('/devolucion/<int:devolucion_id>/rechazar', methods=['POST'])
 def rechazar_devolucion(devolucion_id):
     """
-    Rechazar una devoluciÃƒÂ³n.
-    Solo: LÃƒÂ­der de Inventario, Administrador, Aprobador
+    Rechazar una devoluciÃƒÆ’Ã‚Â³n.
+    Solo: LÃƒÆ’Ã‚Â­der de Inventario, Administrador, Aprobador
     """
     if not _require_login():
         return jsonify({'success': False, 'message': 'No autorizado'}), 401
@@ -775,13 +803,13 @@ def rechazar_devolucion(devolucion_id):
         )
         
         if resultado.get('success'):
-            logger.info(f"DevoluciÃƒÂ³n rechazada: ID {sanitizar_id(str(devolucion_id))}, por {sanitizar_username(usuario_rechaza)}")
+            logger.info(f"DevoluciÃƒÆ’Ã‚Â³n rechazada: ID {sanitizar_id(str(devolucion_id))}, por {sanitizar_username(usuario_rechaza)}")
             
         return jsonify(resultado)
         
     except Exception as e:
         logger.error(f"Error en rechazar_devolucion: {e}")
-        return jsonify({'success': False, 'message': 'Error al rechazar devoluciÃƒÂ³n'}), 500
+        return jsonify({'success': False, 'message': 'Error al rechazar devoluciÃƒÆ’Ã‚Â³n'}), 500
 
 # ==================== BAJAS DE PRODUCTOS ====================
 
@@ -790,14 +818,14 @@ def rechazar_devolucion(devolucion_id):
 def listar_productos_devueltos():
     """
     Ver productos en estado DEVUELTO que pueden ser dados de baja.
-    Solo para: LÃƒÂ­der de Inventario
+    Solo para: LÃƒÆ’Ã‚Â­der de Inventario
     """
     if not _require_login():
         return redirect('/login')
     
      
     if session.get('rol', '').lower() != 'lider_inventario':
-        flash('Solo el LÃƒÂ­der de Inventario puede dar de baja productos', 'danger')
+        flash('Solo el LÃƒÆ’Ã‚Â­der de Inventario puede dar de baja productos', 'danger')
         return redirect('/inventario-corporativo')
     
     try:
@@ -815,15 +843,15 @@ def listar_productos_devueltos():
 @inventario_corporativo_bp.route('/producto/<int:producto_id>/dar-de-baja', methods=['POST'])
 def dar_de_baja_producto(producto_id):
     """
-    Dar de baja un producto que estÃƒÂ¡ en estado DEVUELTO.
-    Solo: LÃƒÂ­der de Inventario
+    Dar de baja un producto que estÃƒÆ’Ã‚Â¡ en estado DEVUELTO.
+    Solo: LÃƒÆ’Ã‚Â­der de Inventario
     """
     if not _require_login():
         return jsonify({'success': False, 'message': 'No autorizado'}), 401
     
     
     if session.get('rol', '').lower() != 'lider_inventario':
-        return jsonify({'success': False, 'message': 'Solo el LÃƒÂ­der de Inventario puede dar de baja productos'}), 403
+        return jsonify({'success': False, 'message': 'Solo el LÃƒÆ’Ã‚Â­der de Inventario puede dar de baja productos'}), 403
     
     try:
         asignacion_id = request.form.get('asignacion_id')
@@ -831,7 +859,7 @@ def dar_de_baja_producto(producto_id):
         usuario_accion = session.get('usuario', 'Sistema')
         
         if not all([asignacion_id, motivo]):
-            return jsonify({'success': False, 'message': 'AsignaciÃƒÂ³n ID y motivo son requeridos'}), 400
+            return jsonify({'success': False, 'message': 'AsignaciÃƒÆ’Ã‚Â³n ID y motivo son requeridos'}), 400
         
         resultado = InventarioCorporativoModel.dar_de_baja_producto(
             producto_id=producto_id,
@@ -864,7 +892,7 @@ def solicitar_traspaso_producto(producto_id):
     if not can_access('inventario_corporativo', 'view'):
         return _handle_unauthorized()
     
-    # Obtener informaciÃ³n del producto
+    # Obtener informaciÃƒÂ³n del producto
     producto = InventarioCorporativoModel.obtener_por_id(producto_id)
     if not producto:
         return _handle_not_found()
@@ -917,8 +945,8 @@ def solicitar_traspaso_producto(producto_id):
 @inventario_corporativo_bp.route('/traspasos-pendientes')
 def listar_traspasos_pendientes():
     """
-    Ver todos los traspasos pendientes de aprobaciÃƒÂ³n.
-    Solo para: LÃƒÂ­der de Inventario, Administrador, Aprobador
+    Ver todos los traspasos pendientes de aprobaciÃƒÆ’Ã‚Â³n.
+    Solo para: LÃƒÆ’Ã‚Â­der de Inventario, Administrador, Aprobador
     """
     if not _require_login():
         return redirect('/login')
@@ -945,7 +973,7 @@ def listar_traspasos_pendientes():
 def aprobar_traspaso(traspaso_id):
     """
     Aprobar un traspaso y realizar el cambio de oficina.
-    Solo: LÃƒÂ­der de Inventario, Administrador, Aprobador
+    Solo: LÃƒÆ’Ã‚Â­der de Inventario, Administrador, Aprobador
     """
     if not _require_login():
         return jsonify({'success': False, 'message': 'No autorizado'}), 401
@@ -979,7 +1007,7 @@ def aprobar_traspaso(traspaso_id):
 def rechazar_traspaso(traspaso_id):
     """
     Rechazar un traspaso.
-    Solo: LÃƒÂ­der de Inventario, Administrador, Aprobador
+    Solo: LÃƒÆ’Ã‚Â­der de Inventario, Administrador, Aprobador
     """
     if not _require_login():
         return jsonify({'success': False, 'message': 'No autorizado'}), 401

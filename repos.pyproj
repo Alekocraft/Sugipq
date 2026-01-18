@@ -27,6 +27,7 @@
     <Content Include="static\css\dashboard.css" />
     <Content Include="static\css\inventario_corporativo.css" />
     <Content Include="static\css\login.css" />
+    <Content Include="static\js\formato-numeros.js" />
     <Content Include="templates\auth\test_ldap.html" />
     <Content Include="templates\confirmacion\confirmado_exitoso.html" />
     <Content Include="templates\confirmacion\confirmar.html" />

@@ -1,6 +1,6 @@
 ESTRUCTURA DEL PROYECTO FLASK 
 ============================= 
-Fecha: Fri 01/16/2026 11:58:11.04 
+Fecha: Sun 01/18/2026 10:14:55.87 
 Directorio actual: C:\Users\sinventarios\source\repos\sugipq 
  
 [ARCHIVOS PRINCIPALES .PY] 
@@ -119,6 +119,7 @@ static\css\login.css
  
 [ARCHIVOS JS en /static/] 
 ------------------------- 
+static\js\formato-numeros.js 
  
 [ARCHIVOS DE CONFIGURACION] 
 --------------------------- 
@@ -160,7 +161,7 @@ Resumen:
 Archivos .py: 4184 
 Archivos HTML: 52 
 Archivos CSS: 5 
-Archivos JS: 0 
+Archivos JS: 1 
 Archivos de entorno: 2 
 Archivos de logs: 4 
 Carpetas (sin entornos virtuales): 12 

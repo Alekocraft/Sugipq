@@ -394,8 +394,7 @@ try:
     from blueprints.inventario_corporativo import inventario_corporativo_bp
     logger.info(f"✅ Blueprint de inventario corporativo cargado exitosamente. Nombre: {inventario_corporativo_bp.name}")
     
-    # Verificar funciones disponibles
-    logger.info(f"Funciones en blueprint: {[rule.endpoint for rule in inventario_corporativo_bp.url_map.iter_rules()]}")
+    # Blueprint cargado - las rutas se verificarán después del registro
     
 except ImportError as e:
     logger.error(f"❌ Error importando inventario_corporativo_bp desde blueprints: {e}", exc_info=True)

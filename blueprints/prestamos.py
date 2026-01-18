@@ -1483,10 +1483,11 @@ def api_estadisticas_dashboard():
         # Calcular estadísticas
         total_prestamos = len(prestamos)
         
-        # Préstamos activos: estados que no son DEVUELTO o RECHAZADO
-        estados_activos = ['PENDIENTE', 'APROBADO', 'APROBADO_PARCIAL', 'ENTREGADO']
+        # Préstamos activos: PENDIENTE, APROBADO, APROBADO PARCIAL, PRESTADO
+        # Normalizar espacios y guiones bajos para comparación
+        estados_activos = ['PENDIENTE', 'APROBADO', 'APROBADO PARCIAL', 'APROBADO_PARCIAL', 'PRESTADO', 'ENTREGADO']
         prestamos_activos = sum(1 for p in prestamos 
-                               if p.get('Estado', '').upper() in estados_activos)
+                               if p.get('Estado', '').upper().strip() in estados_activos)
         
         # Préstamos pendientes
         prestamos_pendientes = sum(1 for p in prestamos 
@@ -1560,8 +1561,4 @@ def api_estadisticas_dashboard():
             'prestamos_pendientes': 0,
             'prestamos_vencidos': 0,
             'prestamos_mes': 0
-        })
- 
-
-
- 
+        }) 
