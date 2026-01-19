@@ -1,39 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard - Sistema Unificado de Gestión de Inventarios y Préstamos Quálitas - SUGIPQ
-{% endblock %}
-
-<script>
-// ✅ FUNCIONES DE FORMATO DE NÚMEROS
-function formatoNumero(numero, decimales = 0) {
-    try {
-        numero = parseFloat(numero) || 0;
-        return numero.toLocaleString('es-CO', {
-            minimumFractionDigits: decimales,
-            maximumFractionDigits: decimales
-        });
-    } catch (e) {
-        return '0';
-    }
-}
-
-function formatoMoneda(numero, simbolo = '$', decimales = 0) {
-    return simbolo + formatoNumero(numero, decimales);
-}
-
-function formatoPorcentaje(numero, decimales = 1) {
-    try {
-        numero = parseFloat(numero) || 0;
-        const porcentaje = numero < 1 ? numero * 100 : numero;
-        return porcentaje.toLocaleString('es-CO', {
-            minimumFractionDigits: decimales,
-            maximumFractionDigits: decimales
-        }) + '%';
-    } catch (e) {
-        return '0%';
-    }
-}
-</script>
+{% block title %}Dashboard - Sistema Unificado de Gestión de Inventarios y Préstamos Quálitas - SUGIPQ{% endblock %}
 
 {% block styles %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
@@ -250,7 +217,7 @@ function formatoPorcentaje(numero, decimales = 1) {
     </div>
 </div>
 
-<!-- MODAL DE MATERIAL POP (actualizado para coincidir con Inventario Corporativo) -->
+<!-- MODAL DE MATERIAL POP -->
 <div class="modal fade" id="modalMaterialPOP" tabindex="-1" aria-labelledby="modalMaterialPOPLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg rounded-3">
@@ -357,7 +324,7 @@ function formatoPorcentaje(numero, decimales = 1) {
     </div>
 </div>
 
-<!-- MODAL DE INVENTARIO CORPORATIVO (mantenido como referencia) -->
+<!-- MODAL DE INVENTARIO CORPORATIVO -->
 <div class="modal fade" id="modalInventarioCorporativo" tabindex="-1" aria-labelledby="modalInventarioCorporativoLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg rounded-3">
@@ -455,7 +422,7 @@ function formatoPorcentaje(numero, decimales = 1) {
     </div>
 </div>
 
-<!-- MODAL DE PRÉSTAMOS (actualizado para coincidir con Inventario Corporativo) -->
+<!-- MODAL DE PRÉSTAMOS -->
 <div class="modal fade" id="modalPrestamos" tabindex="-1" aria-labelledby="modalPrestamosLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg rounded-3">
@@ -468,24 +435,22 @@ function formatoPorcentaje(numero, decimales = 1) {
 
             <div class="modal-body text-dark" style="background-color: #F8F9FA;">
                 <div class="row g-4 mb-4">
-                    <!-- Total Préstamos -->
                     <div class="col-xl-4 col-md-6">
                         <div class="card stats-card border-0 shadow-sm text-center p-4 bg-white h-100 text-dark">
                             <div class="stats-icon mb-3" style="color: #6c757d;">
-                                <i class="fas fa-exchange-alt fa-3x"></i>
+                                <i class="fas fa-list fa-3x"></i>
                             </div>
                             <h5 class="fw-semibold mb-2 text-dark">Total Préstamos</h5>
                             <div class="stats-number loading-stats" style="color: #6c757d;" id="total-prestamos">
                                 <i class="fas fa-spinner fa-spin"></i>
                             </div>
                             <p class="stats-label">Préstamos registrados</p>
-                            <a href="{{ url_for('prestamos.listar_prestamos') }}" class="btn btn-primary btn-sm w-100 btn-modulo">
+                            <a href="{{ url_for('prestamos.listar_prestamos') }}" class="btn btn-secondary btn-sm w-100 btn-modulo">
                                 <i class="fas fa-list me-2"></i>Ver Todos
                             </a>
                         </div>
                     </div>
 
-                    <!-- Préstamos Activos -->
                     <div class="col-xl-4 col-md-6">
                         <div class="card stats-card border-0 shadow-sm text-center p-4 bg-white h-100 text-dark">
                             <div class="stats-icon mb-3" style="color: #28a745;">
@@ -495,14 +460,13 @@ function formatoPorcentaje(numero, decimales = 1) {
                             <div class="stats-number loading-stats" style="color: #28a745;" id="prestamos-activos">
                                 <i class="fas fa-spinner fa-spin"></i>
                             </div>
-                            <p class="stats-label">No devueltos</p>
+                            <p class="stats-label">Actualmente en uso</p>
                             <a href="{{ url_for('prestamos.listar_prestamos') }}?estado=activo" class="btn btn-success btn-sm w-100 btn-modulo">
                                 <i class="fas fa-eye me-2"></i>Ver Activos
                             </a>
                         </div>
                     </div>
 
-                    <!-- Préstamos Vencidos -->
                     <div class="col-xl-4 col-md-6">
                         <div class="card stats-card border-0 shadow-sm text-center p-4 bg-white h-100 text-dark">
                             <div class="stats-icon mb-3" style="color: #dc3545;">
@@ -565,39 +529,92 @@ function formatoPorcentaje(numero, decimales = 1) {
 
 {% block scripts %}
 <script>
-document.addEventListener('DOMContentLoaded', function () {
+// ✅ SOLUCIÓN AL RECURSIONERROR: Todas las funciones dentro de un solo ámbito
+(function() {
+    'use strict';
+    
+    // ============================================================================
+    // FUNCIONES DE FORMATO DE NÚMEROS
+    // ============================================================================
+    function formatoNumero(numero, decimales) {
+        decimales = decimales || 0;
+        try {
+            var num = parseFloat(numero);
+            if (isNaN(num)) num = 0;
+            return num.toLocaleString('es-CO', {
+                minimumFractionDigits: decimales,
+                maximumFractionDigits: decimales
+            });
+        } catch (e) {
+            console.error('Error en formatoNumero:', e);
+            return '0';
+        }
+    }
+
+    function formatoMoneda(numero, simbolo, decimales) {
+        simbolo = simbolo || '$';
+        decimales = decimales || 0;
+        return simbolo + formatoNumero(numero, decimales);
+    }
+
+    function formatoPorcentaje(numero, decimales) {
+        decimales = decimales || 1;
+        try {
+            var num = parseFloat(numero);
+            if (isNaN(num)) num = 0;
+            var porcentaje = num < 1 ? num * 100 : num;
+            return porcentaje.toLocaleString('es-CO', {
+                minimumFractionDigits: decimales,
+                maximumFractionDigits: decimales
+            }) + '%';
+        } catch (e) {
+            console.error('Error en formatoPorcentaje:', e);
+            return '0%';
+        }
+    }
+
+    // ============================================================================
+    // FUNCIONES DE FECHA Y HORA
+    // ============================================================================
     function actualizarFecha() {
-        const ahora = new Date();
-        const dia = ahora.getDate().toString().padStart(2, '0');
-        const mes = (ahora.getMonth() + 1).toString().padStart(2, '0');
-        const año = ahora.getFullYear();
-        document.getElementById('fecha-actual').textContent = `${dia}/${mes}/${año}`;
+        var ahora = new Date();
+        var dia = String(ahora.getDate()).padStart(2, '0');
+        var mes = String(ahora.getMonth() + 1).padStart(2, '0');
+        var anio = ahora.getFullYear();
+        var elem = document.getElementById('fecha-actual');
+        if (elem) {
+            elem.textContent = dia + '/' + mes + '/' + anio;
+        }
     }
     
     function actualizarHora() {
-        const ahora = new Date();
-        const hora = ahora.getHours().toString().padStart(2, '0');
-        const minutos = ahora.getMinutes().toString().padStart(2, '0');
-        document.getElementById('hora-actual').textContent = `${hora}:${minutos}`;
+        var ahora = new Date();
+        var hora = String(ahora.getHours()).padStart(2, '0');
+        var minutos = String(ahora.getMinutes()).padStart(2, '0');
+        var elem = document.getElementById('hora-actual');
+        if (elem) {
+            elem.textContent = hora + ':' + minutos;
+        }
     }
-    
-    actualizarFecha();
-    actualizarHora();
-    setInterval(actualizarHora, 60000);
 
-    // Función para cargar estadísticas del inventario corporativo
+    // ============================================================================
+    // FUNCIONES DE CARGA DE ESTADÍSTICAS
+    // ============================================================================
     function cargarEstadisticasInventario() {
-        const totalElem = document.getElementById('total-productos');
-        const sedeElem = document.getElementById('productos-sede');
-        const oficinasElem = document.getElementById('productos-oficinas');
+        var totalElem = document.getElementById('total-productos');
+        var sedeElem = document.getElementById('productos-sede');
+        var oficinasElem = document.getElementById('productos-oficinas');
         
         if (totalElem) totalElem.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
         if (sedeElem) sedeElem.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
         if (oficinasElem) oficinasElem.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
         
         fetch('/inventario-corporativo/api/estadisticas-dashboard')
-            .then(response => response.json())
-            .then(data => {
+            .then(function(response) {
+                if (!response.ok) throw new Error('Error HTTP: ' + response.status);
+                return response.json();
+            })
+            .then(function(data) {
                 if (totalElem) {
                     totalElem.textContent = formatoNumero(data.total_productos || 0);
                     totalElem.classList.remove('loading-stats');
@@ -611,28 +628,29 @@ document.addEventListener('DOMContentLoaded', function () {
                     oficinasElem.classList.remove('loading-stats');
                 }
             })
-            .catch(error => {
-                console.error('Error cargando estadísticas:', error);
+            .catch(function(error) {
+                console.error('Error cargando estadísticas inventario:', error);
                 if (totalElem) totalElem.textContent = 'Error';
                 if (sedeElem) sedeElem.textContent = 'Error';
                 if (oficinasElem) oficinasElem.textContent = 'Error';
             });
     }
 
-    // Función para cargar estadísticas de Material POP
     function cargarEstadisticasMaterialPOP() {
-        const totalElem = document.getElementById('total-materiales-pop');
-        const stockElem = document.getElementById('stock-total-pop');
-        const solicitudesElem = document.getElementById('solicitudes-pendientes');
+        var totalElem = document.getElementById('total-materiales-pop');
+        var stockElem = document.getElementById('stock-total-pop');
+        var solicitudesElem = document.getElementById('solicitudes-pendientes');
         
         if (totalElem) totalElem.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
         if (stockElem) stockElem.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
         if (solicitudesElem) solicitudesElem.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
         
-        // Usar URL directa para evitar BuildError
         fetch('/materiales/api/estadisticas-dashboard')
-            .then(response => response.json())
-            .then(data => {
+            .then(function(response) {
+                if (!response.ok) throw new Error('Error HTTP: ' + response.status);
+                return response.json();
+            })
+            .then(function(data) {
                 if (totalElem) {
                     totalElem.textContent = formatoNumero(data.total_materiales || 0);
                     totalElem.classList.remove('loading-stats');
@@ -646,7 +664,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     solicitudesElem.classList.remove('loading-stats');
                 }
             })
-            .catch(error => {
+            .catch(function(error) {
                 console.error('Error cargando estadísticas Material POP:', error);
                 if (totalElem) totalElem.textContent = 'Error';
                 if (stockElem) stockElem.textContent = 'Error';
@@ -654,34 +672,35 @@ document.addEventListener('DOMContentLoaded', function () {
             });
     }
 
-    // Función para cargar estadísticas de Préstamos
     function cargarEstadisticasPrestamos() {
-        const totalElem = document.getElementById('total-prestamos');
-        const activosElem = document.getElementById('prestamos-activos');
-        const vencidosElem = document.getElementById('prestamos-vencidos');
+        var totalElem = document.getElementById('total-prestamos');
+        var activosElem = document.getElementById('prestamos-activos');
+        var vencidosElem = document.getElementById('prestamos-vencidos');
         
         if (totalElem) totalElem.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
         if (activosElem) activosElem.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
         if (vencidosElem) vencidosElem.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
         
-        // Usar URL directa para evitar BuildError
         fetch('/prestamos/api/estadisticas-dashboard')
-            .then(response => response.json())
-            .then(data => {
+            .then(function(response) {
+                if (!response.ok) throw new Error('Error HTTP: ' + response.status);
+                return response.json();
+            })
+            .then(function(data) {
                 if (totalElem) {
-                    totalElem.textContent = data.total_prestamos || 0;
+                    totalElem.textContent = formatoNumero(data.total_prestamos || 0);
                     totalElem.classList.remove('loading-stats');
                 }
                 if (activosElem) {
-                    activosElem.textContent = data.prestamos_activos || 0;
+                    activosElem.textContent = formatoNumero(data.prestamos_activos || 0);
                     activosElem.classList.remove('loading-stats');
                 }
                 if (vencidosElem) {
-                    vencidosElem.textContent = data.prestamos_vencidos || 0;
+                    vencidosElem.textContent = formatoNumero(data.prestamos_vencidos || 0);
                     vencidosElem.classList.remove('loading-stats');
                 }
             })
-            .catch(error => {
+            .catch(function(error) {
                 console.error('Error cargando estadísticas Préstamos:', error);
                 if (totalElem) totalElem.textContent = 'Error';
                 if (activosElem) activosElem.textContent = 'Error';
@@ -689,34 +708,51 @@ document.addEventListener('DOMContentLoaded', function () {
             });
     }
 
-    // Event listeners para cargar estadísticas al abrir modales
-    const invModal = document.getElementById('modalInventarioCorporativo');
-    if (invModal) {
-        invModal.addEventListener('show.bs.modal', cargarEstadisticasInventario);
+    // ============================================================================
+    // INICIALIZACIÓN
+    // ============================================================================
+    function inicializar() {
+        // Actualizar fecha y hora
+        actualizarFecha();
+        actualizarHora();
+        setInterval(actualizarHora, 60000);
+
+        // Event listeners para modales
+        var invModal = document.getElementById('modalInventarioCorporativo');
+        if (invModal) {
+            invModal.addEventListener('show.bs.modal', cargarEstadisticasInventario);
+        }
+
+        var popModal = document.getElementById('modalMaterialPOP');
+        if (popModal) {
+            popModal.addEventListener('show.bs.modal', cargarEstadisticasMaterialPOP);
+        }
+
+        var prestamosModal = document.getElementById('modalPrestamos');
+        if (prestamosModal) {
+            prestamosModal.addEventListener('show.bs.modal', cargarEstadisticasPrestamos);
+        }
+
+        // Cargar estadísticas automáticamente después de un delay
+        {% if can_access('inventario_corporativo') %}
+        setTimeout(cargarEstadisticasInventario, 500);
+        {% endif %}
+
+        {% if can_access('material_pop') %}
+        setTimeout(cargarEstadisticasMaterialPOP, 600);
+        {% endif %}
+
+        {% if can_access('prestamo_material') %}
+        setTimeout(cargarEstadisticasPrestamos, 700);
+        {% endif %}
     }
 
-    const popModal = document.getElementById('modalMaterialPOP');
-    if (popModal) {
-        popModal.addEventListener('show.bs.modal', cargarEstadisticasMaterialPOP);
+    // Ejecutar cuando el DOM esté listo
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', inicializar);
+    } else {
+        inicializar();
     }
-
-    const prestamosModal = document.getElementById('modalPrestamos');
-    if (prestamosModal) {
-        prestamosModal.addEventListener('show.bs.modal', cargarEstadisticasPrestamos);
-    }
-
-    // Cargar estadísticas automáticamente
-    {% if can_access('inventario_corporativo') %}
-    setTimeout(cargarEstadisticasInventario, 500);
-    {% endif %}
-
-    {% if can_access('material_pop') %}
-    setTimeout(cargarEstadisticasMaterialPOP, 600);
-    {% endif %}
-
-    {% if can_access('prestamo_material') %}
-    setTimeout(cargarEstadisticasPrestamos, 700);
-    {% endif %}
-});
+})();
 </script>
 {% endblock %}

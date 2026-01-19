@@ -76,7 +76,7 @@ class UsuarioModel:
                                             'id': usuario_ldap[0],
                                             'usuario': usuario,
                                             'nombre': usuario,
-                                            'rol': 'usuario',  # Rol por defecto hasta que se sincronice
+                                            'rol': 'oficina_principal',  # Rol por defecto hasta que se sincronice
                                             'oficina_id': 1,
                                             'oficina_nombre': ''
                                         }
@@ -290,7 +290,7 @@ class UsuarioModel:
                 return usuario_info
             else:
                 # Crear nuevo usuario desde AD
-                default_rol = 'usuario'
+                default_rol = 'oficina_principal'
                 if 'role' in ad_user:  # CAMBIADO: 'role' no 'grupos'
                     default_rol = ad_user['role']
                 else:
@@ -715,8 +715,7 @@ class UsuarioModel:
                 'admin': 'administrador',  # AD dice 'admin', sistema dice 'administrador'
                 'finanzas': 'tesoreria',
                 'almacen': 'lider_inventario',
-                'rrhh': 'usuario',
-                'usuario': 'usuario'
+                'rrhh': 'oficina_principal'  # Actualizado,
             }
         
             # Si está mapeado, usar el mapeo
@@ -755,7 +754,7 @@ class UsuarioModel:
             return 'lider_inventario'
     
         # Por defecto
-        return 'usuario'
+        return 'oficina_principal'  # Rol por defecto cambiado
 
     @staticmethod
     def crear_usuario_ldap_manual(usuario_data):
@@ -801,7 +800,7 @@ class UsuarioModel:
             """, (
                 usuario_data['usuario'],
                 sanitizar_email(usuario_data.get('email', f"{usuario_data['usuario']}@qualitascolombia.com.co")),
-                usuario_data.get('rol', 'usuario'),
+                usuario_data.get('rol', 'oficina_principal'),
                 usuario_data.get('oficina_id', 1)
             ))
             
