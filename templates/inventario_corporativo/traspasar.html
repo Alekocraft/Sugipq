@@ -1,12 +1,12 @@
 {% extends "base.html" %}
-{% block title %}Traspasar Producto - Sistema de Gestión{% endblock %}
+{% block title %}Traspasar Producto - Sistema de GestiÃ³n{% endblock %}
 
 {% block content %}
 <div class="container-fluid fade-in">
-    <!-- Botón de volver -->
+    <!-- BotÃ³n de volver -->
     <div class="row mb-3">
         <div class="col-md-12">
-            <a href="/inventario-corporativo" class="btn btn-secondary">
+            {% if asignacion %}<a href="/inventario-corporativo/oficinas-servicio" class="btn btn-secondary">{% else %}<a href="/inventario-corporativo" class="btn btn-secondary">{% endif %}
                 <i class="fas fa-arrow-left me-2"></i>Volver al Inventario
             </a>
         </div>
@@ -27,11 +27,23 @@
             <div class="card border-0 shadow-sm">
                 <div class="card-header bg-primary text-white">
                     <h5 class="mb-0">
-                        <i class="fas fa-file-alt me-2"></i>Información del Traspaso
+                        <i class="fas fa-file-alt me-2"></i>InformaciÃ³n del Traspaso
                     </h5>
                 </div>
                 <div class="card-body">
                     <form method="POST" id="formTraspaso">
+                        {% if asignacion %}
+                        <div class="mb-4">
+                            <label class="form-label fw-bold"><i class="fas fa-box me-2"></i>Producto asignado</label>
+                            <div class="p-3 border rounded bg-light">
+                                <div><strong>{{ asignacion.codigo_unico|default(asignacion.CodigoUnico) }}</strong> - {{ asignacion.nombre_producto|default(asignacion.NombreProducto) }}</div>
+                                <div class="text-muted small">Oficina origen: {{ asignacion.oficina|default(asignacion.Oficina) }}</div>
+                                <div class="text-muted small">Asignacion ID: {{ asignacion.asignacion_id|default(asignacion.AsignacionId) }}</div>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        {% if not asignacion %}
                         <!-- Seleccionar Producto -->
                         <div class="mb-4">
                             <label for="producto_id" class="form-label fw-bold">
@@ -73,6 +85,8 @@
                             </small>
                         </div>
 
+                        {% endif %}
+
                         <!-- Oficina Destino -->
                         <div class="mb-4">
                             <label for="oficina_destino_id" class="form-label fw-bold">
@@ -109,9 +123,9 @@
                                 <i class="fas fa-comment me-2"></i>Observaciones
                             </label>
                             <textarea class="form-control" id="observaciones" name="observaciones" 
-                                      rows="3" placeholder="Agregue información adicional sobre el traspaso..."></textarea>
+                                      rows="3" placeholder="Agregue informaciÃ³n adicional sobre el traspaso..."></textarea>
                             <small class="text-muted">
-                                Motivo del traspaso o información adicional relevante
+                                Motivo del traspaso o informaciÃ³n adicional relevante
                             </small>
                         </div>
 
@@ -120,7 +134,7 @@
                             <button type="submit" class="btn btn-primary flex-grow-1">
                                 <i class="fas fa-exchange-alt me-2"></i>Realizar Traspaso
                             </button>
-                            <a href="/inventario-corporativo" class="btn btn-secondary">
+                            {% if asignacion %}<a href="/inventario-corporativo/oficinas-servicio" class="btn btn-secondary">{% else %}<a href="/inventario-corporativo" class="btn btn-secondary">{% endif %}
                                 <i class="fas fa-times me-2"></i>Cancelar
                             </a>
                         </div>
@@ -183,7 +197,7 @@
                     
                     <div class="alert alert-info mb-0">
                         <i class="fas fa-info-circle me-2"></i>
-                        <strong>Nota:</strong> El traspaso se registrará en el historial 
+                        <strong>Nota:</strong> El traspaso se registrarÃ¡ en el historial 
                         como salida de la oficina origen y entrada en la oficina destino.
                     </div>
                 </div>
@@ -214,6 +228,7 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const selectProducto = document.getElementById('producto_id');
+    if (selectProducto) {
     const selectOrigen = document.getElementById('oficina_origen_id');
     const selectDestino = document.getElementById('oficina_destino_id');
     const inputCantidad = document.getElementById('cantidad');
@@ -250,7 +265,7 @@ document.addEventListener('DOMContentLoaded', function() {
             vistaPrevia.style.display = 'block';
             
             document.getElementById('preview-producto').textContent = producto.dataset.nombre;
-            document.getElementById('preview-codigo').textContent = 'Código: ' + producto.dataset.codigo;
+            document.getElementById('preview-codigo').textContent = 'CÃ³digo: ' + producto.dataset.codigo;
             document.getElementById('preview-origen').textContent = origen.dataset.nombre;
             document.getElementById('preview-destino').textContent = destino.dataset.nombre;
             document.getElementById('preview-cantidad').textContent = cantidad;
@@ -259,7 +274,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    // Validación del formulario
+    // ValidaciÃ³n del formulario
     document.getElementById('formTraspaso').addEventListener('submit', function(e) {
         const origenId = selectOrigen.value;
         const destinoId = selectDestino.value;
@@ -286,12 +301,12 @@ document.addEventListener('DOMContentLoaded', function() {
             return false;
         }
         
-        // Confirmación
+        // ConfirmaciÃ³n
         const producto = selectProducto.options[selectProducto.selectedIndex].dataset.nombre;
         const origen = selectOrigen.options[selectOrigen.selectedIndex].dataset.nombre;
         const destino = selectDestino.options[selectDestino.selectedIndex].dataset.nombre;
         
-        if (!confirm(`¿Está seguro que desea traspasar ${cantidad} unidad(es) de "${producto}" desde "${origen}" hacia "${destino}"?`)) {
+        if (!confirm(`Â¿EstÃ¡ seguro que desea traspasar ${cantidad} unidad(es) de "${producto}" desde "${origen}" hacia "${destino}"?`)) {
             e.preventDefault();
             return false;
         }

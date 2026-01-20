@@ -213,18 +213,18 @@ def generar_certificado(asignacion_id):
         )
         
         # ========== TÍTULO PRINCIPAL ==========
-        elements.append(Paragraph("CERTIFICADO DE ASIGNACIÓN DE ACTIVO CORPORATIVO", title_style))
+        elements.append(Paragraph("ASIGNACIÓN DE ACTIVO CORPORATIVO", title_style))
         elements.append(Spacer(1, 0.2*inch))
         
         # ========== INFORMACIÓN DEL USUARIO ==========
         elements.append(Paragraph("INFORMACIÓN DEL COLABORADOR", subtitle_style))
         
-        # INCLUIR NÚMERO DE IDENTIFICACIÓN EN LA INFORMACIÓN DEL USUARIO
+  
         numero_identificacion = asignacion.get('NumeroIdentificacion', 'N/A')
         
         usuario_data = [
             ['Nombre Completo:', asignacion.get('UsuarioADNombre', 'N/A')],
-            ['Número de Identificación:', numero_identificacion],  # NUEVO CAMPO
+            ['Número de Identificación:',numero_identificacion],
             ['Correo Electrónico:', asignacion.get('UsuarioADEmail', 'N/A')],
             ['Oficina:', asignacion.get('NombreOficina', 'N/A')],
             ['Ubicación:', asignacion.get('Ubicacion', 'N/A')]

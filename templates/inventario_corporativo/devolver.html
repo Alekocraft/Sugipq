@@ -1,12 +1,12 @@
 {% extends "base.html" %}
-{% block title %}Devolver Producto - Sistema de Gestión{% endblock %}
+{% block title %}Devolver Producto - Sistema de GestiÃ³n{% endblock %}
 
 {% block content %}
 <div class="container-fluid fade-in">
-    <!-- Botón de volver -->
+    <!-- BotÃ³n de volver -->
     <div class="row mb-3">
         <div class="col-md-12">
-            <a href="/inventario-corporativo" class="btn btn-secondary">
+            {% if asignacion %}<a href="/inventario-corporativo/oficinas-servicio" class="btn btn-secondary">{% else %}<a href="/inventario-corporativo" class="btn btn-secondary">{% endif %}
                 <i class="fas fa-arrow-left me-2"></i>Volver al Inventario
             </a>
         </div>
@@ -17,7 +17,7 @@
             <h1 class="fw-bold" style="color: #0098B1;">
                 <i class="fas fa-undo-alt"></i> Devolver Producto
             </h1>
-            <p class="text-muted">Procesar devolución de productos asignados</p>
+            <p class="text-muted">Procesar devoluciÃ³n de productos asignados</p>
         </div>
     </div>
 
@@ -27,37 +27,47 @@
             <div class="card border-0 shadow-sm">
                 <div class="card-header bg-danger text-white">
                     <h5 class="mb-0">
-                        <i class="fas fa-file-alt me-2"></i>Información de Devolución
+                        <i class="fas fa-file-alt me-2"></i>InformaciÃ³n de DevoluciÃ³n
                     </h5>
                 </div>
                 <div class="card-body">
                     <form method="POST" id="formDevolucion">
-                        <!-- Seleccionar Asignación -->
+                        <!-- Seleccionar AsignaciÃ³n -->
                         <div class="mb-4">
+                            {% if asignacion %}
+                            <input type="hidden" name="asignacion_id" value="{{ asignacion.asignacion_id|default(asignacion.AsignacionId) }}">
+                            <label class="form-label fw-bold">
+                                <i class="fas fa-box me-2"></i>Producto asignado
+                            </label>
+                            <div class="p-3 border rounded bg-light">
+                                <div><strong>{{ asignacion.codigo_unico|default(asignacion.CodigoUnico) }}</strong> - {{ asignacion.nombre_producto|default(asignacion.NombreProducto) }}</div>
+                                <div class="text-muted small">Oficina: {{ asignacion.oficina|default(asignacion.Oficina) }}</div>
+                                <div class="text-muted small">Asignacion ID: {{ asignacion.asignacion_id|default(asignacion.AsignacionId) }}</div>
+                            </div>
+                            {% else %}
                             <label for="asignacion_id" class="form-label fw-bold">
                                 <i class="fas fa-box me-2"></i>Producto Asignado *
                             </label>
                             <select class="form-select" id="asignacion_id" name="asignacion_id" required>
                                 <option value="">Seleccione un producto...</option>
                                 {% for asig in asignaciones %}
-                                <option value="{{ asig.AsignacionId }}" 
-                                    data-producto="{{ asig.NombreProducto }}"
-                                    data-codigo="{{ asig.CodigoUnico }}"
-                                    data-usuario="{{ asig.UsuarioADNombre }}"
-                                    data-email="{{ asig.UsuarioADEmail }}"
-                                    data-oficina="{{ asig.Oficina }}"
-                                    data-fecha="{{ asig.FechaAsignacion.strftime('%d/%m/%Y') if asig.FechaAsignacion else 'N/A' }}">
-                                    {{ asig.CodigoUnico }} - {{ asig.NombreProducto }}
-                                    (Asignado a: {{ asig.UsuarioADNombre }})
+                                <option value="{{ asig.AsignacionId|default(asig.asignacion_id) }}"
+                                    data-producto="{{ asig.NombreProducto|default(asig.nombre_producto) }}"
+                                    data-codigo="{{ asig.CodigoUnico|default(asig.codigo_unico) }}"
+                                    data-oficina="{{ asig.Oficina|default(asig.oficina) }}"
+                                    data-usuario="{{ asig.UsuarioADNombre|default(asig.usuario_ad_nombre) }}"
+                                    data-email="{{ asig.UsuarioADEmail|default(asig.usuario_ad_email) }}"
+                                    data-fecha="{{ asig.FechaAsignacion|default(asig.fecha_asignacion) }}"
+                                    data-cantidad="{{ asig.CantidadAsignada|default(asig.cantidad_asignada)|default(1) }}">
+                                    {{ asig.CodigoUnico|default(asig.codigo_unico) }} - {{ asig.NombreProducto|default(asig.nombre_producto) }}
                                 </option>
                                 {% endfor %}
                             </select>
-                            <small class="text-muted">
-                                Seleccione el producto que se va a devolver
-                            </small>
+                            <small class="text-muted">Seleccione la asignacion para procesar devolucion</small>
+                            {% endif %}
                         </div>
 
-                        <!-- Cantidad -->
+<!-- Cantidad -->
                         <div class="mb-4">
                             <label for="cantidad" class="form-label fw-bold">
                                 <i class="fas fa-sort-numeric-up me-2"></i>Cantidad a Devolver *
@@ -72,13 +82,13 @@
                         <!-- Motivo -->
                         <div class="mb-4">
                             <label for="motivo" class="form-label fw-bold">
-                                <i class="fas fa-question-circle me-2"></i>Motivo de Devolución *
+                                <i class="fas fa-question-circle me-2"></i>Motivo de DevoluciÃ³n *
                             </label>
                             <select class="form-select" id="motivo" name="motivo" required>
                                 <option value="">Seleccione un motivo...</option>
-                                <option value="Finalización de proyecto">Finalización de proyecto</option>
-                                <option value="Cambio de área">Cambio de área</option>
-                                <option value="Equipo dañado">Equipo dañado</option>
+                                <option value="FinalizaciÃ³n de proyecto">FinalizaciÃ³n de proyecto</option>
+                                <option value="Cambio de Ã¡rea">Cambio de Ã¡rea</option>
+                                <option value="Equipo daÃ±ado">Equipo daÃ±ado</option>
                                 <option value="Equipo obsoleto">Equipo obsoleto</option>
                                 <option value="Ya no se necesita">Ya no se necesita</option>
                                 <option value="Otro">Otro motivo</option>
@@ -91,18 +101,18 @@
                                 <i class="fas fa-comment me-2"></i>Observaciones
                             </label>
                             <textarea class="form-control" id="observaciones" name="observaciones" 
-                                      rows="3" placeholder="Agregue información adicional sobre la devolución..."></textarea>
+                                      rows="3" placeholder="Agregue informaciÃ³n adicional sobre la devoluciÃ³n..."></textarea>
                             <small class="text-muted">
-                                Información adicional sobre el estado del producto o motivo de devolución
+                                InformaciÃ³n adicional sobre el estado del producto o motivo de devoluciÃ³n
                             </small>
                         </div>
 
                         <!-- Botones -->
                         <div class="d-flex gap-2">
                             <button type="submit" class="btn btn-danger flex-grow-1">
-                                <i class="fas fa-undo-alt me-2"></i>Procesar Devolución
+                                <i class="fas fa-undo-alt me-2"></i>Procesar DevoluciÃ³n
                             </button>
-                            <a href="/inventario-corporativo" class="btn btn-secondary">
+                            {% if asignacion %}<a href="/inventario-corporativo/oficinas-servicio" class="btn btn-secondary">{% else %}<a href="/inventario-corporativo" class="btn btn-secondary">{% endif %}
                                 <i class="fas fa-times me-2"></i>Cancelar
                             </a>
                         </div>
@@ -111,12 +121,12 @@
             </div>
         </div>
 
-        <!-- Columna derecha: Vista previa de asignación seleccionada -->
+        <!-- Columna derecha: Vista previa de asignaciÃ³n seleccionada -->
         <div class="col-lg-6">
             <div class="card border-0 shadow-sm" id="vistaPrevia" style="display: none;">
                 <div class="card-header bg-info text-white">
                     <h5 class="mb-0">
-                        <i class="fas fa-info-circle me-2"></i>Detalles de la Asignación
+                        <i class="fas fa-info-circle me-2"></i>Detalles de la AsignaciÃ³n
                     </h5>
                 </div>
                 <div class="card-body">
@@ -141,14 +151,14 @@
                     </div>
                     
                     <div class="mb-3">
-                        <h6 class="text-muted mb-2">Fecha de Asignación</h6>
+                        <h6 class="text-muted mb-2">Fecha de AsignaciÃ³n</h6>
                         <p class="mb-0" id="preview-fecha">-</p>
                     </div>
                     
                     <div class="alert alert-warning mb-0">
                         <i class="fas fa-exclamation-triangle me-2"></i>
-                        <strong>Importante:</strong> Al procesar la devolución, el stock del producto 
-                        se incrementará y la asignación quedará marcada como devuelta.
+                        <strong>Importante:</strong> Al procesar la devoluciÃ³n, el stock del producto 
+                        se incrementarÃ¡ y la asignaciÃ³n quedarÃ¡ marcada como devuelta.
                     </div>
                 </div>
             </div>
@@ -164,9 +174,9 @@
                     <ol class="mb-0 ps-3">
                         <li class="mb-2">Seleccione el producto que se va a devolver de la lista</li>
                         <li class="mb-2">Ingrese la cantidad de unidades a devolver</li>
-                        <li class="mb-2">Especifique el motivo de la devolución</li>
+                        <li class="mb-2">Especifique el motivo de la devoluciÃ³n</li>
                         <li class="mb-2">Agregue observaciones adicionales si es necesario</li>
-                        <li>Confirme la devolución para actualizar el inventario</li>
+                        <li>Confirme la devoluciÃ³n para actualizar el inventario</li>
                     </ol>
                 </div>
             </div>
@@ -179,7 +189,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const selectAsignacion = document.getElementById('asignacion_id');
     const vistaPrevia = document.getElementById('vistaPrevia');
     
-    // Actualizar vista previa cuando se selecciona una asignación
+    // Actualizar vista previa cuando se selecciona una asignaciÃ³n
     selectAsignacion.addEventListener('change', function() {
         const selectedOption = this.options[this.selectedIndex];
         
@@ -187,7 +197,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // Mostrar y llenar vista previa
             vistaPrevia.style.display = 'block';
             document.getElementById('preview-producto').textContent = selectedOption.dataset.producto;
-            document.getElementById('preview-codigo').textContent = 'Código: ' + selectedOption.dataset.codigo;
+            document.getElementById('preview-codigo').textContent = 'CÃ³digo: ' + selectedOption.dataset.codigo;
             document.getElementById('preview-usuario').textContent = selectedOption.dataset.usuario;
             document.getElementById('preview-email').textContent = selectedOption.dataset.email;
             document.getElementById('preview-oficina').textContent = selectedOption.dataset.oficina;
@@ -198,7 +208,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    // Validación del formulario
+    // ValidaciÃ³n del formulario
     document.getElementById('formDevolucion').addEventListener('submit', function(e) {
         const cantidad = document.getElementById('cantidad').value;
         const motivo = document.getElementById('motivo').value;
@@ -211,13 +221,13 @@ document.addEventListener('DOMContentLoaded', function() {
         
         if (!motivo) {
             e.preventDefault();
-            alert('Debe seleccionar un motivo de devolución');
+            alert('Debe seleccionar un motivo de devoluciÃ³n');
             return false;
         }
         
-        // Confirmación
+        // ConfirmaciÃ³n
         const producto = document.getElementById('preview-producto').textContent;
-        if (!confirm(`¿Está seguro que desea procesar la devolución de ${cantidad} unidad(es) del producto "${producto}"?`)) {
+        if (!confirm(`Â¿EstÃ¡ seguro que desea procesar la devoluciÃ³n de ${cantidad} unidad(es) del producto "${producto}"?`)) {
             e.preventDefault();
             return false;
         }

@@ -16,9 +16,9 @@ class InventarioCorporativoModel:
     @staticmethod
     def generar_codigo_unico():
         """
-        Proxy estÃ¡tico para generar cÃ³digos Ãºnicos desde el modelo.
+        Proxy estático para generar códigos únicos desde el modelo.
         Permite usar InventarioCorporativoModel.generar_codigo_unico()
-        manteniendo tambiÃ©n la funciÃ³n de mÃ³dulo.
+        manteniendo también la función de módulo.
         """
         return generar_codigo_unico()
 
@@ -65,7 +65,7 @@ class InventarioCorporativoModel:
 
     @staticmethod
     def obtener_todos_con_oficina():
-        """Obtener todos los productos con informaciÃ³n de oficina asignada"""
+        """Obtener todos los productos con información de oficina asignada"""
         conn = get_database_connection()
         if not conn:
             return []
@@ -116,8 +116,7 @@ class InventarioCorporativoModel:
         cursor = None
         try:
             cursor = conn.cursor()
-            query = """
-                SELECT DISTINCT
+            query = """                SELECT
                     p.ProductoId           AS id,
                     p.CodigoUnico          AS codigo_unico,
                     p.NombreProducto       AS nombre,
@@ -125,21 +124,50 @@ class InventarioCorporativoModel:
                     c.NombreCategoria      AS categoria,
                     pr.NombreProveedor     AS proveedor,
                     p.ValorUnitario        AS valor_unitario,
-                    p.CantidadDisponible   AS cantidad,
+                    SUM(COALESCE(q.Cantidad, 1)) AS cantidad,
                     p.CantidadMinima       AS cantidad_minima,
                     p.Ubicacion            AS ubicacion,
                     p.EsAsignable          AS es_asignable,
                     p.RutaImagen           AS ruta_imagen,
                     p.FechaCreacion        AS fecha_creacion,
                     p.UsuarioCreador       AS usuario_creador
-                FROM ProductosCorporativos p
+                FROM Asignaciones a
+                INNER JOIN ProductosCorporativos p ON a.ProductoId = p.ProductoId
                 INNER JOIN CategoriasProductos c ON p.CategoriaId = c.CategoriaId
                 INNER JOIN Proveedores pr        ON p.ProveedorId = pr.ProveedorId
-                LEFT JOIN Asignaciones a ON p.ProductoId = a.ProductoId AND a.Activo = 1
-                WHERE p.Activo = 1 AND (a.OficinaId = ? OR p.OficinaCreadoraId = ?)
+                OUTER APPLY (
+                    SELECT TOP 1 h.Cantidad
+                    FROM AsignacionesCorporativasHistorial h
+                    WHERE h.ProductoId = a.ProductoId
+                      AND h.OficinaId = a.OficinaId
+                      AND h.Accion = 'ASIGNAR'
+                      AND (
+                        (a.UsuarioADEmail IS NOT NULL AND h.UsuarioAsignadoEmail = a.UsuarioADEmail)
+                        OR (a.UsuarioADEmail IS NULL AND h.UsuarioAsignadoEmail IS NULL)
+                      )
+                    ORDER BY ABS(DATEDIFF(SECOND, h.Fecha, a.FechaAsignacion))
+                ) q
+                WHERE p.Activo = 1
+                  AND a.Activo = 1
+                  AND a.OficinaId = ?
+                  AND a.Estado NOT IN ('DEVUELTO', 'TRASPASADO')
+                GROUP BY
+                    p.ProductoId,
+                    p.CodigoUnico,
+                    p.NombreProducto,
+                    p.Descripcion,
+                    c.NombreCategoria,
+                    pr.NombreProveedor,
+                    p.ValorUnitario,
+                    p.CantidadMinima,
+                    p.Ubicacion,
+                    p.EsAsignable,
+                    p.RutaImagen,
+                    p.FechaCreacion,
+                    p.UsuarioCreador
                 ORDER BY p.NombreProducto
             """
-            cursor.execute(query, (oficina_id, oficina_id))
+            cursor.execute(query, (oficina_id,))
             cols = [c[0] for c in cursor.description]
             return [dict(zip(cols, r)) for r in cursor.fetchall()]
         except Exception as e:
@@ -326,8 +354,8 @@ class InventarioCorporativoModel:
     @staticmethod
     def obtener_categorias():
         """
-        Retorna todas las categorÃ­as activas desde la tabla CategoriasProductos,
-        incluso si todavÃ­a no tienen productos asociados.
+        Retorna todas las categorías activas desde la tabla CategoriasProductos,
+        incluso si todavía no tienen productos asociados.
         """
         conn = get_database_connection()
         if not conn:
@@ -345,7 +373,7 @@ class InventarioCorporativoModel:
             """)
             return [{'id': r[0], 'nombre': r[1]} for r in cursor.fetchall()]
         except Exception as e:
-            print(f"âŒ Error obteniendo categorÃ­as activas: {e}")
+            print(f"rror obteniendo categorías activas: {e}")
             return []
         finally:
             if cursor: cursor.close()
@@ -412,7 +440,7 @@ class InventarioCorporativoModel:
         try:
             cursor = conn.cursor()
 
-            # 1. PRIMERO: Obtener un UsuarioId vÃ¡lido
+            # 1. PRIMERO: Obtener un UsuarioId válido
             cursor.execute(
                 "SELECT TOP 1 UsuarioId FROM Usuarios WHERE Activo = 1 ORDER BY UsuarioId"
             )
@@ -434,7 +462,7 @@ class InventarioCorporativoModel:
             stock = int(row[0])
             cant = int(cantidad)
 
-            # âœ… CORRECCIÃ“N: condiciÃ³n correcta
+            # CORRECCION: condición correcta
             if cant <= 0 or cant > stock:
                 return False
 
@@ -445,7 +473,7 @@ class InventarioCorporativoModel:
                 WHERE ProductoId = ?
             """, (cant, int(producto_id)))
 
-            # 4. Crear registro en tabla Asignaciones (CON USUARIO VÃLIDO)
+            # 4. Crear registro en tabla Asignaciones (CON USUARIO VÁLIDO)
             cursor.execute("""
                 INSERT INTO Asignaciones 
                 (ProductoId, OficinaId, UsuarioAsignadoId, FechaAsignacion, Estado, UsuarioAsignador, Activo)
@@ -474,14 +502,14 @@ class InventarioCorporativoModel:
 
     @staticmethod
     def historial_asignaciones(producto_id):
-        """Obtener historial de asignaciones para un producto especÃ­fico"""
+        """Obtener historial de asignaciones para un producto específico"""
         conn = get_database_connection()
         if not conn:
             return []
         cursor = None
         try:
             cursor = conn.cursor()
-            # âœ… CORRECCIÃ“N: Agregados los campos UsuarioAsignadoNombre y UsuarioAsignadoEmail
+            # CORRECCION: Agregados los campos UsuarioAsignadoNombre y UsuarioAsignadoEmail
             cursor.execute("""
                 SELECT 
                     h.HistorialId,
@@ -626,7 +654,7 @@ class InventarioCorporativoModel:
 
     @staticmethod
     def reporte_stock_bajo():
-        """Productos con stock bajo o crÃ­tico"""
+        """Productos con stock bajo o crítico"""
         conn = get_database_connection()
         if not conn:
             return []
@@ -644,7 +672,7 @@ class InventarioCorporativoModel:
                     p.ValorUnitario,
                     (p.ValorUnitario * p.CantidadDisponible) AS valor_total,
                     CASE 
-                        WHEN p.CantidadDisponible = 0 THEN 'CrÃ­tico'
+                        WHEN p.CantidadDisponible = 0 THEN 'Crítico'
                         WHEN p.CantidadDisponible <= p.CantidadMinima THEN 'Bajo'
                         ELSE 'Normal'
                     END AS estado_stock
@@ -697,7 +725,7 @@ class InventarioCorporativoModel:
 
     @staticmethod
     def obtener_estadisticas_generales():
-        """EstadÃ­sticas generales del inventario"""
+        """Estadísticas generales del inventario"""
         conn = get_database_connection()
         if not conn:
             return {}
@@ -736,7 +764,7 @@ class InventarioCorporativoModel:
             """)
             asignables = cursor.fetchone()[0]
 
-            # Total categorÃ­as
+            # Total categorías
             cursor.execute("""
                 SELECT COUNT(DISTINCT CategoriaId)
                 FROM ProductosCorporativos
@@ -847,3 +875,638 @@ class InventarioCorporativoModel:
         finally:
             if cursor: cursor.close()
             if conn: conn.close()
+
+    # ================== CONSULTAS DE ASIGNACIONES POR OFICINA ==================
+    @staticmethod
+    def obtener_asignaciones_por_oficina(oficina_id):
+        """Obtiene las asignaciones activas de inventario corporativo para una oficina.
+
+        Incluye un estimado de cantidad asignada (si existe trazabilidad), útil para devoluciones/traspasos.
+        """
+        conn = get_database_connection()
+        if not conn:
+            return []
+        cursor = None
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT
+                    a.AsignacionId                 AS asignacion_id,
+                    a.ProductoId                   AS producto_id,
+                    p.CodigoUnico                  AS codigo_unico,
+                    p.NombreProducto               AS nombre_producto,
+                    p.Descripcion                  AS descripcion,
+                    c.NombreCategoria              AS categoria,
+                    o.NombreOficina                AS oficina,
+                    a.UsuarioADNombre              AS usuario_ad_nombre,
+                    a.UsuarioADEmail               AS usuario_ad_email,
+                    a.FechaAsignacion              AS fecha_asignacion,
+                    a.Estado                       AS estado,
+                    a.Observaciones                AS observaciones,
+                    COALESCE(q.Cantidad, 1)        AS cantidad_asignada
+                FROM Asignaciones a
+                INNER JOIN ProductosCorporativos p ON a.ProductoId = p.ProductoId
+                INNER JOIN CategoriasProductos c ON p.CategoriaId = c.CategoriaId
+                INNER JOIN Oficinas o ON a.OficinaId = o.OficinaId
+                OUTER APPLY (
+                    SELECT TOP 1 h.Cantidad
+                    FROM AsignacionesCorporativasHistorial h
+                    WHERE h.ProductoId = a.ProductoId
+                      AND h.OficinaId = a.OficinaId
+                      AND h.Accion = 'ASIGNAR'
+                      AND (
+                        (a.UsuarioADEmail IS NOT NULL AND h.UsuarioAsignadoEmail = a.UsuarioADEmail)
+                        OR (a.UsuarioADEmail IS NULL AND h.UsuarioAsignadoEmail IS NULL)
+                      )
+                    ORDER BY ABS(DATEDIFF(SECOND, h.Fecha, a.FechaAsignacion))
+                ) q
+                WHERE a.Activo = 1
+                  AND a.OficinaId = ?
+                ORDER BY a.FechaAsignacion DESC
+            """, (int(oficina_id),))
+            cols = [c[0] for c in cursor.description]
+            return [dict(zip(cols, r)) for r in cursor.fetchall()]
+        except Exception as e:
+            print(f"Error obtener_asignaciones_por_oficina: {e}")
+            return []
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
+
+    @staticmethod
+    def obtener_asignacion_por_id(asignacion_id):
+        """Obtiene una asignación por id con información del producto y oficina."""
+        conn = get_database_connection()
+        if not conn:
+            return None
+        cursor = None
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT
+                    a.AsignacionId                 AS asignacion_id,
+                    a.ProductoId                   AS producto_id,
+                    p.CodigoUnico                  AS codigo_unico,
+                    p.NombreProducto               AS nombre_producto,
+                    p.Descripcion                  AS descripcion,
+                    c.NombreCategoria              AS categoria,
+                    a.OficinaId                    AS oficina_id,
+                    o.NombreOficina                AS oficina,
+                    a.UsuarioAsignadoId            AS usuario_asignado_id,
+                    a.UsuarioADNombre              AS usuario_ad_nombre,
+                    a.UsuarioADEmail               AS usuario_ad_email,
+                    a.FechaAsignacion              AS fecha_asignacion,
+                    a.Estado                       AS estado,
+                    a.Observaciones                AS observaciones,
+                    COALESCE(q.Cantidad, 1)        AS cantidad_asignada
+                FROM Asignaciones a
+                INNER JOIN ProductosCorporativos p ON a.ProductoId = p.ProductoId
+                INNER JOIN CategoriasProductos c ON p.CategoriaId = c.CategoriaId
+                INNER JOIN Oficinas o ON a.OficinaId = o.OficinaId
+                OUTER APPLY (
+                    SELECT TOP 1 h.Cantidad
+                    FROM AsignacionesCorporativasHistorial h
+                    WHERE h.ProductoId = a.ProductoId
+                      AND h.OficinaId = a.OficinaId
+                      AND h.Accion = 'ASIGNAR'
+                      AND (
+                        (a.UsuarioADEmail IS NOT NULL AND h.UsuarioAsignadoEmail = a.UsuarioADEmail)
+                        OR (a.UsuarioADEmail IS NULL AND h.UsuarioAsignadoEmail IS NULL)
+                      )
+                    ORDER BY ABS(DATEDIFF(SECOND, h.Fecha, a.FechaAsignacion))
+                ) q
+                WHERE a.AsignacionId = ?
+            """, (int(asignacion_id),))
+            row = cursor.fetchone()
+            if not row:
+                return None
+            cols = [c[0] for c in cursor.description]
+            return dict(zip(cols, row))
+        except Exception as e:
+            print(f"Error obtener_asignacion_por_id: {e}")
+            return None
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
+
+
+    @staticmethod
+    def obtener_asignacion_detalle(asignacion_id):
+        """Alias compatible: retorna el detalle de una asignación por id.
+
+        Se usa para las vistas de solicitar devolución/traslado.
+        """
+        return InventarioCorporativoModel.obtener_asignacion_por_id(asignacion_id)
+    # ================== DEVOLUCIONES (SOLICITUDES) ==================
+    @staticmethod
+    def crear_solicitud_devolucion(asignacion_id, cantidad, motivo, usuario_solicita):
+        """Crea una solicitud de devolución (pendiente) para inventario corporativo."""
+        conn = get_database_connection()
+        if not conn:
+            return (False, 'Sin conexión a base de datos')
+        cursor = None
+        try:
+            asignacion = InventarioCorporativoModel.obtener_asignacion_por_id(asignacion_id)
+            if not asignacion:
+                return (False, 'Asignación no encontrada')
+
+            cant = int(cantidad)
+            if cant <= 0:
+                return (False, 'La cantidad debe ser mayor que 0')
+
+            # Validación blanda: no exceder cantidad estimada asignada
+            max_cant = int(asignacion.get('cantidad_asignada') or 1)
+            if cant > max_cant:
+                return (False, f'La cantidad no puede ser mayor a {max_cant}')
+
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO DevolucionesInventarioCorporativo
+                    (ProductoId, OficinaId, AsignacionId, Cantidad, Motivo, EstadoDevolucion,
+                     UsuarioSolicita, FechaSolicitud, Activo)
+                VALUES (?, ?, ?, ?, ?, 'PENDIENTE', ?, GETDATE(), 1)
+            """, (
+                int(asignacion['producto_id']),
+                int(asignacion['oficina_id']),
+                int(asignacion_id),
+                cant,
+                str(motivo or '').strip() or 'Sin motivo',
+                str(usuario_solicita)
+            ))
+            conn.commit()
+            return (True, 'Solicitud de devolución creada y enviada para aprobación')
+        except Exception as e:
+            print(f"Error crear_solicitud_devolucion: {e}")
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            return (False, 'Error creando la solicitud de devolución')
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
+
+    @staticmethod
+    def listar_devoluciones(estado=None, oficina_id=None):
+        """Lista devoluciones de inventario corporativo.
+
+        Args:
+            estado: 'PENDIENTE' | 'APROBADA' | 'RECHAZADA' (o None para todas)
+            oficina_id: filtra por oficina (opcional)
+        """
+        conn = get_database_connection()
+        if not conn:
+            return []
+        cursor = None
+        try:
+            cursor = conn.cursor()
+            where = ['d.Activo = 1']
+            params = []
+            if estado:
+                where.append('d.EstadoDevolucion = ?')
+                params.append(str(estado))
+            if oficina_id:
+                where.append('d.OficinaId = ?')
+                params.append(int(oficina_id))
+
+            cursor.execute(f"""
+                SELECT
+                    d.DevolucionId              AS devolucion_id,
+                    d.ProductoId                AS producto_id,
+                    p.CodigoUnico               AS codigo_unico,
+                    p.NombreProducto            AS nombre_producto,
+                    d.OficinaId                 AS oficina_id,
+                    o.NombreOficina             AS oficina,
+                    d.AsignacionId              AS asignacion_id,
+                    d.Cantidad                  AS cantidad,
+                    d.Motivo                    AS motivo,
+                    d.EstadoDevolucion          AS estado,
+                    d.UsuarioSolicita           AS usuario_solicita,
+                    d.FechaSolicitud            AS fecha_solicitud,
+                    d.UsuarioAprueba            AS usuario_aprueba,
+                    d.FechaAprobacion           AS fecha_aprobacion,
+                    d.ObservacionesAprobacion   AS observaciones_aprobacion,
+                    a.UsuarioADNombre           AS usuario_ad_nombre,
+                    a.UsuarioADEmail            AS usuario_ad_email
+                FROM DevolucionesInventarioCorporativo d
+                INNER JOIN ProductosCorporativos p ON d.ProductoId = p.ProductoId
+                INNER JOIN Oficinas o ON d.OficinaId = o.OficinaId
+                INNER JOIN Asignaciones a ON d.AsignacionId = a.AsignacionId
+                WHERE {' AND '.join(where)}
+                ORDER BY d.FechaSolicitud DESC
+            """, params)
+
+            cols = [c[0] for c in cursor.description]
+            return [dict(zip(cols, r)) for r in cursor.fetchall()]
+        except Exception as e:
+            print(f"Error listar_devoluciones: {e}")
+            return []
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
+
+    @staticmethod
+    def aprobar_devolucion(devolucion_id, usuario_aprueba, observaciones=None):
+        """Aprueba una devolución: suma stock, cierra asignación y actualiza solicitud."""
+        conn = get_database_connection()
+        if not conn:
+            return (False, 'Sin conexión a base de datos')
+        cursor = None
+        try:
+            cursor = conn.cursor()
+            # Obtener devolucion
+            cursor.execute("""
+                SELECT DevolucionId, ProductoId, OficinaId, AsignacionId, Cantidad, EstadoDevolucion
+                FROM DevolucionesInventarioCorporativo
+                WHERE DevolucionId = ? AND Activo = 1
+            """, (int(devolucion_id),))
+            row = cursor.fetchone()
+            if not row:
+                return (False, 'Solicitud de devolución no encontrada')
+
+            _, producto_id, oficina_id, asignacion_id, cantidad, estado = row
+            if str(estado).upper() != 'PENDIENTE':
+                return (False, 'La solicitud ya fue procesada')
+
+            cant = int(cantidad)
+
+            # 1) Marcar solicitud como aprobada
+            cursor.execute("""
+                UPDATE DevolucionesInventarioCorporativo
+                SET EstadoDevolucion = 'APROBADA',
+                    UsuarioAprueba = ?,
+                    FechaAprobacion = GETDATE(),
+                    ObservacionesAprobacion = ?
+                WHERE DevolucionId = ?
+            """, (str(usuario_aprueba), str(observaciones or '').strip() or None, int(devolucion_id)))
+
+            # 2) Sumar stock al producto
+            cursor.execute("""
+                UPDATE ProductosCorporativos
+                SET CantidadDisponible = CantidadDisponible + ?
+                WHERE ProductoId = ?
+            """, (cant, int(producto_id)))
+
+            # 3) Cerrar asignación
+            cursor.execute("""
+                UPDATE Asignaciones
+                SET Estado = 'DEVUELTO',
+                    FechaDevolucion = GETDATE(),
+                    Activo = 0
+                WHERE AsignacionId = ?
+            """, (int(asignacion_id),))
+
+            # 4) Trazabilidad
+            cursor.execute("""
+                INSERT INTO AsignacionesCorporativasHistorial
+                    (ProductoId, OficinaId, Accion, Cantidad, UsuarioAccion, Fecha, Observaciones)
+                VALUES (?, ?, 'DEVOLVER', ?, ?, GETDATE(), ?)
+            """, (
+                int(producto_id),
+                int(oficina_id),
+                cant,
+                str(usuario_aprueba),
+                str(observaciones or '').strip() or None
+            ))
+
+            # 5) Movimiento inventario (opcional)
+            cursor.execute("""
+                INSERT INTO MovimientosInventario
+                    (ProductoId, TipoMovimiento, Cantidad, FechaMovimiento, UsuarioMovimiento, Observaciones, Referencia)
+                VALUES (?, 'DEVOLUCION', ?, GETDATE(), ?, ?, ?)
+            """, (
+                int(producto_id),
+                cant,
+                str(usuario_aprueba),
+                str(observaciones or '').strip() or None,
+                f'DEVOLUCION:{int(devolucion_id)}'
+            ))
+
+            conn.commit()
+            return (True, 'Devolución aprobada y aplicada al inventario')
+        except Exception as e:
+            print(f"Error aprobar_devolucion: {e}")
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            return (False, 'Error aprobando la devolución')
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
+
+    @staticmethod
+    def rechazar_devolucion(devolucion_id, usuario_aprueba, observaciones=None):
+        """Rechaza una devolución."""
+        conn = get_database_connection()
+        if not conn:
+            return (False, 'Sin conexión a base de datos')
+        cursor = None
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE DevolucionesInventarioCorporativo
+                SET EstadoDevolucion = 'RECHAZADA',
+                    UsuarioAprueba = ?,
+                    FechaAprobacion = GETDATE(),
+                    ObservacionesAprobacion = ?
+                WHERE DevolucionId = ?
+                  AND Activo = 1
+                  AND EstadoDevolucion = 'PENDIENTE'
+            """, (str(usuario_aprueba), str(observaciones or '').strip() or None, int(devolucion_id)))
+
+            if cursor.rowcount == 0:
+                conn.rollback()
+                return (False, 'Solicitud no encontrada o ya fue procesada')
+
+            conn.commit()
+            return (True, 'Devolución rechazada')
+        except Exception as e:
+            print(f"Error rechazar_devolucion: {e}")
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            return (False, 'Error rechazando la devolución')
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
+
+    # ================== TRASPASOS (SOLICITUDES) ==================
+    @staticmethod
+    def crear_solicitud_traspaso(asignacion_id, oficina_destino_id, cantidad, motivo, usuario_solicita):
+        """Crea una solicitud de traspaso (pendiente) para inventario corporativo."""
+        conn = get_database_connection()
+        if not conn:
+            return (False, 'Sin conexión a base de datos')
+        cursor = None
+        try:
+            asignacion = InventarioCorporativoModel.obtener_asignacion_por_id(asignacion_id)
+            if not asignacion:
+                return (False, 'Asignación no encontrada')
+
+            destino = int(oficina_destino_id)
+            if destino == int(asignacion['oficina_id']):
+                return (False, 'La oficina destino debe ser diferente a la oficina origen')
+
+            cant = int(cantidad)
+            if cant <= 0:
+                return (False, 'La cantidad debe ser mayor que 0')
+
+            max_cant = int(asignacion.get('cantidad_asignada') or 1)
+            if cant > max_cant:
+                return (False, f'La cantidad no puede ser mayor a {max_cant}')
+
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO TraspasosInventarioCorporativo
+                    (ProductoId, OficinaOrigenId, OficinaDestinoId, AsignacionOrigenId, Cantidad,
+                     Motivo, EstadoTraspaso, UsuarioSolicita, FechaSolicitud, Activo)
+                VALUES (?, ?, ?, ?, ?, ?, 'PENDIENTE', ?, GETDATE(), 1)
+            """, (
+                int(asignacion['producto_id']),
+                int(asignacion['oficina_id']),
+                destino,
+                int(asignacion_id),
+                cant,
+                str(motivo or '').strip() or 'Sin motivo',
+                str(usuario_solicita)
+            ))
+            conn.commit()
+            return (True, 'Solicitud de traslado creada y enviada para aprobación')
+        except Exception as e:
+            print(f"Error crear_solicitud_traspaso: {e}")
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            return (False, 'Error creando la solicitud de traslado')
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
+
+    @staticmethod
+    def listar_traspasos(estado=None, oficina_id=None):
+        """Lista traspasos de inventario corporativo."""
+        conn = get_database_connection()
+        if not conn:
+            return []
+        cursor = None
+        try:
+            cursor = conn.cursor()
+            where = ['t.Activo = 1']
+            params = []
+            if estado:
+                where.append('t.EstadoTraspaso = ?')
+                params.append(str(estado))
+            if oficina_id:
+                # Filtra por origen o destino
+                where.append('(t.OficinaOrigenId = ? OR t.OficinaDestinoId = ?)')
+                params.extend([int(oficina_id), int(oficina_id)])
+
+            cursor.execute(f"""
+                SELECT
+                    t.TraspasoId               AS traspaso_id,
+                    t.ProductoId               AS producto_id,
+                    p.CodigoUnico              AS codigo_unico,
+                    p.NombreProducto           AS nombre_producto,
+                    t.OficinaOrigenId          AS oficina_origen_id,
+                    oo.NombreOficina           AS oficina_origen,
+                    t.OficinaDestinoId         AS oficina_destino_id,
+                    od.NombreOficina           AS oficina_destino,
+                    t.AsignacionOrigenId       AS asignacion_origen_id,
+                    t.Cantidad                 AS cantidad,
+                    t.Motivo                   AS motivo,
+                    t.EstadoTraspaso           AS estado,
+                    t.UsuarioSolicita          AS usuario_solicita,
+                    t.FechaSolicitud           AS fecha_solicitud,
+                    t.UsuarioAprueba           AS usuario_aprueba,
+                    t.FechaAprobacion          AS fecha_aprobacion,
+                    t.ObservacionesAprobacion  AS observaciones_aprobacion,
+                    a.UsuarioADNombre          AS usuario_ad_nombre,
+                    a.UsuarioADEmail           AS usuario_ad_email
+                FROM TraspasosInventarioCorporativo t
+                INNER JOIN ProductosCorporativos p ON t.ProductoId = p.ProductoId
+                INNER JOIN Oficinas oo ON t.OficinaOrigenId = oo.OficinaId
+                INNER JOIN Oficinas od ON t.OficinaDestinoId = od.OficinaId
+                INNER JOIN Asignaciones a ON t.AsignacionOrigenId = a.AsignacionId
+                WHERE {' AND '.join(where)}
+                ORDER BY t.FechaSolicitud DESC
+            """, params)
+
+            cols = [c[0] for c in cursor.description]
+            return [dict(zip(cols, r)) for r in cursor.fetchall()]
+        except Exception as e:
+            print(f"Error listar_traspasos: {e}")
+            return []
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
+
+    @staticmethod
+    def aprobar_traspaso(traspaso_id, usuario_aprueba, observaciones=None):
+        """Aprueba un traspaso: cierra asignación origen y crea una nueva en oficina destino."""
+        conn = get_database_connection()
+        if not conn:
+            return (False, 'Sin conexión a base de datos')
+        cursor = None
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT TraspasoId, ProductoId, OficinaOrigenId, OficinaDestinoId, AsignacionOrigenId, Cantidad, EstadoTraspaso
+                FROM TraspasosInventarioCorporativo
+                WHERE TraspasoId = ? AND Activo = 1
+            """, (int(traspaso_id),))
+            row = cursor.fetchone()
+            if not row:
+                return (False, 'Solicitud de traslado no encontrada')
+
+            _, producto_id, oficina_origen_id, oficina_destino_id, asignacion_origen_id, cantidad, estado = row
+            if str(estado).upper() != 'PENDIENTE':
+                return (False, 'La solicitud ya fue procesada')
+
+            cant = int(cantidad)
+
+            # Traer datos de la asignación origen
+            cursor.execute("""
+                SELECT UsuarioAsignadoId, UsuarioADNombre, UsuarioADEmail
+                FROM Asignaciones
+                WHERE AsignacionId = ?
+            """, (int(asignacion_origen_id),))
+            arow = cursor.fetchone()
+            if not arow:
+                return (False, 'Asignación origen no encontrada')
+            usuario_asignado_id, usuario_ad_nombre, usuario_ad_email = arow
+
+            # 1) Marcar solicitud como aprobada
+            cursor.execute("""
+                UPDATE TraspasosInventarioCorporativo
+                SET EstadoTraspaso = 'APROBADO',
+                    UsuarioAprueba = ?,
+                    FechaAprobacion = GETDATE(),
+                    ObservacionesAprobacion = ?
+                WHERE TraspasoId = ?
+            """, (str(usuario_aprueba), str(observaciones or '').strip() or None, int(traspaso_id)))
+
+            # 2) Cerrar asignación origen
+            cursor.execute("""
+                UPDATE Asignaciones
+                SET Estado = 'TRASPASADO',
+                    Activo = 0
+                WHERE AsignacionId = ?
+            """, (int(asignacion_origen_id),))
+
+            # 3) Crear nueva asignación en destino
+            cursor.execute("""
+                INSERT INTO Asignaciones
+                    (ProductoId, UsuarioAsignadoId, OficinaId, FechaAsignacion, Estado, Observaciones, UsuarioAsignador, Activo,
+                     UsuarioADNombre, UsuarioADEmail)
+                VALUES (?, ?, ?, GETDATE(), 'ASIGNADO', ?, ?, 1, ?, ?)
+            """, (
+                int(producto_id),
+                int(usuario_asignado_id),
+                int(oficina_destino_id),
+                f'Traslado aprobado desde oficina {int(oficina_origen_id)}. TraspasoId={int(traspaso_id)}',
+                str(usuario_aprueba),
+                usuario_ad_nombre,
+                usuario_ad_email
+            ))
+
+            # 4) Trazabilidad
+            cursor.execute("""
+                INSERT INTO AsignacionesCorporativasHistorial
+                    (ProductoId, OficinaId, Accion, Cantidad, UsuarioAccion, Fecha, Observaciones,
+                     UsuarioAsignadoNombre, UsuarioAsignadoEmail)
+                VALUES (?, ?, 'TRASPASAR', ?, ?, GETDATE(), ?, ?, ?)
+            """, (
+                int(producto_id),
+                int(oficina_destino_id),
+                cant,
+                str(usuario_aprueba),
+                str(observaciones or '').strip() or None,
+                usuario_ad_nombre,
+                usuario_ad_email
+            ))
+
+            # 5) Movimiento inventario (opcional)
+            cursor.execute("""
+                INSERT INTO MovimientosInventario
+                    (ProductoId, TipoMovimiento, Cantidad, FechaMovimiento, UsuarioMovimiento, Observaciones, Referencia)
+                VALUES (?, 'TRASPASO', ?, GETDATE(), ?, ?, ?)
+            """, (
+                int(producto_id),
+                cant,
+                str(usuario_aprueba),
+                str(observaciones or '').strip() or None,
+                f'TRASPASO:{int(traspaso_id)}'
+            ))
+
+            conn.commit()
+            return (True, 'Traslado aprobado y aplicado')
+        except Exception as e:
+            print(f"Error aprobar_traspaso: {e}")
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            return (False, 'Error aprobando el traslado')
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
+
+    @staticmethod
+    def rechazar_traspaso(traspaso_id, usuario_aprueba, observaciones=None):
+        """Rechaza un traspaso."""
+        conn = get_database_connection()
+        if not conn:
+            return (False, 'Sin conexión a base de datos')
+        cursor = None
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE TraspasosInventarioCorporativo
+                SET EstadoTraspaso = 'RECHAZADO',
+                    UsuarioAprueba = ?,
+                    FechaAprobacion = GETDATE(),
+                    ObservacionesAprobacion = ?
+                WHERE TraspasoId = ?
+                  AND Activo = 1
+                  AND EstadoTraspaso = 'PENDIENTE'
+            """, (str(usuario_aprueba), str(observaciones or '').strip() or None, int(traspaso_id)))
+
+            if cursor.rowcount == 0:
+                conn.rollback()
+                return (False, 'Solicitud no encontrada o ya fue procesada')
+
+            conn.commit()
+            return (True, 'Traslado rechazado')
+        except Exception as e:
+            print(f"Error rechazar_traspaso: {e}")
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            return (False, 'Error rechazando el traslado')
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
