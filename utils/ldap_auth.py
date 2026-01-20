@@ -1,5 +1,4 @@
-﻿# utils/ldap_auth.py
-"""
+﻿"""
 Autenticación con Active Directory Qualitas
 Versión segura - DÍA 5: Sanitización de usernames en logs
 """
@@ -219,6 +218,137 @@ class ADAuth:
         except Exception as e:
             logger.error(f"❌ LDAP: Error buscando usuarios: {e}")
             return []
+    
+    def search_user_by_email(self, email):
+        """
+        Busca usuario en AD por email
+        
+        Args:
+            email: Email del usuario
+            
+        Returns:
+            dict: Información del usuario encontrado o None
+        """
+        if not email:
+            return None
+            
+        try:
+            # Conexión con usuario de servicio
+            server = Server(self.server_ip, port=389, get_info=ALL)
+            
+            conn = Connection(
+                server,
+                user=f"{self.domain}\\{Config.LDAP_SERVICE_USER}",
+                password=Config.LDAP_SERVICE_PASSWORD,
+                authentication=NTLM,
+                auto_bind=True
+            )
+            
+            # Buscar usuario por email (correo electrónico)
+            search_filter = f"(&(objectClass=user)(mail={email}))"
+            
+            conn.search(
+                search_base=self.search_base,
+                search_filter=search_filter,
+                attributes=['cn', 'sAMAccountName', 'mail', 'department', 'givenName', 'sn'],
+                size_limit=1
+            )
+            
+            if conn.entries:
+                entry = conn.entries[0]
+                user_info = {
+                    'nombre': str(entry.cn),
+                    'usuario': str(entry.sAMAccountName),
+                    'email': str(entry.mail) if 'mail' in entry else email,
+                    'departamento': str(entry.department) if 'department' in entry else '',
+                    'first_name': str(entry.givenName) if 'givenName' in entry else '',
+                    'last_name': str(entry.sn) if 'sn' in entry else ''
+                }
+                conn.unbind()
+                return user_info
+            else:
+                # También buscar por userPrincipalName (alternativo)
+                search_filter = f"(&(objectClass=user)(userPrincipalName={email}))"
+                conn.search(
+                    search_base=self.search_base,
+                    search_filter=search_filter,
+                    attributes=['cn', 'sAMAccountName', 'mail', 'department', 'givenName', 'sn'],
+                    size_limit=1
+                )
+                
+                if conn.entries:
+                    entry = conn.entries[0]
+                    user_info = {
+                        'nombre': str(entry.cn),
+                        'usuario': str(entry.sAMAccountName),
+                        'email': str(entry.mail) if 'mail' in entry else email,
+                        'departamento': str(entry.department) if 'department' in entry else '',
+                        'first_name': str(entry.givenName) if 'givenName' in entry else '',
+                        'last_name': str(entry.sn) if 'sn' in entry else ''
+                    }
+                    conn.unbind()
+                    return user_info
+            
+            conn.unbind()
+            return None
+            
+        except Exception as e:
+            logger.error(f"❌ LDAP: Error buscando usuario por email {email}: {e}")
+            return None
+    
+    def get_user_details(self, username):
+        """
+        Obtiene detalles de usuario sin autenticar (solo lectura)
+        
+        Args:
+            username: Nombre de usuario
+            
+        Returns:
+            dict: Información del usuario o None
+        """
+        try:
+            # Conexión con usuario de servicio
+            server = Server(self.server_ip, port=389, get_info=ALL)
+            
+            conn = Connection(
+                server,
+                user=f"{self.domain}\\{Config.LDAP_SERVICE_USER}",
+                password=Config.LDAP_SERVICE_PASSWORD,
+                authentication=NTLM,
+                auto_bind=True
+            )
+            
+            # Buscar usuario por sAMAccountName
+            search_filter = f"(&(objectClass=user)(sAMAccountName={username}))"
+            
+            conn.search(
+                search_base=self.search_base,
+                search_filter=search_filter,
+                attributes=['cn', 'mail', 'givenName', 'sn', 'department', 'memberOf'],
+                size_limit=1
+            )
+            
+            if conn.entries:
+                entry = conn.entries[0]
+                user_info = {
+                    'username': username,
+                    'full_name': str(entry.cn) if 'cn' in entry else username,
+                    'email': str(entry.mail) if 'mail' in entry else f"{username}@{self.domain}",
+                    'first_name': str(entry.givenName) if 'givenName' in entry else '',
+                    'last_name': str(entry.sn) if 'sn' in entry else '',
+                    'department': str(entry.department) if 'department' in entry else 'No especificado',
+                    'groups': [str(group) for group in entry.memberOf] if 'memberOf' in entry else []
+                }
+                conn.unbind()
+                return user_info
+            else:
+                conn.unbind()
+                return None
+                
+        except Exception as e:
+            logger.error(f"❌ LDAP: Error obteniendo detalles de {username}: {e}")
+            return None
+
 
 # Instancia global para usar en toda la aplicación
 ad_auth = ADAuth()

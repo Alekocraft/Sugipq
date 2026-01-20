@@ -1,364 +1,257 @@
-<!-- templates/confirmacion/confirmar.html -->
-{% extends "base.html" %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Confirmar Asignación - Quálitas</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .qualitas-header {
+            background: linear-gradient(135deg, #7B2D8E 0%, #00B2E3 100%);
+            color: white;
+            padding: 2rem 0;
+            margin-bottom: 2rem;
+        }
+        .card {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .form-label {
+            font-weight: 600;
+            color: #495057;
+        }
+        .btn-qualitas {
+            background-color: #7B2D8E;
+            color: white;
+            border: none;
+        }
+        .btn-qualitas:hover {
+            background-color: #5e236d;
+            color: white;
+        }
+        .info-box {
+            background-color: #f0f7ff;
+            border-left: 4px solid #00B2E3;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .alert-container {
+            max-width: 800px;
+            margin: 0 auto 20px auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="qualitas-header text-center">
+        <h1>CONFIRMACIÓN DE ASIGNACIÓN</h1>
+        <p class="lead">Sistema de Gestión de Inventarios Quálitas</p>
+    </div>
 
-{% block title %}Confirmar Recepción de Activo Corporativo{% endblock %}
+    <div class="container">
+        <!-- Mensajes flash -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="alert-container">
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                            {% if category == 'danger' %}
+                                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            {% elif category == 'success' %}
+                                <i class="bi bi-check-circle-fill me-2"></i>
+                            {% elif category == 'warning' %}
+                                <i class="bi bi-exclamation-circle-fill me-2"></i>
+                            {% else %}
+                                <i class="bi bi-info-circle-fill me-2"></i>
+                            {% endif %}
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
 
-{% block content %}
-<div class="container mt-5">
-    <div class="row justify-content-center">
-        <div class="col-md-8">
-            <!-- Encabezado -->
-            <div class="card shadow-lg">
-                <div class="card-header bg-primary text-white">
-                    <h3 class="mb-0">
-                        <i class="fas fa-check-circle"></i> Confirmar Recepción de Activo Corporativo
-                    </h3>
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h4 class="mb-0"><i class="bi bi-box-seam me-2"></i> Confirmar Recepción de Activo</h4>
+                    </div>
+                    
+                    <div class="card-body">
+                        <!-- Información de la asignación -->
+                        <div class="info-box">
+                            <h5><i class="bi bi-info-circle me-2"></i> Detalles de la Asignación:</h5>
+                            <p><strong>Producto:</strong> {{ asignacion.producto_nombre }}</p>
+                            <p><strong>Oficina:</strong> {{ asignacion.oficina_nombre }}</p>
+                            <p><strong>Asignado a:</strong> {{ asignacion.usuario_ad_nombre or asignacion.usuario_email }}</p>
+                            <p><strong>Fecha de Asignación:</strong> {{ asignacion.fecha_asignacion.strftime('%d/%m/%Y %H:%M') }}</p>
+                            <p><strong>Días restantes para confirmar:</strong> 
+                                {% if asignacion.dias_restantes > 3 %}
+                                    <span class="badge bg-success">{{ asignacion.dias_restantes }} días</span>
+                                {% elif asignacion.dias_restantes > 0 %}
+                                    <span class="badge bg-warning">{{ asignacion.dias_restantes }} días</span>
+                                {% else %}
+                                    <span class="badge bg-danger">Urgente</span>
+                                {% endif %}
+                            </p>
+                        </div>
+
+                        <!-- Formulario de confirmación -->
+                        <form method="POST" action="">
+                            <input type="hidden" name="token" value="{{ token }}">
+                            
+                            <div class="mb-4">
+                                <h5><i class="bi bi-shield-lock me-2"></i> Autenticación</h5>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="usuario_ad_username" class="form-label">
+                                            <i class="bi bi-person-badge me-1"></i> Usuario Active Directory
+                                        </label>
+                                        <input type="text" class="form-control" id="usuario_ad_username" 
+                                               name="usuario_ad_username" required
+                                               placeholder="Ej: jperez"
+                                               value="{{ request.form.usuario_ad_username if request.form }}">
+                                        <div class="form-text">
+                                            Nombre de usuario de su cuenta corporativa (sin dominio)
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="col-md-6 mb-3">
+                                        <label for="usuario_ad_password" class="form-label">
+                                            <i class="bi bi-key me-1"></i> Contraseña AD
+                                        </label>
+                                        <input type="password" class="form-control" id="usuario_ad_password" 
+                                               name="usuario_ad_password" required
+                                               placeholder="Ingrese su contraseña">
+                                        <div class="form-text">
+                                            Contraseña de su cuenta corporativa
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <h5><i class="bi bi-card-text me-2"></i> Identificación</h5>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <label for="numero_identificacion" class="form-label">
+                                            <i class="bi bi-person-vcard me-1"></i> Número de Cédula
+                                        </label>
+                                        <input type="text" class="form-control" id="numero_identificacion" 
+                                               name="numero_identificacion" required
+                                               placeholder="Ej: 12345678" 
+                                               pattern="[0-9]{8,10}"
+                                               title="Ingrese 8 o 10 dígitos"
+                                               value="{{ request.form.numero_identificacion if request.form }}">
+                                        <div class="form-text">
+                                            Ingrese su número de cédula (8 o 10 dígitos)
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="card border-info">
+                                            <div class="card-body">
+                                                <small>
+                                                    <i class="bi bi-info-circle text-info me-1"></i>
+                                                    <strong>Formato válido:</strong><br>
+                                                    • 8 dígitos: Cédulas antiguas<br>
+                                                    • 10 dígitos: Cédulas nuevas<br>
+                                                    <span class="text-muted">Ej: 12345678 o 1234567890</span>
+                                                </small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="alert alert-warning">
+                                <h6><i class="bi bi-exclamation-triangle"></i> Declaración de Responsabilidad</h6>
+                                <p class="mb-0">
+                                    Al confirmar esta asignación, declaro que:<br>
+                                    1. He recibido el activo "<strong>{{ asignacion.producto_nombre }}</strong>" en buen estado.<br>
+                                    2. Me comprometo a utilizarlo exclusivamente para actividades laborales.<br>
+                                    3. Acepto la responsabilidad por el cuidado y mantenimiento del activo.<br>
+                                    4. La información proporcionada es verídica y completa.
+                                </p>
+                            </div>
+                            
+                            <div class="d-grid gap-2 mt-4">
+                                <button type="submit" class="btn btn-qualitas btn-lg py-3">
+                                    <i class="bi bi-check-circle-fill me-2"></i> 
+                                    <strong>CONFIRMAR RECEPCIÓN DEL ACTIVO</strong>
+                                </button>
+                                <a href="javascript:history.back()" class="btn btn-outline-secondary">
+                                    <i class="bi bi-arrow-left me-2"></i> Volver
+                                </a>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <div class="card-footer text-muted">
+                        <small>
+                            <i class="bi bi-shield-check text-primary"></i> 
+                            <strong>Sistema Seguro:</strong> Su autenticación se valida contra Active Directory de Quálitas.<br>
+                            <i class="bi bi-file-earmark-text text-success"></i> 
+                            Esta confirmación genera un registro permanente en el sistema de inventarios.
+                        </small>
+                    </div>
                 </div>
                 
-                <div class="card-body">
-                    <!-- Mensajes de error si existen -->
-                    {% if error %}
-                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                        <i class="fas fa-exclamation-triangle"></i>
-                        <strong>Error de verificación:</strong> {{ error }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
-                    {% endif %}
-
-                    <!-- Información de la asignación -->
-                    <div class="alert alert-info">
-                        <h5><i class="fas fa-info-circle"></i> Detalles del Activo Corporativo a Recibir</h5>
-                        <hr>
-                        <div class="row">
-                            <div class="col-md-6">
-                                <p><strong>Producto:</strong><br>{{ asignacion.producto_nombre }}</p>
-                                <p><strong>Código único:</strong> {{ asignacion.codigo_unico }}</p>
-                                <p><strong>Categoría:</strong> {{ asignacion.categoria or 'N/A' }}</p>
-                            </div>
-                            <div class="col-md-6">
-                                <p><strong>Oficina:</strong><br>{{ asignacion.oficina_nombre }}</p>
-                                <p><strong>Fecha de asignación:</strong><br>{{ asignacion.fecha_asignacion.strftime('%d/%m/%Y %H:%M') }}</p>
-                                <p><strong>Asignado a:</strong><br>{{ asignacion.usuario_nombre }}</p>
-                                <p><strong>Email corporativo:</strong><br><span class="badge bg-secondary">{{ asignacion.usuario_email }}</span></p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Advertencia de tiempo -->
-                    {% if asignacion.dias_restantes <= 2 %}
-                    <div class="alert alert-warning">
-                        <i class="fas fa-exclamation-triangle"></i>
-                        <strong>Atención:</strong> Este enlace de confirmación vence en {{ asignacion.dias_restantes }} día(s).
-                        Fecha de vencimiento: {{ asignacion.fecha_expiracion.strftime('%d/%m/%Y %H:%M') }}
-                    </div>
-                    {% endif %}
-
-                    <!-- Formulario de confirmación -->
-                    <div class="card mt-4">
-                        <div class="card-body">
-                            <h5 class="card-title">
-                                <i class="fas fa-lock"></i> Verificar tu Identidad
-                            </h5>
-                            <p class="text-muted">
-                                Para confirmar que has recibido este activo corporativo, necesitamos verificar tu identidad con las credenciales de red de la empresa.
-                            </p>
-
-                            <form method="POST" action="{{ url_for('confirmacion.confirmar_asignacion', token=token) }}" id="formConfirmacion">
-                                <input type="hidden" name="email" value="{{ asignacion.usuario_email }}">
-                                
-                                {% if ldap_disponible %}
-                                <!-- Autenticación con credenciales de red -->
-                                <div id="authSection">
-                                    <div class="alert alert-info alert-sm mb-3">
-                                        <i class="fas fa-shield-alt"></i>
-                                        <small>
-                                            <strong>Nota:</strong> Debes usar las credenciales del usuario asignado: 
-                                            <strong class="text-primary">{{ asignacion.usuario_email }}</strong>
-                                        </small>
-                                    </div>
-
-                                    <div class="form-group mb-3">
-                                        <label for="username">
-                                            <i class="fas fa-user"></i> Usuario Correo electrónico<span class="text-danger">*</span>
-                                        </label>
-                                        <input type="text" 
-                                               class="form-control {% if error %}is-invalid{% endif %}" 
-                                               id="username" 
-                                               name="username" 
-                                               placeholder="Ej: gsuarez"
-                                               value="{{ username_anterior or '' }}"
-                                               required
-                                               autocomplete="username"
-                                               autofocus>
-                                        <small class="form-text text-muted">Tu nombre de usuario de la red corporativa (sin el dominio @qualitascolombia.com.co)</small>
-                                    </div>
-
-                                    <div class="form-group mb-3">
-                                        <label for="password">
-                                            <i class="fas fa-lock"></i> Contraseña de correo electrónico <span class="text-danger">*</span>
-                                        </label>
-                                        <div class="input-group">
-                                            <input type="password" 
-                                                   class="form-control {% if error %}is-invalid{% endif %}" 
-                                                   id="password" 
-                                                   name="password" 
-                                                   placeholder="Tu contraseña de red"
-                                                   required
-                                                   autocomplete="current-password">
-                                            <button class="btn btn-outline-secondary" type="button" id="togglePassword">
-                                                <i class="fas fa-eye" id="toggleIcon"></i>
-                                            </button>
-                                        </div>
-                                        <small class="form-text text-muted">La misma contraseña que usas para iniciar sesión en tu computador de la empresa</small>
-                                    </div>
-
-                                    <!-- Número de Identificación (Cédula) -->
-                                    <div class="form-group mb-3">
-                                        <label for="numero_identificacion">
-                                            <i class="fas fa-id-card"></i> Número de Identificación (Cédula) <span class="text-danger">*</span>
-                                        </label>
-                                        <input type="text" 
-                                               class="form-control {% if error %}is-invalid{% endif %}" 
-                                               id="numero_identificacion" 
-                                               name="numero_identificacion" 
-                                               placeholder="Ej: 1234567890"
-                                               pattern="[0-9]{6,20}"
-                                               maxlength="20"
-                                               required
-                                               autocomplete="off">
-                                        <small class="form-text text-muted">Ingresa tu número de cédula o documento de identidad (solo números)</small>
-                                    </div>
-                                </div>
-                                {% else %}
-                                <!-- Sin verificación disponible -->
-                                <input type="hidden" name="sin_autenticar" value="true">
-                                <div class="alert alert-warning">
-                                    <i class="fas fa-exclamation-triangle"></i>
-                                    <strong>Sistema de verificación temporalmente no disponible.</strong><br>
-                                    La confirmación se registrará sin verificación de identidad.
-                                    Por favor contacta al área de tecnología si necesitas asistencia.
-                                </div>
-                                
-                                <!-- Campo de cédula también en modo sin autenticación -->
-                                <div class="form-group mb-3">
-                                    <label for="numero_identificacion">
-                                        <i class="fas fa-id-card"></i> Número de Identificación (Cédula) <span class="text-danger">*</span>
-                                    </label>
-                                    <input type="text" 
-                                           class="form-control" 
-                                           id="numero_identificacion" 
-                                           name="numero_identificacion" 
-                                           placeholder="Ej: 1234567890"
-                                           pattern="[0-9]{6,20}"
-                                           maxlength="20"
-                                           required
-                                           autocomplete="off">
-                                    <small class="form-text text-muted">Ingresa tu número de cédula o documento de identidad (solo números)</small>
-                                </div>
-                                {% endif %}
-
-                                <!-- Checkbox de confirmación -->
-                                <div class="form-check mb-3 p-3 bg-light rounded">
-                                    <input class="form-check-input" 
-                                           type="checkbox" 
-                                           id="confirmoRecepcion" 
-                                           required>
-                                    <label class="form-check-label" for="confirmoRecepcion">
-                                        <strong>Confirmo bajo mi responsabilidad que:</strong><br>
-                                        <ul class="mb-0 mt-2">
-                                            <li>He recibido físicamente el producto: <span class="text-primary">{{ asignacion.producto_nombre }}</span></li>
-                                            <li>El producto está en buenas condiciones de funcionamiento</li>
-                                            <li>Acepto la responsabilidad sobre este activo corporativo asignado</li>
-                                        </ul>
-                                    </label>
-                                </div>
-
-                                <!-- Autorización de Tratamiento de Datos Personales -->
-                                <div class="card border-primary mb-3">
-                                    <div class="card-header bg-primary text-white">
-                                        <strong><i class="fas fa-shield-alt"></i> Autorización de Tratamiento de Datos Personales</strong>
-                                    </div>
-                                    <div class="card-body">
-                                        <div class="form-check">
-                                            <input class="form-check-input" 
-                                                   type="checkbox" 
-                                                   id="autorizoDatos" 
-                                                   required>
-                                            <label class="form-check-label text-justify" for="autorizoDatos">
-                                                <small>
-                                                    Autorizo de manera previa, expresa e informada el tratamiento de mis datos personales 
-                                                    (incluyendo mi número de identificación), para fines de manejo de activos de la compañía 
-                                                    <strong>Quálitas Compañía de Seguros Colombia S.A.</strong> 
-                                                    Declaro que conozco mi derecho a conocer, actualizar y rectificar mi información, 
-                                                    conforme a la Política de Tratamiento de Datos disponible en 
-                                                    <a href="https://www.qualitascolombia.com.co/politica-de-seguridad" 
-                                                       target="_blank" 
-                                                       class="text-primary">
-                                                        https://www.qualitascolombia.com.co/politica-de-seguridad
-                                                    </a>
-                                                </small>
-                                            </label>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Botones -->
-                                <div class="d-grid gap-2">
-                                    <button type="submit" 
-                                            class="btn btn-primary btn-lg" 
-                                            id="btnConfirmar">
-                                        <i class="fas fa-check"></i> Confirmar que he Recibido el Activo Corporativo
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-
-                    <!-- Información adicional -->
-                    <div class="mt-4">
-                        <div class="card bg-light">
-                            <div class="card-body">
-                                <h6 class="card-title"><i class="fas fa-question-circle"></i> ¿Para qué sirve esta confirmación?</h6>
-                                <p class="card-text small mb-0">
-                                    Al confirmar con tus credenciales de red, estás declarando oficialmente que has recibido 
-                                    físicamente el activo corporativo mencionado y que está en condiciones adecuadas. Este registro 
-                                    quedará guardado en el sistema de inventario con:
-                                </p>
-                                <ul class="small mb-0 mt-2">
-                                    <li><strong>Usuario verificado:</strong> Tu identidad confirmada</li>
-                                    <li><strong>Número de Identificación:</strong> Tu cédula o documento</li>
-                                    <li><strong>Fecha y Hora:</strong> Momento exacto de confirmación</li>
-                                    <li><strong>Dirección IP:</strong> Ubicación desde donde confirmaste</li>
-                                    <li><strong>Dispositivo:</strong> Información del navegador usado</li>
-                                </ul>
-                                <p class="small text-muted mb-0 mt-2">
-                                    <i class="fas fa-info-circle"></i> Esta información garantiza la autenticidad y trazabilidad de tu confirmación.
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card-footer text-muted text-center">
-                    <small>
-                        <i class="fas fa-shield-alt"></i> 
-                        Conexión segura - Tus credenciales se validan contra el sistema de red corporativo
-                    </small>
+                <div class="text-center mt-4">
+                    <p class="text-muted">
+                        <small>
+                            <i class="bi bi-telephone"></i> Soporte Técnico: Ext. 5000 | 
+                            <i class="bi bi-envelope"></i> inventarios@qualitascolombia.com.co
+                        </small>
+                    </p>
                 </div>
             </div>
         </div>
     </div>
-</div>
 
-<style>
-    .card {
-        border: none;
-        border-radius: 10px;
-    }
-    
-    .card-header {
-        border-radius: 10px 10px 0 0 !important;
-    }
-    
-    .btn-primary {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        border: none;
-        transition: transform 0.2s;
-    }
-    
-    .btn-primary:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-    }
-    
-    .btn-primary:disabled {
-        opacity: 0.6;
-        transform: none;
-    }
-    
-    .alert {
-        border-left: 4px solid;
-    }
-    
-    .alert-info {
-        border-left-color: #17a2b8;
-    }
-    
-    .alert-warning {
-        border-left-color: #ffc107;
-    }
-
-    .alert-danger {
-        border-left-color: #dc3545;
-    }
-
-    .alert-sm {
-        padding: 0.5rem 1rem;
-        font-size: 0.875rem;
-    }
-
-    .is-invalid {
-        border-color: #dc3545;
-    }
-
-    .form-check-label ul {
-        list-style-position: inside;
-    }
-
-    .text-justify {
-        text-align: justify;
-    }
-    
-    .border-primary {
-        border-color: #667eea !important;
-        border-width: 2px !important;
-    }
-</style>
-
-<script>
-// Mostrar/ocultar contraseña
-document.getElementById('togglePassword').addEventListener('click', function() {
-    const passwordInput = document.getElementById('password');
-    const toggleIcon = document.getElementById('toggleIcon');
-    
-    if (passwordInput.type === 'password') {
-        passwordInput.type = 'text';
-        toggleIcon.classList.remove('fa-eye');
-        toggleIcon.classList.add('fa-eye-slash');
-    } else {
-        passwordInput.type = 'password';
-        toggleIcon.classList.remove('fa-eye-slash');
-        toggleIcon.classList.add('fa-eye');
-    }
-});
-
-// Validación del número de identificación (solo números)
-document.getElementById('numero_identificacion').addEventListener('input', function(e) {
-    // Eliminar caracteres no numéricos
-    this.value = this.value.replace(/[^0-9]/g, '');
-});
-
-// Form submission
-document.getElementById('formConfirmacion').addEventListener('submit', function(e) {
-    const btnConfirmar = document.getElementById('btnConfirmar');
-    const numeroIdentificacion = document.getElementById('numero_identificacion').value.trim();
-    
-    // Validar longitud del número de identificación
-    if (numeroIdentificacion.length < 6 || numeroIdentificacion.length > 20) {
-        e.preventDefault();
-        alert('El número de identificación debe tener entre 6 y 20 dígitos');
-        return false;
-    }
-    
-    // Validar que solo contenga números
-    if (!/^[0-9]+$/.test(numeroIdentificacion)) {
-        e.preventDefault();
-        alert('El número de identificación debe contener solo números');
-        return false;
-    }
-    
-    btnConfirmar.disabled = true;
-    btnConfirmar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verificando y registrando confirmación...';
-});
-</script>
-{% endblock %}
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Validación de cédula en tiempo real
+        document.getElementById('numero_identificacion').addEventListener('input', function(e) {
+            // Permitir solo números
+            this.value = this.value.replace(/[^\d]/g, '');
+            
+            // Validar longitud
+            if (this.value.length > 10) {
+                this.value = this.value.slice(0, 10);
+            }
+        });
+        
+        // Validación de usuario AD (solo letras, números y puntos)
+        document.getElementById('usuario_ad_username').addEventListener('input', function(e) {
+            // Remover espacios y caracteres especiales
+            this.value = this.value.toLowerCase().replace(/[^a-z0-9.]/g, '');
+        });
+        
+        // Mostrar/ocultar contraseña (opcional)
+        document.addEventListener('DOMContentLoaded', function() {
+            const togglePassword = document.createElement('button');
+            togglePassword.type = 'button';
+            togglePassword.className = 'btn btn-outline-secondary btn-sm position-absolute end-0 top-50 translate-middle-y';
+            togglePassword.style.right = '10px';
+            togglePassword.innerHTML = '<i class="bi bi-eye"></i>';
+            
+            const passwordField = document.getElementById('usuario_ad_password');
+            passwordField.parentElement.classList.add('position-relative');
+            passwordField.parentElement.appendChild(togglePassword);
+            
+            togglePassword.addEventListener('click', function() {
+                const type = passwordField.getAttribute('type') === 'password' ? 'text' : 'password';
+                passwordField.setAttribute('type', type);
+                this.innerHTML = type === 'password' ? '<i class="bi bi-eye"></i>' : '<i class="bi bi-eye-slash"></i>';
+            });
+        });
+    </script>
+</body>
+</html>
