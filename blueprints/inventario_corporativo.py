@@ -1,16 +1,34 @@
+# -*- coding: utf-8 -*-
 # blueprints/inventario_corporativo.py
 
 from flask import Blueprint, render_template, request, redirect, session, flash, jsonify, send_file
 from werkzeug.utils import secure_filename
 from models.inventario_corporativo_model import InventarioCorporativoModel
-from utils.permissions import can_access, can_manage_inventario_corporativo, can_view_inventario_actions
+from models.oficinas_model import OficinaModel
+from utils.permissions import can_access, can_manage_inventario_corporativo, can_view_inventario_actions, user_can_view_all
 import os
 import pandas as pd
 from io import BytesIO
 from datetime import datetime
+from functools import wraps
 import logging
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Decorators
+# ---------------------------------------------------------------------------
+
+def login_required(f):
+    """Decorator to require an authenticated session."""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'usuario_id' not in session:
+            flash('Debe iniciar sesion para acceder a esta pagina', 'warning')
+            return redirect('/auth/login')
+        return f(*args, **kwargs)
+    return decorated_function
+
 
 try:
     from utils.ldap_auth import ad_auth
@@ -159,28 +177,55 @@ def listar_oficinas_servicio():
     if not _require_login():
         return redirect('/login')
 
-    # Permitir:
-    # - Acceso completo (view)
-    # - Acceso mínimo de oficinas (view_oficinas_servicio)
+    # Acceso al módulo (la vista existe tanto para admin como para oficinas)
     if not (can_access('inventario_corporativo', 'view') or can_access('inventario_corporativo', 'view_oficinas_servicio')):
         return _handle_unauthorized()
 
-    productos = InventarioCorporativoModel.obtener_por_oficinas_servicio() or []
+    # Si el usuario NO puede ver todas las oficinas, solo debe ver lo asignado a su oficina
+    puede_ver_todas = user_can_view_all()
+    oficina_id = session.get('oficina_id')
+
+    oficinas = []
+    asignaciones = None
+    if not puede_ver_todas and oficina_id:
+        # Vista "Mi oficina": lo asignado (tipo reporte de oficinas) + botones de devolución/traspaso
+        asignaciones = InventarioCorporativoModel.obtener_asignaciones_por_oficina(oficina_id) or []
+        # Normalizar llaves para el template (compatibilidad con diferentes queries)
+        asignaciones = [
+            {
+                **a,
+                "material_nombre": a.get("material_nombre") or a.get("nombre_producto") or a.get("material") or "",
+                "serial": a.get("serial") or a.get("codigo_unico") or "",
+                "oficina_nombre": a.get("oficina_nombre") or a.get("oficina") or "",
+                "usuario_asignado": a.get("usuario_asignado") or a.get("usuario_ad_nombre") or a.get("usuario") or "",
+                "cantidad_asignada": a.get("cantidad_asignada") if a.get("cantidad_asignada") is not None else a.get("cantidad") or 0,
+            }
+            for a in asignaciones
+        ]
+        # Lista de oficinas para selector de traspaso
+        oficinas = OficinaModel.obtener_todas() or []
+        if not user_can_view_all():
+            oficina_actual = session.get("oficina_id")
+            oficinas = [o for o in oficinas if (o.get("id") or o.get("oficina_id")) != oficina_actual]
+
+        productos = InventarioCorporativoModel.obtener_por_oficina(oficina_id) or []
+        titulo = 'Inventario - Mi Oficina'
+        mostrar_tabla_productos = False  # evitamos mostrar el inventario de todas las oficinas
+    else:
+        # Vista global (admin / roles con office_filter=all)
+        productos = InventarioCorporativoModel.obtener_por_oficinas_servicio() or []
+        titulo = 'Inventario - Oficinas de Servicio'
+        mostrar_tabla_productos = True
+
     categorias = InventarioCorporativoModel.obtener_categorias() or []
     proveedores = InventarioCorporativoModel.obtener_proveedores() or []
 
-    # Si NO tiene permiso de ver todo, entonces filtrar a la oficina del usuario
-    if not can_access('inventario_corporativo', 'view'):
-        oficina_nombre = (session.get('oficina_nombre') or '').strip()
-        if oficina_nombre:
-            oficina_upper = oficina_nombre.upper()
-            productos = [p for p in productos if (p.get('oficina') or '').upper() == oficina_upper]
-
     stats = _calculate_inventory_stats(productos)
 
-    return render_template(
-        'inventario_corporativo/listar_con_filtros.html',
+    return render_template('inventario_corporativo/listar_con_filtros.html',
         productos=productos,
+        asignaciones=asignaciones,
+        oficinas=oficinas,
         categorias=categorias,
         proveedores=proveedores,
         total_productos=stats['total_productos'],
@@ -188,14 +233,18 @@ def listar_oficinas_servicio():
         productos_bajo_stock=stats['productos_bajo_stock'],
         productos_asignables=stats['productos_asignables'],
         filtro_tipo='oficinas_servicio',
-        titulo='Inventario - Oficinas de Servicio',
+        titulo=titulo,
         puede_gestionar_inventario=can_manage_inventario_corporativo(),
-        puede_ver_acciones_inventario=can_view_inventario_actions(),
-
-        # Flags extra (no rompen template si no se usan)
-        puede_solicitar_devolucion=can_access('inventario_corporativo', 'request_return'),
-        puede_solicitar_traslado=can_access('inventario_corporativo', 'request_transfer')
+        # Acciones de gestión (ver/editar/asignar) SOLO para quienes gestionan inventario
+        puede_ver_acciones_inventario=can_manage_inventario_corporativo(),
+        # Acciones para oficinas (solicitudes)
+        puede_solicitar_devolucion=can_access('inventario_corporativo', 'request_return') or can_access('inventario_corporativo', 'return'),
+        puede_solicitar_traslado=can_access('inventario_corporativo', 'request_transfer') or can_access('inventario_corporativo', 'transfer'),
+        es_vista_oficinas_servicio=True,
+        mostrar_tabla_productos=mostrar_tabla_productos,
+        vista_mi_oficina=(not puede_ver_todas)
     )
+
 @inventario_corporativo_bp.route('/<int:producto_id>')
 def ver_inventario_corporativo(producto_id):
     if not _require_login():
@@ -555,45 +604,22 @@ def api_estadisticas_dashboard():
         return jsonify({'error': 'No autorizado'}), 401
 
     try:
-        # Si tiene acceso completo, devuelve métricas globales
-        if can_access('inventario_corporativo', 'view'):
-            productos_todos = InventarioCorporativoModel.obtener_todos() or []
-            productos_sede = InventarioCorporativoModel.obtener_por_sede_principal() or []
-            productos_oficinas = InventarioCorporativoModel.obtener_por_oficinas_servicio() or []
-
-            stats_todos = _calculate_inventory_stats(productos_todos)
-
-            return jsonify({
-                "total_productos": stats_todos['total_productos'],
-                "valor_total": stats_todos['valor_total'],
-                "stock_bajo": stats_todos['productos_bajo_stock'],
-                "productos_sede": len(productos_sede),
-                "productos_oficinas": len(productos_oficinas)
-            })
-
-        # Acceso mínimo: solo oficina actual
-        if can_access('inventario_corporativo', 'view_oficinas_servicio'):
-            productos_oficinas = InventarioCorporativoModel.obtener_por_oficinas_servicio() or []
-            oficina_nombre = (session.get('oficina_nombre') or '').strip()
-
-            if oficina_nombre:
-                oficina_upper = oficina_nombre.upper()
-                productos_oficinas = [p for p in productos_oficinas if (p.get('oficina') or '').upper() == oficina_upper]
-
-            stats = _calculate_inventory_stats(productos_oficinas)
-
-            return jsonify({
-                "total_productos": stats['total_productos'],
-                "valor_total": stats['valor_total'],
-                "stock_bajo": stats['productos_bajo_stock'],
-                "productos_sede": 0,
-                "productos_oficinas": stats['total_productos']
-            })
-
-        return jsonify({'error': 'No autorizado'}), 403
-
+        productos_todos = InventarioCorporativoModel.obtener_todos() or []
+        productos_sede = InventarioCorporativoModel.obtener_por_sede_principal() or []
+        productos_oficinas = InventarioCorporativoModel.obtener_por_oficinas_servicio() or []
+        
+        stats_todos = _calculate_inventory_stats(productos_todos)
+        
+        return jsonify({
+            "total_productos": stats_todos['total_productos'],
+            "valor_total": stats_todos['valor_total'],
+            "stock_bajo": stats_todos['productos_bajo_stock'],
+            "productos_sede": len(productos_sede),
+            "productos_oficinas": len(productos_oficinas)
+        })
+        
     except Exception as e:
-        logger.error(f"Error en API estadisticas dashboard: {type(e).__name__}")
+        logger.error(f"Error en API estadisticas dashboard: {e}")
         return jsonify({
             "total_productos": 0,
             "valor_total": 0,
@@ -601,6 +627,7 @@ def api_estadisticas_dashboard():
             "productos_sede": 0,
             "productos_oficinas": 0
         })
+
 @inventario_corporativo_bp.route('/api/estadisticas')
 def api_estadisticas_inventario():
     if not _require_login():
@@ -647,3 +674,111 @@ def exportar_inventario_corporativo_excel(tipo):
     output.seek(0)
 
     return send_file(output, download_name='inventario_corporativo.xlsx', as_attachment=True)
+# ============================================================================
+# API: SOLICITUDES (DEVOLUCION / TRASPASO) DESDE "MI OFICINA"
+# ============================================================================
+
+@inventario_corporativo_bp.route('/api/solicitar-devolucion', methods=['POST'])
+@login_required
+def api_solicitar_devolucion():
+    """Crea una solicitud de devolucion a COQ para una asignacion.
+
+    Seguridad:
+    - Requiere permiso inventario_corporativo.return
+    - Si el usuario NO puede ver todas las oficinas, valida que la asignacion pertenezca a su oficina.
+    """
+    try:
+        if not can_access('inventario_corporativo', 'return'):
+            return jsonify({'success': False, 'message': 'No tiene permisos para solicitar devolucion'}), 403
+
+        data = request.get_json(silent=True) or {}
+        asignacion_id = int(data.get('asignacion_id') or 0)
+        cantidad = int(data.get('cantidad') or 0)
+        observacion = (data.get('observacion') or '').strip()
+
+        if asignacion_id <= 0 or cantidad <= 0:
+            return jsonify({'success': False, 'message': 'Datos invalidos'}), 400
+
+        asignacion = InventarioCorporativoModel.obtener_asignacion_por_id(asignacion_id)
+        if not asignacion:
+            return jsonify({'success': False, 'message': 'Asignacion no encontrada'}), 404
+
+        if not user_can_view_all():
+            oficina_id = session.get('oficina_id')
+            if oficina_id is None or int(asignacion.get('oficina_id') or 0) != int(oficina_id):
+                return jsonify({'success': False, 'message': 'No puede solicitar devolucion para otra oficina'}), 403
+
+        max_cantidad = int(asignacion.get('cantidad_asignada') or 0)
+        if max_cantidad > 0 and cantidad > max_cantidad:
+            return jsonify({'success': False, 'message': f'Cantidad excede lo asignado ({max_cantidad})'}), 400
+
+        usuario_solicita = session.get('usuario_nombre') or session.get('usuario_id') or 'Sistema'
+
+        ok = InventarioCorporativoModel.crear_solicitud_devolucion(
+            asignacion_id=asignacion_id,
+            cantidad=cantidad,
+            usuario_solicita=str(usuario_solicita),
+            observacion=observacion
+        )
+
+        if ok:
+            return jsonify({'success': True, 'message': 'Solicitud de devolucion creada'}), 200
+        return jsonify({'success': False, 'message': 'No fue posible crear la solicitud'}), 500
+
+    except Exception as e:
+        logger.error("Error creando solicitud de devolucion (api): [error](%s)", type(e).__name__)
+        return jsonify({'success': False, 'message': 'Error interno'}), 500
+
+
+@inventario_corporativo_bp.route('/api/solicitar-traspaso', methods=['POST'])
+@login_required
+def api_solicitar_traspaso():
+    """Crea una solicitud de traspaso/traslado entre oficinas.
+
+    Seguridad:
+    - Requiere permiso inventario_corporativo.transfer
+    - Si el usuario NO puede ver todas las oficinas, valida que la asignacion pertenezca a su oficina.
+    """
+    try:
+        if not can_access('inventario_corporativo', 'transfer'):
+            return jsonify({'success': False, 'message': 'No tiene permisos para solicitar traspaso'}), 403
+
+        data = request.get_json(silent=True) or {}
+        asignacion_id = int(data.get('asignacion_id') or 0)
+        oficina_destino_id = int(data.get('oficina_destino_id') or 0)
+        cantidad = int(data.get('cantidad') or 0)
+        observacion = (data.get('observacion') or '').strip()
+
+        if asignacion_id <= 0 or oficina_destino_id <= 0 or cantidad <= 0:
+            return jsonify({'success': False, 'message': 'Datos invalidos'}), 400
+
+        asignacion = InventarioCorporativoModel.obtener_asignacion_por_id(asignacion_id)
+        if not asignacion:
+            return jsonify({'success': False, 'message': 'Asignacion no encontrada'}), 404
+
+        if not user_can_view_all():
+            oficina_id = session.get('oficina_id')
+            if oficina_id is None or int(asignacion.get('oficina_id') or 0) != int(oficina_id):
+                return jsonify({'success': False, 'message': 'No puede solicitar traspaso para otra oficina'}), 403
+
+        max_cantidad = int(asignacion.get('cantidad_asignada') or 0)
+        if max_cantidad > 0 and cantidad > max_cantidad:
+            return jsonify({'success': False, 'message': f'Cantidad excede lo asignado ({max_cantidad})'}), 400
+
+        usuario_solicita = session.get('usuario_nombre') or session.get('usuario_id') or 'Sistema'
+
+        ok = InventarioCorporativoModel.crear_solicitud_traspaso(
+            asignacion_id=asignacion_id,
+            oficina_destino_id=oficina_destino_id,
+            cantidad=cantidad,
+            usuario_solicita=str(usuario_solicita),
+            observacion=observacion
+        )
+
+        if ok:
+            return jsonify({'success': True, 'message': 'Solicitud de traspaso creada'}), 200
+        return jsonify({'success': False, 'message': 'No fue posible crear la solicitud'}), 500
+
+    except Exception as e:
+        logger.error("Error creando solicitud de traspaso (api): [error](%s)", type(e).__name__)
+        return jsonify({'success': False, 'message': 'Error interno'}), 500

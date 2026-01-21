@@ -1,208 +1,289 @@
 {% extends "base.html" %}
-{% block title %}{{ titulo|default('Inventario Corporativo') }} - Sistema de Gestion{% endblock %}
 
-{% block styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/inventario_corporativo.css') }}">
-{% endblock %}
+{% block title %}Inventario Corporativo - Oficinas Servicio{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="row mb-4">
-        <div class="col-md-8">
-            <h1 class="text-primary">{{ titulo|default('Inventario Corporativo') }}</h1>
-            <p>Productos cargados: {{ total_productos }}</p>
-        </div>
-        <div class="col-md-4 text-end">
-            <div class="btn-group">
-                <button type="button" class="btn btn-success dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
-                    <i class="fas fa-file-excel"></i> Exportar
-                </button>
-                <ul class="dropdown-menu">
-                    <li><a class="dropdown-item" href="/inventario-corporativo/exportar/excel/todo">
-                        <i class="fas fa-table"></i> Todo el inventario
-                    </a></li>
-                </ul>
-            </div>
-            {% if puede_gestionar_inventario %}
-            <a href="{{ url_for('inventario_corporativo.crear_inventario_corporativo') }}" class="btn btn-primary ms-2">
-                <i class="fas fa-plus"></i> Nuevo Producto
-            </a>
-            {% endif %}
-        </div>
-    </div>
-
-    <div class="row mb-4">
-        <div class="col-md-3 mb-3">
-            <div class="card">
-                <div class="card-body">
-                    <h5>Total Productos</h5>
-                    <h3>{{ total_productos }}</h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3 mb-3">
-            <div class="card">
-                <div class="card-body">
-                    <h5>Valor Total</h5>
-                    <h3>${{ "{:,.0f}".format(valor_total_inventario) }}</h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3 mb-3">
-            <div class="card">
-                <div class="card-body">
-                    <h5>Stock Bajo</h5>
-                    <h3>{{ productos_bajo_stock }}</h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3 mb-3">
-            <div class="card">
-                <div class="card-body">
-                    <h5>Asignables</h5>
-                    <h3>{{ productos_asignables }}</h3>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="card">
-        <div class="card-body">
-            <div class="table-responsive">
-                <table class="table table-striped">
-                    <thead>
-                        <tr>
-                            <th>Codigo</th>
-                            <th>Producto</th>
-                            <th>Categoria</th>
-                            <th>Valor</th>
-                            <th>Stock</th>
-                            {% if puede_ver_acciones_inventario %}
-                            <th>Acciones</th>
-                            {% endif %}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for producto in productos %}
-                        <tr>
-                            <td><strong>{{ producto.codigo_unico }}</strong></td>
-                            <td>{{ producto.nombre }}</td>
-                            <td>{{ producto.categoria }}</td>
-                            <td>${{ "{:,.0f}".format(producto.valor_unitario) }}</td>
-                            <td>
-                                <span class="badge {% if producto.cantidad <= (producto.cantidad_minima or 5) %}bg-warning{% else %}bg-success{% endif %}">
-                                    {{ producto.cantidad }} u
-                                </span>
-                            </td>
-                            {% if puede_ver_acciones_inventario %}
-                            <td>
-                                <a href="{{ url_for('inventario_corporativo.ver_inventario_corporativo', producto_id=producto.id) }}" class="btn btn-sm btn-primary">
-                                    <i class="fas fa-eye"></i>
-                                </a>
-                                <a href="{{ url_for('inventario_corporativo.editar_inventario_corporativo', producto_id=producto.id) }}" class="btn btn-sm btn-warning">
-                                    <i class="fas fa-edit"></i>
-                                </a>
-                                {% if producto.es_asignable %}
-                                <a href="{{ url_for('inventario_corporativo.asignar_inventario_corporativo', producto_id=producto.id) }}" class="btn btn-sm btn-info">
-                                    <i class="fas fa-share"></i>
-                                </a>
-                                {% endif %}
-                            </td>
-                            {% endif %}
-                        </tr>
-                        {% else %}
-                        <tr>
-                            <td colspan="{% if puede_ver_acciones_inventario %}6{% else %}5{% endif %}" class="text-center text-muted py-4">
-                                No hay productos registrados
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
-
-    {% if asignaciones is defined %}
-    <div class="card mt-4">
-        <div class="card-body">
-            <h5 class="mb-3">Asignaciones de mi oficina</h5>
-            <div class="table-responsive">
-                <table class="table table-striped">
-                    <thead>
-                        <tr>
-                            <th>Asignacion</th>
-                            <th>Codigo</th>
-                            <th>Producto</th>
-                            <th>Usuario</th>
-                            <th>Fecha</th>
-                            <th>Cantidad</th>
-                            <th>Estado</th>
-                            <th>Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for a in asignaciones %}
-                        {% set aid = a.asignacion_id|default(a.AsignacionId) %}
-                        <tr>
-                            <td>{{ aid }}</td>
-                            <td>{{ a.codigo_unico|default(a.CodigoUnico) }}</td>
-                            <td>{{ a.nombre_producto|default(a.NombreProducto) }}</td>
-                            <td>{{ a.usuario_ad_nombre|default(a.UsuarioADNombre, true) }}</td>
-                            <td>{{ a.fecha_asignacion|default(a.FechaAsignacion) }}</td>
-                            <td>{{ a.cantidad_asignada|default(a.CantidadAsignada, true) }}</td>
-                            <td>{{ a.estado|default(a.Estado) }}</td>
-                            <td>
-                                <a class="btn btn-sm btn-danger" href="{{ url_for('inventario_corporativo.solicitar_devolucion', asignacion_id=aid) }}">
-                                    <i class="fas fa-undo-alt"></i>
-                                </a>
-                                <a class="btn btn-sm btn-info" href="{{ url_for('inventario_corporativo.solicitar_traslado', asignacion_id=aid) }}">
-                                    <i class="fas fa-exchange-alt"></i>
-                                </a>
-                            </td>
-                        </tr>
-                        {% else %}
-                        <tr>
-                            <td colspan="8" class="text-center text-muted py-3">No hay asignaciones activas para esta oficina</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
+<div class="container-fluid py-3">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h4 class="mb-0">Inventario Corporativo - Oficinas Servicio</h4>
+    {% if vista_mi_oficina %}
+      <span class="badge bg-info text-dark">Vista: Mi oficina</span>
+    {% else %}
+      <span class="badge bg-secondary">Vista: Todas las oficinas</span>
     {% endif %}
+  </div>
 
+  <!-- Filtros -->
+  <form method="GET" class="card card-body mb-3">
+    <div class="row g-2 align-items-end">
+      <div class="col-md-4">
+        <label class="form-label">Buscar</label>
+        <input type="text" name="q" class="form-control" value="{{ request.args.get('q','') }}" placeholder="Material, serial, usuario...">
+      </div>
+
+      <div class="col-md-3">
+        <label class="form-label">Oficina</label>
+        <select name="oficina" class="form-select" {% if vista_mi_oficina %}disabled{% endif %}>
+          <option value="">Todas</option>
+          {% for o in oficinas %}
+            <option value="{{ o.get('oficina_id') }}" {% if request.args.get('oficina','')|string == (o.get('oficina_id')|string) %}selected{% endif %}>
+              {{ o.get('nombre_oficina') }}
+            </option>
+          {% endfor %}
+        </select>
+        {% if vista_mi_oficina %}
+          <div class="form-text">Filtrado automaticamente por su oficina.</div>
+        {% endif %}
+      </div>
+
+      <div class="col-md-3">
+        <label class="form-label">Estado</label>
+        <select name="estado" class="form-select">
+          <option value="">Todos</option>
+          <option value="activo" {% if request.args.get('estado','') == 'activo' %}selected{% endif %}>Activo</option>
+          <option value="baja" {% if request.args.get('estado','') == 'baja' %}selected{% endif %}>Baja</option>
+        </select>
+      </div>
+
+      <div class="col-md-2 d-grid">
+        <button class="btn btn-primary" type="submit">
+          <i class="fas fa-filter me-1"></i> Filtrar
+        </button>
+      </div>
+    </div>
+  </form>
+
+  <!-- Tabla -->
+  <div class="card">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover table-striped mb-0">
+          <thead class="table-dark">
+            <tr>
+              <th>ID</th>
+              <th>Material</th>
+              <th>Serial</th>
+              <th>Cantidad</th>
+              <th>Oficina</th>
+              <th>Usuario</th>
+              <th class="text-end">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for a in asignaciones %}
+              {% set aid = a.get('asignacion_id') or a.get('id') %}
+              <tr>
+                <td>{{ aid }}</td>
+                <td>{{ a.get('material_nombre','') }}</td>
+                <td>{{ a.get('serial','') }}</td>
+                <td>{{ a.get('cantidad_asignada') if a.get('cantidad_asignada') is not none else a.get('cantidad', 0) }}</td>
+                <td>{{ a.get('oficina_nombre','') }}</td>
+                <td>{{ a.get('usuario_asignado','') }}</td>
+                <td class="text-end">
+                  {% if can_access is defined %}
+                    {% if can_access('inventario_corporativo', 'return') %}
+                      <button
+                        type="button"
+                        class="btn btn-sm btn-danger"
+                        data-bs-toggle="modal"
+                        data-bs-target="#modalDevolucion"
+                        data-asignacion-id="{{ aid }}"
+                        data-max="{{ a.get('cantidad_asignada') if a.get('cantidad_asignada') is not none else a.get('cantidad', 0) }}"
+                        title="Solicitar devolucion a COQ">
+                        <i class="fas fa-undo"></i>
+                      </button>
+                    {% endif %}
+
+                    {% if can_access('inventario_corporativo', 'transfer') %}
+                      <button
+                        type="button"
+                        class="btn btn-sm btn-warning"
+                        data-bs-toggle="modal"
+                        data-bs-target="#modalTraspaso"
+                        data-asignacion-id="{{ aid }}"
+                        data-max="{{ a.get('cantidad_asignada') if a.get('cantidad_asignada') is not none else a.get('cantidad', 0) }}"
+                        title="Solicitar traspaso">
+                        <i class="fas fa-exchange-alt"></i>
+                      </button>
+                    {% endif %}
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+
+            {% if asignaciones|length == 0 %}
+              <tr>
+                <td colspan="7" class="text-center py-4 text-muted">
+                  No hay registros para mostrar.
+                </td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 </div>
-{% endblock %}
 
-{% block scripts %}
+<!-- Modal Devolucion -->
+<div class="modal fade" id="modalDevolucion" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form id="formDevolucion">
+        <div class="modal-header">
+          <h5 class="modal-title">Solicitar devolucion a COQ</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" name="asignacion_id" id="dev_asignacion_id">
+          <div class="mb-2">
+            <label class="form-label">Cantidad a devolver</label>
+            <input type="number" min="1" class="form-control" name="cantidad" id="dev_cantidad" required>
+            <div class="form-text" id="dev_help"></div>
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Motivo</label>
+            <textarea class="form-control" name="motivo" id="dev_motivo" rows="3" placeholder="Motivo de la devolucion..." required></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-danger">Enviar solicitud</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Traspaso -->
+<div class="modal fade" id="modalTraspaso" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form id="formTraspaso">
+        <div class="modal-header">
+          <h5 class="modal-title">Solicitar traspaso</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" name="asignacion_id" id="tra_asignacion_id">
+          <div class="mb-2">
+            <label class="form-label">Cantidad a traspasar</label>
+            <input type="number" min="1" class="form-control" name="cantidad" id="tra_cantidad" required>
+            <div class="form-text" id="tra_help"></div>
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Oficina destino</label>
+            <select class="form-select" name="oficina_destino_id" id="tra_oficina_destino" required>
+              <option value="">Seleccione...</option>
+              {% for o in oficinas %}
+                <option value="{{ o.get('oficina_id') }}">{{ o.get('nombre_oficina') }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Observaciones</label>
+            <textarea class="form-control" name="observaciones" id="tra_obs" rows="3" placeholder="Observaciones..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-warning">Enviar solicitud</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const modal = document.getElementById('modalInventarioCorporativo');
-    if (modal) {
-        modal.addEventListener('show.bs.modal', function () {
-            fetch('{{ url_for("inventario_corporativo.api_estadisticas_inventario") }}')
-                .then(response => response.json())
-                .then(data => {
-                    document.getElementById('total-productos').textContent = data.total_productos || 0;
-                    document.getElementById('valor-total').textContent = '$' + (data.valor_total || 0).toLocaleString();
-                    document.getElementById('stock-bajo').textContent = data.stock_bajo || 0;
+(function () {
+  const modalDev = document.getElementById('modalDevolucion');
+  if (modalDev) {
+    modalDev.addEventListener('show.bs.modal', function (event) {
+      const btn = event.relatedTarget;
+      const asignacionId = btn.getAttribute('data-asignacion-id');
+      const max = parseInt(btn.getAttribute('data-max') || '0', 10);
 
-                    const sedeEl = document.getElementById('productos-sede');
-                    const oficinasEl = document.getElementById('productos-oficinas');
-                    if (sedeEl) sedeEl.textContent = data.productos_sede || 0;
-                    if (oficinasEl) oficinasEl.textContent = data.productos_oficinas || 0;
-                })
-                .catch(error => {
-                    console.error('Error cargando estadisticas:', error);
-                    document.getElementById('total-productos').textContent = '0';
-                    document.getElementById('valor-total').textContent = '$0';
-                    document.getElementById('stock-bajo').textContent = '0';
-                });
-        });
-    }
-});
+      document.getElementById('dev_asignacion_id').value = asignacionId;
+      const cantidad = document.getElementById('dev_cantidad');
+      cantidad.value = '';
+      cantidad.max = String(max);
+      document.getElementById('dev_help').textContent = 'Max: ' + max;
+      document.getElementById('dev_motivo').value = '';
+    });
+  }
+
+  const modalTra = document.getElementById('modalTraspaso');
+  if (modalTra) {
+    modalTra.addEventListener('show.bs.modal', function (event) {
+      const btn = event.relatedTarget;
+      const asignacionId = btn.getAttribute('data-asignacion-id');
+      const max = parseInt(btn.getAttribute('data-max') || '0', 10);
+
+      document.getElementById('tra_asignacion_id').value = asignacionId;
+      const cantidad = document.getElementById('tra_cantidad');
+      cantidad.value = '';
+      cantidad.max = String(max);
+      document.getElementById('tra_help').textContent = 'Max: ' + max;
+      document.getElementById('tra_oficina_destino').value = '';
+      document.getElementById('tra_obs').value = '';
+    });
+  }
+
+  async function postJson(url, payload) {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    return res.json();
+  }
+
+  const formDev = document.getElementById('formDevolucion');
+  if (formDev) {
+    formDev.addEventListener('submit', async function (e) {
+      e.preventDefault();
+      const payload = {
+        asignacion_id: document.getElementById('dev_asignacion_id').value,
+        cantidad: document.getElementById('dev_cantidad').value,
+        motivo: document.getElementById('dev_motivo').value
+      };
+      try {
+        const data = await postJson("{{ url_for('inventario_corporativo.api_solicitar_devolucion') }}", payload);
+        if (data && data.success) {
+          alert('Solicitud enviada.');
+          window.location.reload();
+        } else {
+          alert((data && (data.error || data.message)) || 'Error enviando solicitud.');
+        }
+      } catch (err) {
+        alert('Error enviando solicitud.');
+      }
+    });
+  }
+
+  const formTra = document.getElementById('formTraspaso');
+  if (formTra) {
+    formTra.addEventListener('submit', async function (e) {
+      e.preventDefault();
+      const payload = {
+        asignacion_id: document.getElementById('tra_asignacion_id').value,
+        cantidad: document.getElementById('tra_cantidad').value,
+        oficina_destino_id: document.getElementById('tra_oficina_destino').value,
+        observaciones: document.getElementById('tra_obs').value
+      };
+      try {
+        const data = await postJson("{{ url_for('inventario_corporativo.api_solicitar_traspaso') }}", payload);
+        if (data && data.success) {
+          alert('Solicitud enviada.');
+          window.location.reload();
+        } else {
+          alert((data && (data.error || data.message)) || 'Error enviando solicitud.');
+        }
+      } catch (err) {
+        alert('Error enviando solicitud.');
+      }
+    });
+  }
+})();
 </script>
 {% endblock %}

@@ -103,52 +103,61 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 {% if current_path.startswith('/inventario-corporativo') %}
                 <ul class="navbar-nav me-auto">
-    <li class="nav-item">
-        <a class="nav-link {% if current_path == '/dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">
-            <i class="fas fa-tachometer-alt me-1"></i> Dashboard
-        </a>
-    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if current_path == '/dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">
+                            <i class="fas fa-tachometer-alt me-1"></i> Dashboard
+                        </a>
+                    </li>
 
-    {% if can_access is defined and can_access('inventario_corporativo', 'view') %}
-    <li class="nav-item">
-        <a class="nav-link {% if current_path.startswith('/inventario-corporativo') 
-                             and not current_path.startswith('/inventario-corporativo/sede-principal') 
-                             and not current_path.startswith('/inventario-corporativo/oficinas-servicio') 
-                             and not current_path.startswith('/inventario-corporativo/crear') %}active{% endif %}" 
-           href="{{ url_for('inventario_corporativo.listar_inventario_corporativo') }}">
-            <i class="fas fa-boxes me-1"></i> Todos los Productos
-        </a>
-    </li>
+                    {#
+                      Inventario Corporativo:
+                      - Administrador / Líder Inventario / Aprobador: menú completo.
+                      - Oficinas: solo "Oficinas de Servicio" (su inventario) + acciones visibles según permisos.
+                    #}
+                    {% set inv_admin = (can_access is defined and (can_access('inventario_corporativo', 'manage_sedes') or can_access('inventario_corporativo', 'manage_oficinas') or can_access('inventario_corporativo', 'assign'))) %}
 
-    <li class="nav-item">
-        <a class="nav-link {% if current_path.startswith('/inventario-corporativo/sede-principal') %}active{% endif %}" 
-           href="{{ url_for('inventario_corporativo.listar_sede_principal') }}">
-            <i class="fas fa-building me-1"></i> Sede Principal
-        </a>
-    </li>
-    {% endif %}
+                    {% if inv_admin %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if current_path.startswith('/inventario-corporativo')
+                                             and not current_path.startswith('/inventario-corporativo/sede-principal')
+                                             and not current_path.startswith('/inventario-corporativo/oficinas-servicio')
+                                             and not current_path.startswith('/inventario-corporativo/crear') %}active{% endif %}"
+                           href="{{ url_for('inventario_corporativo.listar_inventario_corporativo') }}">
+                            <i class="fas fa-boxes me-1"></i> Todos los Productos
+                        </a>
+                    </li>
+                    {% endif %}
 
-    {% if can_access is defined and (can_access('inventario_corporativo', 'view') or can_access('inventario_corporativo', 'view_oficinas_servicio')) %}
-    <li class="nav-item">
-        <a class="nav-link {% if current_path.startswith('/inventario-corporativo/oficinas-servicio') %}active{% endif %}" 
-           href="{{ url_for('inventario_corporativo.listar_oficinas_servicio') }}">
-            <i class="fas fa-map-marker-alt me-1"></i> Oficinas de Servicio
-        </a>
-    </li>
-    {% endif %}
+                    {% if can_access is defined and can_access('inventario_corporativo', 'manage_sedes') %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if current_path.startswith('/inventario-corporativo/sede-principal') %}active{% endif %}"
+                           href="{{ url_for('inventario_corporativo.listar_sede_principal') }}">
+                            <i class="fas fa-building me-1"></i> Sede Principal
+                        </a>
+                    </li>
+                    {% endif %}
 
-    {% if can_access is defined and can_access('inventario_corporativo', 'create') %}
-    <li class="nav-item">
-        <a class="nav-link {% if current_path.startswith('/inventario-corporativo/crear') %}active{% endif %}" 
-           href="{{ url_for('inventario_corporativo.crear_inventario_corporativo') }}">
-            <i class="fas fa-plus-circle me-1"></i> Nuevo Producto
-        </a>
-    </li>
-    {% endif %}
-</ul>
+                    {% if can_access is defined and (can_access('inventario_corporativo', 'view') or can_access('inventario_corporativo', 'view_oficinas_servicio')) %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if current_path.startswith('/inventario-corporativo/oficinas-servicio') %}active{% endif %}"
+                           href="{{ url_for('inventario_corporativo.listar_oficinas_servicio') }}">
+                            <i class="fas fa-map-marker-alt me-1"></i>
+                            {% if inv_admin %}Oficinas de Servicio{% else %}Mi Inventario{% endif %}
+                        </a>
+                    </li>
+                    {% endif %}
 
-{% elif current_path.startswith('/prestamos') %}
+                    {% if can_access is defined and can_access('inventario_corporativo', 'create') %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if current_path.startswith('/inventario-corporativo/crear') %}active{% endif %}"
+                           href="{{ url_for('inventario_corporativo.crear_inventario_corporativo') }}">
+                            <i class="fas fa-plus-circle me-1"></i> Nuevo Producto
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
 
+                {% elif current_path.startswith('/prestamos') %}
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item">
                         <a class="nav-link {% if current_path == '/dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">
@@ -183,7 +192,7 @@
                     </li>
                     {% endif %}
 
-                    {% if can_access is defined and can_access('reportes', 'view') %}
+                    {% if can_access is defined and (can_access('reportes', 'view_all') or can_access('reportes', 'view_own')) %}
                     <li class="nav-item">
                         <a class="nav-link {% if current_path.startswith('/prestamos/reportes') %}active{% endif %}" 
                            href="{{ url_for('prestamos.reportes') }}">
@@ -229,7 +238,7 @@
                     </li>
                     {% endif %}
 
-                    {% if can_access is defined and can_access('reportes', 'view') %}
+                    {% if can_access is defined and (can_access('reportes', 'view_all') or can_access('reportes', 'view_own')) %}
                     <li class="nav-item">
                         <a class="nav-link {% if current_path.startswith('/reportes') %}active{% endif %}" href="/reportes">
                             <i class="fas fa-chart-bar me-1"></i> Reportes
