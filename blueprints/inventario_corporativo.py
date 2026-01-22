@@ -187,7 +187,7 @@ def listar_oficinas_servicio():
     if not _require_login():
         return redirect('/login')
 
-    # Acceso al módulo (la vista existe tanto para admin como para oficinas)
+    
     if not (can_access('inventario_corporativo', 'view') or can_access('inventario_corporativo', 'view_oficinas_servicio')):
         return _handle_unauthorized()
 

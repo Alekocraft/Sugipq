@@ -1,5 +1,5 @@
 # blueprints/materiales.py
-# VERSIÓN CORREGIDA - Mejor manejo de errores
+ 
 
 from __future__ import annotations
 

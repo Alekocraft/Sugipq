@@ -1,336 +1,235 @@
 {% extends "base.html" %}
-{% block title %}Nuevo Préstamo{% endblock %}
+
+{% block title %}Crear Préstamo{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h1 class="fw-bold">
-            <i class="fas fa-plus"></i> Nuevo Préstamo de Elemento Publicitario
-        </h1>
-        <div class="d-flex gap-2">
-            {% if can_access('materiales', 'create') %}
-            <a href="/prestamos/elementos/crearmaterial" class="btn btn-outline-primary">
-                <i class="fas fa-plus-square"></i> Crear Elemento
-            </a>
-            {% endif %}
-            <a href="/prestamos" class="btn btn-outline-secondary">
-                <i class="fas fa-arrow-left"></i> Volver
-            </a>
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h4 mb-0">Crear Préstamo</h1>
+    <div class="d-flex gap-2">
+      {% if can_access('materiales', 'create') %}
+      <a class="btn btn-outline-secondary btn-sm" href="/prestamos/elementos/crearmaterial">
+        <i class="bi bi-plus-circle"></i> Crear material
+      </a>
+      {% endif %}
+      <a class="btn btn-outline-secondary btn-sm" href="/prestamos">
+        <i class="bi bi-arrow-left"></i> Volver
+      </a>
+    </div>
+  </div>
+
+  <div id="alertContainer"></div>
+
+  <div class="row g-3">
+    <div class="col-lg-7">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <form id="prestamoForm" method="POST" novalidate>
+            <div class="mb-3">
+              <label for="elemento_id" class="form-label">Elemento</label>
+              <select class="form-select" id="elemento_id" name="elemento_id" required>
+                <option value="">Seleccione un elemento...</option>
+                {% for e in elementos %}
+                <option
+                  value="{{ e.id }}"
+                  data-nombre="{{ e.nombre|e }}"
+                  data-valor="{{ e.valor }}"
+                  data-disponible="{{ e.disponible }}"
+                  data-imagen="{{ e.imagen|default('')|e }}"
+                >
+                  {{ e.nombre }} (Disp: {{ e.disponible }})
+                </option>
+                {% endfor %}
+              </select>
+              <div class="form-text">Solo se listan elementos activos y disponibles.</div>
+            </div>
+
+            <div class="row g-2">
+              <div class="col-md-4">
+                <label for="cantidad" class="form-label">Cantidad</label>
+                <input class="form-control" type="number" min="1" step="1" id="cantidad" name="cantidad" required />
+              </div>
+              <div class="col-md-8">
+                <label for="fecha_prevista" class="form-label">Fecha devolución prevista</label>
+                <input class="form-control" type="date" id="fecha_prevista" name="fecha_prevista" required />
+              </div>
+            </div>
+
+            <div class="mt-3">
+              <label for="evento" class="form-label">Evento / Motivo</label>
+              <input class="form-control" type="text" id="evento" name="evento" maxlength="200" required />
+            </div>
+
+            <div class="mt-3">
+              <label for="observaciones" class="form-label">Observaciones</label>
+              <textarea class="form-control" id="observaciones" name="observaciones" rows="3" maxlength="1000" required></textarea>
+            </div>
+
+            <div class="d-flex gap-2 mt-4">
+              <button type="submit" class="btn btn-primary">
+                <i class="bi bi-check2-circle"></i> Crear préstamo
+              </button>
+              <button type="button" class="btn btn-outline-secondary" onclick="safeNavigate('/prestamos');">
+                Cancelar
+              </button>
+            </div>
+          </form>
         </div>
+      </div>
     </div>
 
-    <div id="message-container"></div>
-
-    {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-    {% for category, message in messages %}
-    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-        {{ message }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+    <div class="col-lg-5">
+      <div class="card shadow-sm" id="resumenCard">
+        <div class="card-body">
+          <h2 class="h6">Resumen</h2>
+          <div class="d-flex gap-3">
+            <div style="width: 96px; height: 96px; flex: 0 0 auto;">
+              <img id="resumenImagen" src="" alt="Imagen del material" class="img-fluid rounded border" style="object-fit: cover; width: 96px; height: 96px; display:none;">
+              <div id="resumenSinImagen" class="border rounded d-flex align-items-center justify-content-center text-muted" style="width: 96px; height: 96px;">
+                <span style="font-size: 12px;">Sin imagen</span>
+              </div>
+            </div>
+            <div class="flex-grow-1">
+              <div class="mb-1"><strong>Material:</strong> <span id="resumenMaterial">—</span></div>
+              <div class="mb-1"><strong>Disponible:</strong> <span id="resumenDisponible">—</span></div>
+              <div class="mb-1"><strong>Valor unitario:</strong> <span id="resumenValorUnitario">—</span></div>
+              <div class="mb-1"><strong>Cantidad:</strong> <span id="resumenCantidad">—</span></div>
+              <div class="mt-2"><strong>Subtotal:</strong> <span id="resumenSubtotal">—</span></div>
+            </div>
+          </div>
+          <hr>
+          <small class="text-muted">
+            El préstamo quedará en estado <strong>PENDIENTE</strong> hasta aprobación.
+          </small>
+        </div>
+      </div>
     </div>
-    {% endfor %}
-    {% endif %}
-    {% endwith %}
-
-    <form id="prestamoForm" method="post">
-        <input type="hidden" name="solicitante_id" value="{{ solicitante_id }}">
-        <input type="hidden" name="oficina_id" value="{{ oficina_id }}">
-
-        <div class="row g-3">
-            <div class="col-md-6">
-                <label class="form-label">Solicitante</label>
-                <input class="form-control" value="{{ solicitante_nombre }}" readonly>
-            </div>
-            <div class="col-md-6">
-                <label class="form-label">Oficina</label>
-                <input class="form-control" value="{{ oficina_nombre }}" readonly>
-            </div>
-
-            <div class="col-md-6">
-                <label class="form-label">Elemento*</label>
-                <select name="elemento_id" id="elemento_id" class="form-select" required>
-                    <option value="">— selecciona —</option>
-                    {% for e in elementos %}
-                    <option value="{{ e.id }}"
-                            data-valor="{{ e.valor }}"
-                            data-disponible="{{ e.disponible }}"
-                            data-imagen="{{ e.imagen or '' }}">
-                        {{ e.nombre }} (Disponible: {{ e.disponible }})
-                    </option>
-                    {% endfor %}
-                </select>
-                <div class="small text-muted mt-1" id="disp_hint"></div>
-            </div>
-
-            <div class="col-md-3">
-                <label class="form-label">Cantidad*</label>
-                <input type="number" name="cantidad" id="cantidad" class="form-control" min="1" value="1" required>
-            </div>
-
-            <div class="col-md-3">
-                <label class="form-label">Fecha devolución prevista*</label>
-                <input type="date" name="fecha_prevista" id="fecha_prevista" class="form-control" required
-                       min="{{ fecha_minima }}">
-            </div>
-
-            <div class="col-md-6">
-                <label class="form-label">Evento/Motivo del Préstamo*</label>
-                <input type="text" name="evento" class="form-control" required
-                       placeholder="Ej: Campaña publicitaria, Evento corporativo, etc.">
-            </div>
-
-            <div class="col-12">
-                <label class="form-label">Observaciones*</label>
-                <textarea name="observaciones" class="form-control" rows="2" required
-                          placeholder="Detalles adicionales sobre el préstamo..."></textarea>
-            </div>
-
-            <div class="col-md-4">
-                <div class="card border-0 shadow-sm">
-                    <div class="card-body text-center">
-                        <div class="mb-3" style="min-height: 200px; display: flex; align-items: center; justify-content: center; background: #f8f9fa; border-radius: 8px;">
-                            <img id="img_elemento" src="" alt="Imagen elemento"
-                                 class="img-fluid rounded"
-                                 style="max-height: 180px; display: none;">
-                            <div id="img_placeholder" class="text-muted">
-                                <i class="fas fa-image fa-3x mb-2"></i>
-                                <div>Selecciona un elemento</div>
-                            </div>
-                        </div>
-                        <div class="small text-start">
-                            <div><strong>Valor unitario:</strong> $<span id="vu">0.00</span></div>
-                            <div><strong>Subtotal:</strong> $<span id="subt">0.00</span></div>
-                            <div><strong>Disponible:</strong> <span id="disp">0</span></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="mt-3 d-flex gap-2">
-            <button type="submit" class="btn btn-primary" id="submitBtn">
-                <i class="fas fa-save"></i> Registrar Préstamo
-            </button>
-            <a href="/prestamos" class="btn btn-outline-secondary">Cancelar</a>
-        </div>
-    </form>
+  </div>
 </div>
-
 {% endblock %}
 
 {% block scripts %}
 <script>
-(function () {
-    "use strict";
+  // Navegación segura (misma-origen)
+  function safeNavigate(path) {
+    try {
+      if (typeof path !== 'string') return;
+      const dest = path.trim();
+      if (!dest.startsWith('/') || dest.startsWith('//')) return;
+      if (dest.includes('\\') || /[\r\n\t]/.test(dest)) return;
+      window.location.assign(dest);
+    } catch (e) { /* no-op */ }
+  }
 
-    // Navegación segura (evita Open Redirect). Solo permite same-origin.
-    function safeNavigate(dest) {
-        try {
-            if (typeof dest !== "string") return;
-            const d = dest.trim();
-            if (!d) return;
+  function showAlert(message, type) {
+    const container = document.getElementById('alertContainer');
+    if (!container) return;
+    container.innerHTML = '';
+    const div = document.createElement('div');
+    div.className = 'alert alert-' + (type || 'info') + ' alert-dismissible fade show';
+    div.role = 'alert';
+    const span = document.createElement('span');
+    span.textContent = message || '';
+    div.appendChild(span);
 
-            // Bloquear backslashes y caracteres de control (CR/LF/TAB)
-            if (/[\\\r\n\t]/.test(d)) return;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn-close';
+    btn.setAttribute('data-bs-dismiss', 'alert');
+    btn.setAttribute('aria-label', 'Close');
+    div.appendChild(btn);
 
-            const url = new URL(d, window.location.origin);
+    container.appendChild(div);
+  }
 
-            // Solo permitir same-origin
-            if (url.origin !== window.location.origin) return;
-
-            // Redirigir solo a path+query+hash (sin permitir "javascript:" ni externos)
-            window.location.assign(url.pathname + url.search + url.hash);
-        } catch (_) {
-            // no-op
-        }
+  function formatCOP(value) {
+    const n = Number(value || 0);
+    try {
+      return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n);
+    } catch (e) {
+      return '$ ' + Math.round(n).toString();
     }
+  }
 
-    const elementoSelect = document.getElementById('elemento_id');
-    const cantidadInput = document.getElementById('cantidad');
-    const dispHint = document.getElementById('disp_hint');
-    const imagenElemento = document.getElementById('img_elemento');
-    const imagenPlaceholder = document.getElementById('img_placeholder');
-    const valorUnitarioSpan = document.getElementById('vu');
-    const subtotalSpan = document.getElementById('subt');
-    const disponibleSpan = document.getElementById('disp');
-    const fechaInput = document.getElementById('fecha_prevista');
-    const prestamoForm = document.getElementById('prestamoForm');
-    const submitBtn = document.getElementById('submitBtn');
-    const messageContainer = document.getElementById('message-container');
+  function updateResumen() {
+    const sel = document.getElementById('elemento_id');
+    const qtyInput = document.getElementById('cantidad');
+    const opt = sel && sel.selectedOptions ? sel.selectedOptions[0] : null;
 
-    let valorUnitario = 0;
-    let disponible = 0;
+    const material = opt ? (opt.dataset.nombre || '—') : '—';
+    const disponible = opt ? (opt.dataset.disponible || '—') : '—';
+    const valor = opt ? Number(opt.dataset.valor || 0) : 0;
+    const imagen = opt ? (opt.dataset.imagen || '') : '';
+    const qty = Number(qtyInput && qtyInput.value ? qtyInput.value : 0);
 
-    if (fechaInput) {
-        const today = new Date().toISOString().split('T')[0];
-        fechaInput.min = today;
+    document.getElementById('resumenMaterial').textContent = material;
+    document.getElementById('resumenDisponible').textContent = disponible;
+    document.getElementById('resumenValorUnitario').textContent = formatCOP(valor);
+    document.getElementById('resumenCantidad').textContent = qty > 0 ? String(qty) : '—';
+    document.getElementById('resumenSubtotal').textContent = qty > 0 ? formatCOP(valor * qty) : '—';
 
-        if (!fechaInput.value) {
-            const nextWeek = new Date();
-            nextWeek.setDate(nextWeek.getDate() + 7);
-            fechaInput.value = nextWeek.toISOString().split('T')[0];
-        }
+    const imgEl = document.getElementById('resumenImagen');
+    const noImgEl = document.getElementById('resumenSinImagen');
+    if (imagen) {
+      imgEl.src = imagen;
+      imgEl.style.display = '';
+      noImgEl.style.display = 'none';
+    } else {
+      imgEl.removeAttribute('src');
+      imgEl.style.display = 'none';
+      noImgEl.style.display = '';
     }
+  }
 
-    function formatearNumero(n) {
-        return (Math.round(n * 100) / 100).toFixed(2);
-    }
+  (function init() {
+    const sel = document.getElementById('elemento_id');
+    const qty = document.getElementById('cantidad');
+    if (sel) sel.addEventListener('change', updateResumen);
+    if (qty) qty.addEventListener('input', updateResumen);
 
-    function resetearInformacionElemento() {
-        if (dispHint) dispHint.textContent = '';
-        if (imagenElemento) imagenElemento.style.display = 'none';
-        if (imagenPlaceholder) imagenPlaceholder.style.display = 'flex';
-        if (valorUnitarioSpan) valorUnitarioSpan.textContent = '0.00';
-        if (subtotalSpan) subtotalSpan.textContent = '0.00';
-        if (disponibleSpan) disponibleSpan.textContent = '0';
-        valorUnitario = 0;
-        disponible = 0;
-    }
+    updateResumen();
 
-    function actualizarInterfaz(imagenUrl) {
-        if (valorUnitarioSpan) valorUnitarioSpan.textContent = formatearNumero(valorUnitario);
-        if (disponibleSpan) disponibleSpan.textContent = disponible;
+    const form = document.getElementById('prestamoForm');
+    if (!form) return;
 
-        if (dispHint) {
-            dispHint.textContent = `Disponible: ${disponible}`;
-            dispHint.className = (disponible > 0) ? 'small text-success' : 'small text-danger';
-        }
+    form.addEventListener('submit', async function (ev) {
+      ev.preventDefault();
 
-        if (imagenElemento && imagenPlaceholder) {
-            if (imagenUrl && imagenUrl.trim() !== '') {
-                imagenElemento.src = imagenUrl;
-                imagenElemento.style.display = 'block';
-                imagenPlaceholder.style.display = 'none';
+      const formData = new FormData(form);
 
-                imagenElemento.onerror = function () {
-                    imagenElemento.style.display = 'none';
-                    imagenPlaceholder.style.display = 'flex';
-                };
-            } else {
-                imagenElemento.style.display = 'none';
-                imagenPlaceholder.style.display = 'flex';
-            }
-        }
-    }
-
-    function calcularSubtotal() {
-        const cantidad = parseInt((cantidadInput && cantidadInput.value) ? cantidadInput.value : '0', 10);
-        const subtotal = (valorUnitario || 0) * (cantidad || 0);
-        if (subtotalSpan) subtotalSpan.textContent = formatearNumero(subtotal);
-
-        if (!cantidadInput) return;
-
-        if (cantidad > disponible) {
-            cantidadInput.classList.add('is-invalid');
-            cantidadInput.setCustomValidity('La cantidad supera el stock disponible');
-            if (dispHint) dispHint.classList.add('text-danger');
-        } else if (cantidad <= 0) {
-            cantidadInput.classList.add('is-invalid');
-            cantidadInput.setCustomValidity('La cantidad debe ser mayor a 0');
-        } else {
-            cantidadInput.classList.remove('is-invalid');
-            cantidadInput.setCustomValidity('');
-        }
-    }
-
-    function cargarInformacionElemento() {
-        if (!elementoSelect) return;
-
-        const opcionSeleccionada = elementoSelect.options[elementoSelect.selectedIndex];
-
-        if (!opcionSeleccionada || !opcionSeleccionada.value) {
-            resetearInformacionElemento();
-            return;
-        }
-
-        valorUnitario = parseFloat(opcionSeleccionada.getAttribute('data-valor')) || 0;
-        disponible = parseInt(opcionSeleccionada.getAttribute('data-disponible')) || 0;
-        const imagenUrl = opcionSeleccionada.getAttribute('data-imagen') || '';
-
-        actualizarInterfaz(imagenUrl);
-        calcularSubtotal();
-    }
-
-    function mostrarMensaje(tipo, mensaje) {
-        if (!messageContainer) return;
-        messageContainer.innerHTML = '';
-
-        const alertaDiv = document.createElement('div');
-        alertaDiv.className = `alert alert-${tipo} alert-dismissible fade show`;
-        alertaDiv.role = 'alert';
-        alertaDiv.innerHTML = `
-            ${mensaje}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
-        `;
-        messageContainer.appendChild(alertaDiv);
-
-        if (tipo !== 'danger') {
-            setTimeout(() => {
-                if (alertaDiv.parentNode) alertaDiv.remove();
-            }, 5000);
-        }
-    }
-
-    if (prestamoForm && submitBtn) {
-        prestamoForm.addEventListener('submit', async function (e) {
-            e.preventDefault();
-
-            if (!prestamoForm.checkValidity()) {
-                prestamoForm.classList.add('was-validated');
-                return;
-            }
-
-            const textoOriginal = submitBtn.innerHTML;
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
-
-            try {
-                const formData = new FormData(prestamoForm);
-
-                const resp = await fetch('/prestamos/crear', {
-                    method: 'POST',
-                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
-                    body: formData,
-                    credentials: 'same-origin'
-                });
-
-                const json = await resp.json();
-
-                if (json && json.success) {
-                    mostrarMensaje('success', json.message || 'Préstamo registrado.');
-
-                    prestamoForm.reset();
-                    resetearInformacionElemento();
-
-                    if (fechaInput) {
-                        const nextWeek = new Date();
-                        nextWeek.setDate(nextWeek.getDate() + 7);
-                        fechaInput.value = nextWeek.toISOString().split('T')[0];
-                    }
-
-                    if (elementoSelect) elementoSelect.selectedIndex = 0;
-                    cargarInformacionElemento();
-
-                    if (json.redirect) {
-                        setTimeout(() => safeNavigate(json.redirect), 1500);
-                    }
-                } else {
-                    mostrarMensaje('danger', (json && json.message) ? json.message : 'Error al registrar el préstamo');
-                }
-            } catch (_) {
-                mostrarMensaje('danger', 'Error de conexión. Por favor, intente nuevamente.');
-            } finally {
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = textoOriginal;
-            }
+      try {
+        const resp = await fetch('/prestamos/crear', {
+          method: 'POST',
+          body: formData,
+          credentials: 'same-origin',
+          headers: { 'X-Requested-With': 'XMLHttpRequest' }
         });
-    }
 
-    if (elementoSelect) elementoSelect.addEventListener('change', cargarInformacionElemento);
-    if (cantidadInput) cantidadInput.addEventListener('input', calcularSubtotal);
+        let data = null;
+        try { data = await resp.json(); } catch (e) { data = null; }
 
-    cargarInformacionElemento();
-})();
+        if (!resp.ok) {
+          const msg = (data && data.message) ? data.message : 'No fue posible crear el préstamo.';
+          showAlert(msg, 'danger');
+          return;
+        }
+
+        if (data && data.success) {
+          showAlert(data.message || 'Préstamo creado correctamente.', 'success');
+          if (data.redirect) {
+            setTimeout(() => safeNavigate(data.redirect), 400);
+          } else {
+            setTimeout(() => safeNavigate('/prestamos'), 400);
+          }
+          return;
+        }
+
+        showAlert((data && data.message) ? data.message : 'No fue posible crear el préstamo.', 'warning');
+
+      } catch (e) {
+        showAlert('Error de red o del servidor.', 'danger');
+      }
+    });
+  })();
 </script>
 {% endblock %}
-

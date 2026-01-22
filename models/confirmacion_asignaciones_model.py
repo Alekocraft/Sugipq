@@ -1,3 +1,4 @@
+#models/confirmacion_asignaciones_model.py
 """
 Modelo para gestionar confirmaciones de asignaciones con tokens temporales.
 Incluye autenticación contra Active Directory y validación de cédula.

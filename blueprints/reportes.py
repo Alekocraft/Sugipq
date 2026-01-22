@@ -1,3 +1,5 @@
+#blueprints/reportes.py
+
 """
 BLUEPRINT DE REPORTES - Versión mejorada con filtros avanzados
 Integra la funcionalidad original con la estructura actual del sistema
@@ -2694,4 +2696,3 @@ def reporte_inventario_corporativo():
                              total_confirmados=0,
                              total_pendientes=0,
                              valor_total=0)
-

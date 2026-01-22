@@ -13,12 +13,13 @@ Cambios principales:
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, send_file, after_this_request, jsonify, current_app
 from utils.permissions import can_access
 from io import BytesIO
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 import pandas as pd
 import tempfile
 import os
 from werkzeug.utils import secure_filename
+from werkzeug.routing import BuildError
 from jinja2 import TemplateNotFound
 
 # Helpers seguros (sanitización / formato) con fallback defensivo
@@ -137,6 +138,29 @@ def _ensure_template_utf8(template_name: str):
     except Exception as e:
         return False, f"convert_failed:{type(e).__name__}"
 
+def safe_url_for(endpoint: str, **values):
+    """url_for seguro para templates de préstamos.
+    Evita que un endpoint faltante (BuildError) rompa el render.
+    Retorna '#' si no se puede construir la URL.
+    """
+    try:
+        if not endpoint:
+            return '#'
+        return url_for(endpoint, **values)
+    except BuildError:
+        logger.warning(
+            "url_for(BuildError) en template prestamos: endpoint=%s",
+            sanitizar_log_text(endpoint)
+        )
+        return '#'
+    except Exception as e:
+        logger.warning(
+            "url_for(error) en template prestamos: endpoint=%s error=%s",
+            sanitizar_log_text(endpoint),
+            type(e).__name__
+        )
+        return '#'
+
 def safe_render_template(template_name: str, **context):
     """
     Renderiza una plantilla de forma segura:
@@ -147,6 +171,7 @@ def safe_render_template(template_name: str, **context):
     try:
         context.setdefault('format_currency', format_currency)
         context.setdefault('format_date', format_date)
+        context.setdefault('url_for', safe_url_for)
         return render_template(template_name, **context)
     except UnicodeDecodeError:
         ok, info = _ensure_template_utf8(template_name)
@@ -200,11 +225,19 @@ def _has_role(*roles):
     return rol in [r.lower() for r in roles]
 
 def _redirect_login():
-    """Redirección consistente al login del sistema."""
-    try:
-        return redirect(url_for('auth_bp.login', next=request.url))
-    except Exception:
-        return redirect('/auth/login')
+    """Redirección consistente al login del sistema.
+
+    Seguridad:
+    - Evita BuildError si el nombre del endpoint cambia.
+    - No construye redirecciones externas (solo same-origin).
+    """
+    next_url = request.url if request else ''
+    for ep in ('auth.login', 'auth_bp.login'):
+        try:
+            return redirect(url_for(ep, next=next_url))
+        except Exception:
+            continue
+    return redirect('/auth/login')
 
 # =========================
 # Helpers de imágenes
@@ -487,27 +520,155 @@ def filtrar_por_oficina_usuario_prestamos(prestamos, campo_oficina='oficina_id')
     
     return [p for p in prestamos if p.get(campo_oficina) == oficina_usuario]
 
+def _fetch_oficinas():
+    """Devuelve listado de oficinas para filtros (id, nombre).
+
+    Nota: No asume columnas adicionales; se limita a OficinaId y NombreOficina.
+    """
+    conn = cur = None
+    try:
+        conn = get_database_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT OficinaId, NombreOficina
+            FROM dbo.Oficinas
+            ORDER BY NombreOficina
+        """)
+        return [{'id': int(r[0]), 'nombre': str(r[1])} for r in (cur.fetchall() or []) if r and r[0] is not None]
+    except Exception as e:
+        logger.error("Error leyendo oficinas: [error](%s)", type(e).__name__)
+        return []
+    finally:
+        try:
+            if cur: cur.close()
+            if conn: conn.close()
+        except:
+            pass
+
+def _parse_ymd(s: str):
+    """Parsea fecha YYYY-MM-DD a datetime (00:00) o None si inválida."""
+    try:
+        if not s:
+            return None
+        return datetime.strptime(s, '%Y-%m-%d')
+    except Exception:
+        return None
+
+def _apply_extra_filters(prestamos, filtro_material='', filtro_solicitante='', fecha_inicio='', fecha_fin=''):
+    """Aplica filtros adicionales sobre la lista de préstamos (en memoria)."""
+    mat = (filtro_material or '').strip().lower()
+    sol = (filtro_solicitante or '').strip().lower()
+
+    dt_ini = _parse_ymd((fecha_inicio or '').strip())
+    dt_fin = _parse_ymd((fecha_fin or '').strip())
+    if dt_fin:
+        # incluir todo el día fin
+        dt_fin = dt_fin + timedelta(days=1)
+
+    out = []
+    for p in prestamos or []:
+        try:
+            if mat:
+                material = (p.get('material') or '').lower()
+                if mat not in material:
+                    continue
+
+            if sol:
+                solicitante = (p.get('solicitante_nombre') or '').lower()
+                if sol not in solicitante:
+                    continue
+
+            if dt_ini or dt_fin:
+                f = p.get('fecha')
+                if not isinstance(f, datetime):
+                    # intentar parsear si viene como string
+                    try:
+                        f = datetime.fromisoformat(str(f))
+                    except Exception:
+                        f = None
+                if dt_ini and (not f or f < dt_ini):
+                    continue
+                if dt_fin and (not f or f >= dt_fin):
+                    continue
+
+            out.append(p)
+        except Exception:
+            # si un registro viene con datos inesperados, se omite sin romper la vista
+            continue
+    return out
+
+
 # =========================
 # Rutas principales
 # =========================
 @prestamos_bp.route('/')
 def listar_prestamos():
-    """Listar todos los préstamos"""
+    """Listar préstamos (con filtros).
+
+    Filtros soportados (GET):
+    - estado
+    - oficina (solo si el usuario puede ver todas)
+    - material (búsqueda parcial)
+    - solicitante (búsqueda parcial)
+    - fecha_inicio (YYYY-MM-DD)
+    - fecha_fin (YYYY-MM-DD)
+    """
     if not _require_login():
         return _redirect_login()
 
-    estado = request.args.get('estado', '').strip() or None
-    
+    filtro_estado = (request.args.get('estado') or '').strip()
+    filtro_oficina = (request.args.get('oficina') or 'todas').strip() or 'todas'
+    filtro_material = (request.args.get('material') or '').strip()
+    filtro_solicitante = (request.args.get('solicitante') or '').strip()
+    filtro_fecha_inicio = (request.args.get('fecha_inicio') or '').strip()
+    filtro_fecha_fin = (request.args.get('fecha_fin') or '').strip()
+
     from utils.permissions import user_can_view_all
-    oficina_id = None if user_can_view_all() else session.get('oficina_id')
-    
-    prestamos = _fetch_prestamos(estado, oficina_id)
+    can_all = user_can_view_all()
+
+    oficinas = []
+    oficina_id = None
+
+    if can_all:
+        oficinas = _fetch_oficinas()
+        if filtro_oficina and filtro_oficina != 'todas':
+            try:
+                oficina_id = int(filtro_oficina)
+            except Exception:
+                oficina_id = None
+                filtro_oficina = 'todas'
+    else:
+        oficina_id = session.get('oficina_id')
+        # Para consistencia, reflejar la oficina del usuario en el filtro (aunque el UI no la muestre)
+        try:
+            filtro_oficina = str(int(oficina_id)) if oficina_id is not None else ''
+        except Exception:
+            filtro_oficina = ''
+
+    estado_sql = filtro_estado or None
+    prestamos = _fetch_prestamos(estado_sql, oficina_id)
+
+    # Filtros adicionales en memoria
+    prestamos = _apply_extra_filters(
+        prestamos,
+        filtro_material=filtro_material,
+        filtro_solicitante=filtro_solicitante,
+        fecha_inicio=filtro_fecha_inicio,
+        fecha_fin=filtro_fecha_fin
+    )
+
     estados = _fetch_estados_distintos()
 
     return safe_render_template(
         'prestamos/listar.html',
         prestamos=prestamos,
-        filtro_estado=estado or '',
+        oficinas=oficinas,
+        filtro_estado=filtro_estado,
+        filtro_oficina=filtro_oficina,
+        filtro_material=filtro_material,
+        filtro_solicitante=filtro_solicitante,
+        filtro_fecha_inicio=filtro_fecha_inicio,
+        filtro_fecha_fin=filtro_fecha_fin,
         estados=estados
     )
 
@@ -1359,74 +1520,141 @@ def crear_material_prestamo():
 # =========================
 @prestamos_bp.route('/exportar/excel')
 def exportar_prestamos_excel():
-    """
-    Exporta los préstamos filtrados a Excel.
-    Permiso sugerido: leer/exportar préstamos.
+    """Exporta los préstamos filtrados a Excel.
+
+    Filtros soportados (mismos que la vista):
+    - estado, oficina, material, solicitante, fecha_inicio, fecha_fin
     """
     if not (can_access('prestamos', 'view') or can_access('prestamos', 'view_all') or can_access('prestamos', 'view_own')):
         flash('❌ No tienes permisos para exportar préstamos', 'danger')
         return redirect('/prestamos')
 
     try:
-        # Parámetros de filtro
-        filtro_estado = request.args.get('estado', '').strip()
+        filtro_estado = (request.args.get('estado') or '').strip()
+        filtro_oficina = (request.args.get('oficina') or 'todas').strip() or 'todas'
+        filtro_material = (request.args.get('material') or '').strip()
+        filtro_solicitante = (request.args.get('solicitante') or '').strip()
+        filtro_fecha_inicio = (request.args.get('fecha_inicio') or '').strip()
+        filtro_fecha_fin = (request.args.get('fecha_fin') or '').strip()
 
-        # Obtener y filtrar préstamos usando la función existente
-        prestamos_todos = _fetch_prestamos()
-        prestamos = filtrar_por_oficina_usuario_prestamos(prestamos_todos)
+        from utils.permissions import user_can_view_all
+        can_all = user_can_view_all()
 
-        if filtro_estado:
-            prestamos = [p for p in prestamos if p.get('estado', '') == filtro_estado]
+        oficina_id = None
+        if can_all:
+            if filtro_oficina and filtro_oficina != 'todas':
+                try:
+                    oficina_id = int(filtro_oficina)
+                except Exception:
+                    oficina_id = None
+        else:
+            oficina_id = session.get('oficina_id')
 
-        if not HAS_PANDAS:
-            flash('Exportar a Excel requiere pandas y openpyxl. Instálalos o usa PDF.', 'warning')
-            return redirect(f'/prestamos?estado={filtro_estado}' if filtro_estado else '/prestamos')
+        prestamos = _fetch_prestamos(filtro_estado or None, oficina_id)
 
-        # Armar DataFrame
-        columnas = [
-            'ID', 'Material', 'Cantidad', 'Valor Unitario', 'Subtotal',
-            'Solicitante', 'Oficina', 'Fecha Préstamo', 'Fecha Devolución Esperada', 'Estado',
-            'Usuario Aprobador', 'Fecha Aprobación', 'Usuario Rechazador', 'Fecha Rechazo',
-            'Usuario Devolución', 'Fecha Devolución Real'
-        ]
-        data = [{'ID': p.get('id', ''),
-            'Material': p.get('material', ''),
-            'Cantidad': p.get('cantidad', 0),
-            'Valor Unitario': float(p.get('valor_unitario', 0)),
-            'Subtotal': float(p.get('subtotal', 0)),
-            'Solicitante': p.get('solicitante_nombre', ''),
-            'Oficina': p.get('oficina_nombre', ''),
-            'Fecha Préstamo': p.get('fecha', ''),
-            'Fecha Devolución Esperada': p.get('fecha_prevista', ''),
-            'Estado': p.get('estado', ''),
-            'Usuario Aprobador': p.get('usuario_aprobador', ''),
-            'Fecha Aprobación': p.get('fecha_aprobacion', ''),
-            'Usuario Rechazador': p.get('usuario_rechazador', ''),
-            'Fecha Rechazo': p.get('fecha_rechazo', ''),
-            'Usuario Devolución': p.get('usuario_devolucion', ''),
-            'Fecha Devolución Real': p.get('fecha_devolucion_real', '')
-        } for p in prestamos]
+        prestamos = _apply_extra_filters(
+            prestamos,
+            filtro_material=filtro_material,
+            filtro_solicitante=filtro_solicitante,
+            fecha_inicio=filtro_fecha_inicio,
+            fecha_fin=filtro_fecha_fin
+        )
 
-        df = pd.DataFrame(data, columns=columnas)
+        if not prestamos:
+            flash('No hay préstamos para exportar con los filtros seleccionados.', 'warning')
+            return redirect('/prestamos' + (request.query_string.decode('utf-8', errors='ignore') and ('?' + request.query_string.decode('utf-8', errors='ignore')) or ''))
 
-        # Crear Excel en memoria
-        output = BytesIO()
-        with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            df.to_excel(writer, sheet_name='Préstamos', index=False)
+        # Preferir pandas si está disponible (mantiene compatibilidad con lo ya instalado)
+        if HAS_PANDAS:
+            columnas = [
+                'ID', 'Material', 'Cantidad', 'Valor Unitario', 'Subtotal',
+                'Solicitante', 'Oficina', 'Fecha Préstamo', 'Fecha Devolución Esperada', 'Estado',
+                'Usuario Aprobador', 'Fecha Aprobación', 'Usuario Rechazador', 'Fecha Rechazo',
+                'Usuario Devolución', 'Fecha Devolución Real'
+            ]
+            data = [{
+                'ID': p.get('id', ''),
+                'Material': p.get('material', ''),
+                'Cantidad': p.get('cantidad', 0),
+                'Valor Unitario': float(p.get('valor_unitario', 0)),
+                'Subtotal': float(p.get('subtotal', 0)),
+                'Solicitante': p.get('solicitante_nombre', ''),
+                'Oficina': p.get('oficina_nombre', ''),
+                'Fecha Préstamo': p.get('fecha', ''),
+                'Fecha Devolución Esperada': p.get('fecha_prevista', ''),
+                'Estado': p.get('estado', ''),
+                'Usuario Aprobador': p.get('usuario_aprobador', ''),
+                'Fecha Aprobación': p.get('fecha_aprobacion', ''),
+                'Usuario Rechazador': p.get('usuario_rechazador', ''),
+                'Fecha Rechazo': p.get('fecha_rechazo', ''),
+                'Usuario Devolución': p.get('usuario_devolucion', ''),
+                'Fecha Devolución Real': p.get('fecha_devolucion_real', '')
+            } for p in prestamos]
 
-            # Ajuste del ancho de columnas
-            ws = writer.sheets['Préstamos']
-            for col_cells in ws.columns:
+            df = pd.DataFrame(data, columns=columnas)
+
+            output = BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                df.to_excel(writer, sheet_name='Préstamos', index=False)
+                ws = writer.sheets['Préstamos']
+                for col_cells in ws.columns:
+                    max_len = 0
+                    col_letter = col_cells[0].column_letter
+                    for c in col_cells:
+                        try:
+                            max_len = max(max_len, len(str(c.value)) if c.value is not None else 0)
+                        except Exception:
+                            pass
+                    ws.column_dimensions[col_letter].width = max_len + 2
+
+            output.seek(0)
+        else:
+            # Fallback sin pandas: openpyxl puro
+            try:
+                from openpyxl import Workbook
+                from openpyxl.utils import get_column_letter
+            except Exception:
+                flash('Exportar a Excel requiere pandas u openpyxl.', 'warning')
+                return redirect('/prestamos')
+
+            wb = Workbook()
+            ws = wb.active
+            ws.title = 'Préstamos'
+
+            headers = [
+                'ID', 'Material', 'Cantidad', 'Valor Unitario', 'Subtotal',
+                'Solicitante', 'Oficina', 'Fecha Préstamo', 'Fecha Devolución Esperada', 'Estado'
+            ]
+            ws.append(headers)
+
+            for p in prestamos:
+                ws.append([
+                    p.get('id', ''),
+                    p.get('material', ''),
+                    p.get('cantidad', 0),
+                    float(p.get('valor_unitario', 0)),
+                    float(p.get('subtotal', 0)),
+                    p.get('solicitante_nombre', ''),
+                    p.get('oficina_nombre', ''),
+                    str(p.get('fecha', '') or ''),
+                    str(p.get('fecha_prevista', '') or ''),
+                    p.get('estado', '')
+                ])
+
+            # Auto-ajuste simple de columnas
+            for col_idx, _ in enumerate(headers, start=1):
+                col_letter = get_column_letter(col_idx)
                 max_len = 0
-                col_letter = col_cells[0].column_letter
-                for c in col_cells:
+                for cell in ws[col_letter]:
                     try:
-                        max_len = max(max_len, len(str(c.value)) if c.value is not None else 0)
+                        max_len = max(max_len, len(str(cell.value)) if cell.value is not None else 0)
                     except Exception:
                         pass
                 ws.column_dimensions[col_letter].width = max_len + 2
 
-        output.seek(0)
+            output = BytesIO()
+            wb.save(output)
+            output.seek(0)
 
         fecha_actual = datetime.now().strftime('%Y-%m-%d')
         filename = f'prestamos_{fecha_actual}.xlsx'
@@ -1443,12 +1671,12 @@ def exportar_prestamos_excel():
         flash('Error al exportar el reporte de préstamos a Excel', 'danger')
         return redirect('/prestamos')
 
-
 @prestamos_bp.route('/exportar/pdf')
 def exportar_prestamos_pdf():
-    """
-    Exporta los préstamos filtrados a PDF (WeasyPrint).
-    Permiso sugerido: leer/exportar préstamos.
+    """Exporta los préstamos filtrados a PDF (WeasyPrint).
+
+    Filtros soportados (mismos que la vista):
+    - estado, oficina, material, solicitante, fecha_inicio, fecha_fin
     """
     if not (can_access('prestamos', 'view') or can_access('prestamos', 'view_all') or can_access('prestamos', 'view_own')):
         flash('❌ No tienes permisos para exportar préstamos', 'danger')
@@ -1459,28 +1687,50 @@ def exportar_prestamos_pdf():
             flash('Exportar a PDF requiere WeasyPrint instalado.', 'warning')
             return redirect('/prestamos')
 
-        # Parámetros de filtro
-        filtro_estado = request.args.get('estado', '').strip()
+        filtro_estado = (request.args.get('estado') or '').strip()
+        filtro_oficina = (request.args.get('oficina') or 'todas').strip() or 'todas'
+        filtro_material = (request.args.get('material') or '').strip()
+        filtro_solicitante = (request.args.get('solicitante') or '').strip()
+        filtro_fecha_inicio = (request.args.get('fecha_inicio') or '').strip()
+        filtro_fecha_fin = (request.args.get('fecha_fin') or '').strip()
 
-        # Obtener y filtrar préstamos
-        prestamos_todos = _fetch_prestamos()
-        prestamos = filtrar_por_oficina_usuario_prestamos(prestamos_todos)
+        from utils.permissions import user_can_view_all
+        can_all = user_can_view_all()
 
-        if filtro_estado:
-            prestamos = [p for p in prestamos if p.get('estado', '') == filtro_estado]
+        oficina_id = None
+        if can_all:
+            if filtro_oficina and filtro_oficina != 'todas':
+                try:
+                    oficina_id = int(filtro_oficina)
+                except Exception:
+                    oficina_id = None
+        else:
+            oficina_id = session.get('oficina_id')
 
-        # HTML del PDF
-        filas_html = "\n".join(f"""
-            <tr>
-                <td>{p.get('id', '')}</td>
-                <td>{p.get('material', '')}</td>
-                <td>{p.get('cantidad', 0)}</td>
-                <td>{p.get('solicitante_nombre', '')}</td>
-                <td>{p.get('oficina_nombre', '')}</td>
-                <td>{p.get('fecha', '')}</td>
-                <td>{p.get('estado', '')}</td>
-            </tr>
-        """ for p in prestamos)
+        prestamos = _fetch_prestamos(filtro_estado or None, oficina_id)
+
+        prestamos = _apply_extra_filters(
+            prestamos,
+            filtro_material=filtro_material,
+            filtro_solicitante=filtro_solicitante,
+            fecha_inicio=filtro_fecha_inicio,
+            fecha_fin=filtro_fecha_fin
+        )
+
+        from html import escape as h
+
+        filas_html = "\n".join(
+            f"""<tr>
+                <td>{h(str(p.get('id', '') or ''))}</td>
+                <td>{h(str(p.get('material', '') or ''))}</td>
+                <td>{h(str(p.get('cantidad', 0) or 0))}</td>
+                <td>{h(str(p.get('solicitante_nombre', '') or ''))}</td>
+                <td>{h(str(p.get('oficina_nombre', '') or ''))}</td>
+                <td>{h(str(p.get('fecha', '') or ''))}</td>
+                <td>{h(str(p.get('estado', '') or ''))}</td>
+            </tr>"""
+            for p in (prestamos or [])
+        )
 
         html_content = f"""
         <html>
@@ -1609,14 +1859,79 @@ def api_elemento_info(elemento_id: int):
         except: 
             pass
 
-@prestamos_bp.route('/crearmaterial', methods=['GET'])
-def crear_material():
-    """Ruta simple para crear material - SOLO GET"""
+@prestamos_bp.route('/crearmaterial', methods=['GET'], endpoint='crearmaterial_legacy')
+def crearmaterial_legacy():
+    """Alias legacy (GET) para creación de material.
+
+    Importante:
+    - NO debe usar el endpoint 'crear_material' para evitar colisiones con el alias
+      que apunta a la ruta canónica '/elementos/crearmaterial'.
+    - Redirige a la ruta canónica para evitar lógica duplicada.
+    """
     if not _require_login():
         return _redirect_login()
-    
+
     if not can_access('prestamos', 'manage_materials'):
         flash('No tienes permisos para crear materiales', 'danger')
         return redirect('/prestamos')
 
-    return safe_render_template('prestamos/elemento_crear.html')
+    return redirect('/prestamos/elementos/crearmaterial')
+# =========================
+# Aliases de endpoints (compatibilidad con templates/base)
+# =========================
+def _registrar_aliases_endpoints():
+    """Registra endpoints alternos sin afectar el dispatch.
+
+    Motivo: En algunos templates/base se usan nombres cortos (p.ej. 'prestamos.crear')
+    mientras que en el blueprint se definieron nombres largos (p.ej. 'prestamos.crear_prestamo').
+    Para evitar BuildError, añadimos aliases con el MISMO path pero OTRO endpoint.
+    """
+    def _alias(rule: str, endpoint: str, view_func, methods=None):
+        """Registra un alias sólo si el endpoint no existe.
+
+        Seguridad/estabilidad:
+        - Evita AssertionError por colisiones de endpoints (p.ej. en hot-reload o cambios de plantilla).
+        - No sobreescribe endpoints existentes.
+        """
+        try:
+            if endpoint in getattr(prestamos_bp, 'view_functions', {}):
+                return
+            if methods:
+                prestamos_bp.add_url_rule(rule, endpoint=endpoint, view_func=view_func, methods=methods)
+            else:
+                prestamos_bp.add_url_rule(rule, endpoint=endpoint, view_func=view_func)
+        except Exception:
+            # No romper la carga del módulo por alias no crítico
+            return
+
+    # Listado
+    _alias('/', 'index', listar_prestamos)
+    _alias('/', 'listar', listar_prestamos)
+
+    # Crear préstamo
+    _alias('/crear', 'crear', crear_prestamo, methods=['GET', 'POST'])
+    _alias('/crear', 'nuevo', crear_prestamo, methods=['GET', 'POST'])
+
+    # Crear material (ruta canónica)
+    _alias('/elementos/crearmaterial', 'crearmaterial', crear_material_prestamo, methods=['GET', 'POST'])
+    _alias('/elementos/crearmaterial', 'crear_material', crear_material_prestamo, methods=['GET', 'POST'])
+
+    # Export
+    _alias('/exportar/excel', 'excel', exportar_prestamos_excel, methods=['GET'])
+    _alias('/exportar/pdf', 'pdf', exportar_prestamos_pdf, methods=['GET'])
+
+    # Detalle
+    _alias('/<int:prestamo_id>', 'detalle', ver_prestamo, methods=['GET'])
+    _alias('/<int:prestamo_id>', 'ver', ver_prestamo, methods=['GET'])
+
+    # Acciones
+    _alias('/<int:prestamo_id>/aprobar', 'aprobar', aprobar_prestamo, methods=['POST'])
+    _alias('/<int:prestamo_id>/aprobar_parcial', 'aprobar_parcial', aprobar_parcial_prestamo, methods=['POST'])
+    _alias('/<int:prestamo_id>/rechazar', 'rechazar', rechazar_prestamo, methods=['POST'])
+    _alias('/<int:prestamo_id>/devolucion', 'devolver', registrar_devolucion_prestamo, methods=['POST'])
+    _alias('/<int:prestamo_id>/devolver', 'devolver_legacy', registrar_devolucion_prestamo, methods=['POST'])
+
+    # API elemento
+    _alias('/api/elemento/<int:elemento_id>', 'elemento_info', api_elemento_info, methods=['GET'])
+
+_registrar_aliases_endpoints()

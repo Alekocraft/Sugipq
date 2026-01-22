@@ -64,7 +64,7 @@ class NovedadModel:
             for row in cursor.fetchall():
                 novedades.append({
                     'novedad_id': row[0],
-                    'id': row[0],  # Alias para compatibilidad
+                    'id': row[0],  
                     'solicitud_id': row[1],
                     'tipo_novedad': row[2],
                     'tipo': row[2],  # Alias

@@ -10,9 +10,8 @@ import os
  
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 
-SESSION_TIMEOUT_MINUTES = 30  # ✅ Cambiado de 5 a 30 minutos
-SESSION_ABSOLUTE_TIMEOUT_HOURS = 8  # ✅ Aumentado de 3 a 8 horas
-
+SESSION_TIMEOUT_MINUTES = 10
+SESSION_ABSOLUTE_TIMEOUT_HOURS = 2
 def init_session_config(app):
     """
     Configura sesiones de forma segura según el entorno
@@ -21,17 +20,17 @@ def init_session_config(app):
     - Desarrollo (HTTP): SESSION_COOKIE_SECURE = False
     - Producción (HTTPS): SESSION_COOKIE_SECURE = True
     """
-    # Detectar si estamos en producción basado en el dominio
+    
     is_production = os.getenv('FLASK_ENV') == 'production' or \
                     'sugipq.qualitascolombia.com.co' in os.getenv('SERVER_NAME', '')
     
-    # ✅ CORRECCIÓN CRÍTICA: False en desarrollo, True solo en producción con HTTPS
+    
     app.config['SESSION_COOKIE_SECURE'] = is_production
     app.config['SESSION_COOKIE_HTTPONLY'] = True
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=SESSION_ABSOLUTE_TIMEOUT_HOURS)
     
-    # Configurar dominio de cookies para producción
+    
     if is_production:
         app.config['SESSION_COOKIE_DOMAIN'] = '.qualitascolombia.com.co'
     
@@ -123,32 +122,25 @@ def login():
             usuario_info = UsuarioModel.verificar_credenciales(usuario, contraseña)
             
             if usuario_info:
-                # ✅ CORRECCIÓN CRÍTICA: Limpiar sesión ANTES de crear nueva
+                 
                 session.clear()
-                
-                # ✅ CORRECCIÓN CRÍTICA: Marcar sesión como permanente PRIMERO
                 session.permanent = True
-                
-                # ✅ Asignar datos de sesión
                 session['usuario_id'] = usuario_info['id']
                 session['usuario_nombre'] = usuario_info['nombre']
                 session['usuario'] = usuario_info['usuario']
                 session['rol'] = usuario_info['rol']
                 session['oficina_id'] = usuario_info.get('oficina_id', 1)
                 session['oficina_nombre'] = usuario_info.get('oficina_nombre', '')
-                
                 session['login_time'] = datetime.now().isoformat()
                 session['last_activity'] = datetime.now().isoformat()
                 session['client_ip'] = client_info['ip']
-                
-                # ✅ CORRECCIÓN CRÍTICA: Forzar que Flask guarde la sesión
                 session.modified = True
                 
                 logger.info(f"[SESIÓN] Creada para usuario: {usuario_info['usuario']}")
                 logger.info(f"[SESIÓN] Permanent: {session.permanent}")
                 flash(f'¡Bienvenido {usuario_info["nombre"]}!', 'success')
                 
-                # ✅ IMPORTANTE: return redirect
+                 
                 return redirect('/dashboard')
             else:
                 flash('Usuario o contraseña incorrectos', 'danger')

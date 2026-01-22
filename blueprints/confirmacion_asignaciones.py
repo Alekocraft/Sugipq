@@ -1,13 +1,5 @@
 ﻿# -*- coding: utf-8 -*-
-"""
-Blueprint para confirmaciones de asignaciones con tokens temporales.
-Incluye autenticación contra Active Directory y validación de cédula.
-
-FIX (2026-01):
-- Manejo robusto de plantillas con codificación incorrecta (ANSI/Windows-1252).
-- Si Jinja lanza UnicodeDecodeError al leer HTML, el sistema convierte el archivo a UTF-8
-  y reintenta renderizar, sin romper el flujo de confirmación.
-"""
+# blueprints/confirmacion_asignaciones.py 
 
 from __future__ import annotations
 
@@ -64,14 +56,14 @@ def _ensure_template_utf8(template_name: str) -> Tuple[bool, str]:
         with open(file_path, 'rb') as f:
             raw = f.read()
 
-        # 1) Si ya es UTF-8 (o UTF-8 con BOM), no hacemos nada
+         
         try:
             raw.decode('utf-8')
             return True, "Plantilla ya está en UTF-8"
         except UnicodeDecodeError:
             pass
 
-        # 2) Probar decodificaciones alternativas típicas de Windows
+         
         decoded: Optional[str] = None
         last_err: Optional[Exception] = None
         for enc in ('cp1252', 'latin-1'):
@@ -84,7 +76,7 @@ def _ensure_template_utf8(template_name: str) -> Tuple[bool, str]:
         if decoded is None:
             return False, f"No fue posible decodificar la plantilla con cp1252/latin-1. Error: {last_err}"
 
-        # 3) Backup y reescritura en UTF-8 (sin BOM)
+        
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         backup_path = f"{file_path}.bak_{timestamp}"
 
