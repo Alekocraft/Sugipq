@@ -485,6 +485,25 @@ def should_show_devolucion_button(solicitud):
     
     return cantidad_entregada > cantidad_devuelta
 
+def should_show_gestion_devolucion_button(solicitud):
+    """Determina si mostrar el botón de gestionar devolución
+
+    Solo roles con gestión completa. Requiere que exista devolución pendiente.
+    """
+    if not solicitud:
+        return False
+    if not has_gestion_completa():
+        return False
+    solicitud_id = solicitud.get('id') or solicitud.get('solicitud_id')
+    if not solicitud_id:
+        return False
+    try:
+        from models.solicitudes_model import SolicitudModel
+        return bool(SolicitudModel.tiene_devolucion_pendiente(int(solicitud_id)))
+    except Exception:
+        # Fallback: si el backend ya marcó el flag
+        return bool(solicitud.get('devolucion_pendiente'))
+
 def should_show_novedad_button(solicitud):
     """Determina si mostrar botón de crear novedad"""
     if not solicitud:
@@ -559,6 +578,7 @@ def utility_processor():
     # AGREGAR FUNCIONES should_show_* LOCALES (SIEMPRE)
     all_functions.update({
         'should_show_devolucion_button': should_show_devolucion_button,
+        'should_show_gestion_devolucion_button': should_show_gestion_devolucion_button,
         'should_show_novedad_button': should_show_novedad_button,
         'should_show_gestion_novedad_button': should_show_gestion_novedad_button,
         'should_show_aprobacion_buttons': should_show_aprobacion_buttons,

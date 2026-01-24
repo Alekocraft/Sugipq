@@ -105,31 +105,50 @@ class PermissionManager:
                 'office_key': '',
                 'office_filter': 'own'
             }
-        
-        office_name = session.get('oficina_nombre', '')
-        office_key = get_office_key(office_name)
-        
         role_perms = ROLE_PERMISSIONS.get(role_key, {})
-        
+
+        # En config.permissions, los roles de oficina suelen venir con office_filter != 'all'.
+        # Para consultas, normalizamos a:
+        #   - office_filter='all'  -> sin filtro
+        #   - office_filter='own'  -> filtrar por oficina_id de la sesión
+        office_id = session.get('oficina_id')
+        office_filter_cfg = role_perms.get('office_filter', 'all')
+
+        if office_filter_cfg == 'all':
+            office_filter = 'all'
+            office_key = None
+        else:
+            office_filter = 'own'
+            office_key = office_id
+
         permissions = {
             'role_key': role_key,
             'role': role_perms,
             'office_key': office_key,
-            'office_filter': role_perms.get('office_filter', 'own'),
+            'office_filter': office_filter,
         }
-        
         logger.debug(f"Permisos obtenidos para usuario: {permissions}")
         return permissions
-    
     @staticmethod
     def has_module_access(module_name: str) -> bool:
         """Verifica si el usuario tiene acceso a un módulo completo"""
         perms = PermissionManager.get_user_permissions()
-        role_modules = perms['role'].get('modules', [])
-        has_access = module_name in role_modules
-        logger.debug(f"Acceso a módulo '{module_name}': {has_access}")
+        role_modules = perms.get('role', {}).get('modules', [])
+
+        module_norm = (module_name or '').strip().lower()
+        module_aliases = {
+            # alias UI -> clave usada en config.permissions['modules']
+            'materiales': 'material_pop',
+            'material_pop': 'material_pop',
+            'prestamos': 'prestamo_material',
+            'prestamo_material': 'prestamo_material',
+        }
+        candidates = {module_norm, module_aliases.get(module_norm, module_norm)}
+
+        has_access = any(m in role_modules for m in candidates)
+        logger.debug("Acceso a módulo '%s' (candidatos=%s): %s", module_name, list(candidates), has_access)
         return has_access
-    
+
     @staticmethod
     def has_action_permission(module: str, action: str) -> bool:
         """Verifica permiso para acción específica en módulo"""
@@ -240,17 +259,21 @@ def get_accessible_modules() -> list:
 
 
 def get_office_filter():
-    """Obtiene filtro de oficina para consultas de base de datos"""
+    """Obtiene filtro de oficina para consultas de base de datos
+
+    Retorna:
+        - None: sin filtro (usuario puede ver todas las oficinas)
+        - 'own': filtrar por la oficina del usuario (ver utils/filters.py)
+    """
     perms = PermissionManager.get_user_permissions()
     office_filter = perms.get('office_filter', 'own')
-    office_key = perms.get('office_key')
-    
+
     if office_filter == 'all':
-        logger.debug("Filtro de oficina: todas (sin filtro)")
+        logger.debug('Filtro de oficina: todas (sin filtro)')
         return None
-    else:
-        logger.debug(f"Filtro de oficina: {office_key}")
-        return office_key
+
+    logger.debug('Filtro de oficina: own (oficina del usuario)')
+    return 'own'
 
 
 def user_can_view_all() -> bool:

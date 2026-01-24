@@ -14,6 +14,12 @@ from email.mime.text import MIMEText
 from email.utils import formatdate
 import os
 from datetime import datetime
+from pathlib import Path
+from typing import Optional
+
+from email.mime.base import MIMEBase
+from email import encoders
+from email.mime.image import MIMEImage  # <-- Para PNG/JPG (Outlook)
 
 logger = logging.getLogger(__name__)
 
@@ -22,554 +28,591 @@ class NotificationService:
     """
     Servicio de notificaciones por correo electrónico.
     """
-    
-    # Configuración SMTP
-    SMTP_CONFIG = {
-        'server': os.getenv('SMTP_SERVER', '10.60.0.31'),
-        'port': int(os.getenv('SMTP_PORT', 25)),
-        'use_tls': os.getenv('SMTP_USE_TLS', 'False').lower() == 'true',
-        'from_email': os.getenv('SMTP_FROM_EMAIL', 'gestiondeInventarios@qualitascolombia.com.co'),
-        'username': os.getenv('SMTP_USERNAME', ''),
-        'password': os.getenv('SMTP_PASSWORD', '')
+
+    # ==========================
+    # Branding (Qualitas)
+    # ==========================
+    BRAND = {
+        "blue": "#0098B1",
+        "gray": "#D9D9D9",
+        "purple": "#A73493",
+        "company": "Qualitas Colombia",
+        "app_name": "Sistema de Gestión de Inventarios",
+        "logo_cid": "qualitas_logo",
     }
-    
+
+    # Configuración SMTP (se conserva tal como la tienes)
+    SMTP_CONFIG = {
+        "server": os.getenv("SMTP_SERVER", "10.60.0.31"),
+        "port": int(os.getenv("SMTP_PORT", 25)),
+        "use_tls": os.getenv("SMTP_USE_TLS", "False").lower() == "true",
+        "from_email": os.getenv("SMTP_FROM_EMAIL", "gestiondeInventarios@qualitascolombia.com.co"),
+        "username": os.getenv("SMTP_USERNAME", ""),
+        "password": os.getenv("SMTP_PASSWORD", ""),
+    }
+
+    @staticmethod
+    def _truthy_env(name: str, default: str = "false") -> bool:
+        return os.getenv(name, default).strip().lower() in ("1", "true", "yes", "y", "si")
+
+    @staticmethod
+    def _resolve_logo_path() -> Optional[str]:
+        """
+        Outlook-friendly:
+        - Preferir PNG/JPG/JPEG (Outlook los renderiza bien con CID)
+        - SVG solo como ÚLTIMO fallback (Outlook puede no mostrarlo)
+        Orden:
+          1) EMAIL_LOGO_PATH (si existe)
+          2) Ruta absoluta del usuario (PNG primero)
+          3) Ruta relativa del proyecto static/images (PNG/JPG primero)
+          4) SVG fallback
+        """
+        forced = os.getenv("EMAIL_LOGO_PATH", "").strip()
+        if forced and os.path.exists(forced):
+            return forced
+
+        # Rutas absolutas sugeridas (preferir PNG)
+        abs_png = r"C:\Users\sinventarios\source\repos\sugipq\static\images\Qualitas_Logo.png"
+        abs_jpg = r"C:\Users\sinventarios\source\repos\sugipq\static\images\Qualitas_Logo.jpg"
+        abs_jpeg = r"C:\Users\sinventarios\source\repos\sugipq\static\images\Qualitas_Logo.jpeg"
+        abs_svg = r"C:\Users\sinventarios\source\repos\sugipq\static\images\Qualitas_Logo.svg"
+
+        for p in (abs_png, abs_jpg, abs_jpeg, abs_svg):
+            if os.path.exists(p):
+                return p
+
+        # Ruta relativa al proyecto
+        try:
+            root = Path(__file__).resolve().parent.parent
+            base = root / "static" / "images"
+            rel_candidates = [
+                base / "Qualitas_Logo.png",
+                base / "Qualitas_Logo.jpg",
+                base / "Qualitas_Logo.jpeg",
+                base / "Qualitas_Logo.svg",  # fallback
+            ]
+            for c in rel_candidates:
+                if c.exists():
+                    return str(c)
+        except Exception:
+            pass
+
+        return None
+
+    @staticmethod
+    def _attach_inline_logo(msg_related: MIMEMultipart) -> bool:
+        """
+        Adjunta el logo como inline (CID).
+        - Outlook: PNG/JPG/JPEG OK.
+        - SVG: puede NO verse en Outlook (solo fallback).
+        """
+        logo_path = NotificationService._resolve_logo_path()
+        if not logo_path:
+            logger.warning(
+                "Logo para emails no encontrado. "
+                "Recomendado para Outlook: Qualitas_Logo.png en static/images/ y/o EMAIL_LOGO_PATH."
+            )
+            return False
+
+        try:
+            ext = os.path.splitext(logo_path)[1].lower()
+
+            with open(logo_path, "rb") as f:
+                data = f.read()
+
+            cid = "<%s>" % NotificationService.BRAND["logo_cid"]
+
+            # Preferido para Outlook
+            if ext in (".png", ".jpg", ".jpeg"):
+                img = MIMEImage(data)
+                img.add_header("Content-ID", cid)
+                img.add_header("Content-Disposition", "inline", filename=os.path.basename(logo_path))
+                msg_related.attach(img)
+                return True
+
+            # Fallback SVG (NO recomendado para Outlook)
+            if ext == ".svg":
+                part = MIMEBase("image", "svg+xml")
+                part.set_payload(data)
+                encoders.encode_base64(part)
+                part.add_header("Content-ID", cid)
+                part.add_header("Content-Disposition", "inline", filename=os.path.basename(logo_path))
+                part.add_header("Content-Type", "image/svg+xml")
+                msg_related.attach(part)
+
+                logger.warning(
+                    "Logo SVG embebido. Outlook puede no renderizarlo. "
+                    "Recomendado: exportar a Qualitas_Logo.png y usar EMAIL_LOGO_PATH al PNG."
+                )
+                return True
+
+            logger.warning("Extensión de logo no soportada: %s. Use PNG/JPG/JPEG.", ext)
+            return False
+
+        except Exception:
+            logger.exception("Error adjuntando logo inline")
+            return False
+
+    @staticmethod
+    def _wrap_html(title: str, body_html: str, preheader: str = "") -> str:
+        """
+        Plantilla corporativa compatible con clientes de correo (Outlook-friendly).
+        """
+        blue = NotificationService.BRAND["blue"]
+        gray = NotificationService.BRAND["gray"]
+        purple = NotificationService.BRAND["purple"]
+        app_name = NotificationService.BRAND["app_name"]
+        company = NotificationService.BRAND["company"]
+        logo_cid = NotificationService.BRAND["logo_cid"]
+
+        preheader_html = ""
+        if preheader:
+            preheader_html = """
+            <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">
+                %s
+            </div>
+            """ % preheader
+
+        return """\
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width">
+  <title>%s</title>
+</head>
+<body style="margin:0;padding:0;background:%s;font-family:Arial,Helvetica,sans-serif;color:#111827;">
+  %s
+  <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" style="background:%s;padding:24px 0;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="640" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,0.08);">
+          <tr>
+            <td style="background:%s;padding:18px 22px;">
+              <table role="presentation" width="100%%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="vertical-align:middle;">
+                    <div style="color:#ffffff;font-size:16px;font-weight:800;margin:0;">
+                      %s
+                    </div>
+                    <div style="color:#e6f7fb;font-size:12px;margin-top:4px;">
+                      %s
+                    </div>
+                  </td>
+                  <td align="right" style="vertical-align:middle;">
+                    <!-- Outlook-friendly inline CID image -->
+                    <img src="cid:%s" alt="Qualitas" style="height:34px;max-width:180px;display:block;border:0;">
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:18px 22px 0 22px;">
+              <div style="font-size:18px;font-weight:900;color:#0f172a;margin:0;">
+                %s
+              </div>
+              <div style="height:4px;width:72px;background:%s;border-radius:4px;margin-top:10px;"></div>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:14px 22px 22px 22px;font-size:14px;line-height:1.65;">
+              %s
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:14px 22px;background:#f7fafc;color:#6b7280;font-size:12px;line-height:1.5;">
+              Mensaje automático — por favor no responder.<br>
+              © %s %s
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+""" % (
+            title,
+            gray,
+            preheader_html,
+            gray,
+            blue,
+            app_name,
+            company,
+            logo_cid,
+            title,
+            purple,
+            body_html,
+            datetime.now().year,
+            company,
+        )
+
+    @staticmethod
+    def _build_related_message(to_email: str, subject: str, plain_text: str, inner_html: str, preheader: str = "") -> MIMEMultipart:
+        msg = MIMEMultipart("related")
+        alt = MIMEMultipart("alternative")
+        msg.attach(alt)
+
+        msg["From"] = NotificationService.SMTP_CONFIG["from_email"]
+        msg["To"] = to_email
+        msg["Date"] = formatdate(localtime=True)
+        msg["Subject"] = subject
+
+        if plain_text:
+            alt.attach(MIMEText(plain_text, "plain", "utf-8"))
+
+        html = NotificationService._wrap_html(subject, inner_html, preheader=preheader)
+        alt.attach(MIMEText(html, "html", "utf-8"))
+
+        NotificationService._attach_inline_logo(msg)
+        return msg
+
     @staticmethod
     def _connect_smtp():
-        """
-        Conecta al servidor SMTP.
-        
-        Returns:
-            smtplib.SMTP: Conexión SMTP o None si falla
-        """
         try:
-            logger.info(f"🔄 Conectando al servidor SMTP: {NotificationService.SMTP_CONFIG['server']}:{NotificationService.SMTP_CONFIG['port']}")
-            
-            if NotificationService.SMTP_CONFIG['use_tls']:
-                smtp = smtplib.SMTP(NotificationService.SMTP_CONFIG['server'], 
-                                   NotificationService.SMTP_CONFIG['port'])
+            server = NotificationService.SMTP_CONFIG["server"]
+            port = NotificationService.SMTP_CONFIG["port"]
+            use_tls = NotificationService.SMTP_CONFIG["use_tls"]
+
+            logger.info("Conectando SMTP: %s:%s", server, port)
+            smtp = smtplib.SMTP(server, port, timeout=10)
+            smtp.ehlo()
+
+            if use_tls:
                 smtp.starttls()
-            else:
-                smtp = smtplib.SMTP(NotificationService.SMTP_CONFIG['server'], 
-                                   NotificationService.SMTP_CONFIG['port'])
-            
-            # Si hay credenciales, autenticar
-            if (NotificationService.SMTP_CONFIG['username'] and 
-                NotificationService.SMTP_CONFIG['password']):
-                smtp.login(NotificationService.SMTP_CONFIG['username'], 
-                          NotificationService.SMTP_CONFIG['password'])
-            
-            logger.info("✅ Conexión SMTP exitosa")
+                smtp.ehlo()
+
+            if NotificationService.SMTP_CONFIG["username"] and NotificationService.SMTP_CONFIG["password"]:
+                smtp.login(NotificationService.SMTP_CONFIG["username"], NotificationService.SMTP_CONFIG["password"])
+
+            logger.info("Conexión SMTP exitosa")
             return smtp
-            
-        except Exception as e:
-            logger.error("❌ Error conectando al SMTP: [error](%s)", type(e).__name__)
+
+        except Exception:
+            logger.exception("Error conectando al SMTP")
             return None
-    
+
     @staticmethod
     def _send_email_smtp(msg):
-        """
-        Envía un email usando SMTP.
-        
-        Args:
-            msg: Objeto MIMEMultipart con el email
-            
-        Returns:
-            bool: True si se envió correctamente, False si falló
-        """
         smtp = None
         try:
             smtp = NotificationService._connect_smtp()
             if not smtp:
-                logger.error("❌ No se pudo conectar al servidor SMTP")
+                logger.error("No se pudo conectar al servidor SMTP")
                 return False
-            
-            # Enviar email
+
             smtp.send_message(msg)
-            logger.info(f"✅ Email enviado exitosamente a {msg['To']}")
+            logger.info("Email enviado exitosamente a %s", msg.get("To"))
             return True
-            
-        except Exception as e:
-            logger.error("❌ Error enviando email: [error](%s)", type(e).__name__)
+
+        except Exception:
+            logger.exception("Error enviando email")
             return False
-            
+
         finally:
             if smtp:
                 try:
                     smtp.quit()
-                    logger.debug("🔌 Conexión SMTP cerrada")
-                except:
+                except Exception:
                     pass
-    
+
     @staticmethod
     def enviar_notificacion_asignacion_con_confirmacion(
-        destinatario_email, 
-        destinatario_nombre, 
-        producto_info, 
+        destinatario_email,
+        destinatario_nombre,
+        producto_info,
         cantidad,
-        oficina_nombre, 
+        oficina_nombre,
         asignador_nombre,
         token_confirmacion,
         base_url
     ):
-        """
-        Envía notificación de asignación con enlace para confirmar recepción.
-        
-        Args:
-            destinatario_email: Email del destinatario
-            destinatario_nombre: Nombre del destinatario
-            producto_info: Diccionario con información del producto
-            cantidad: Cantidad asignada
-            oficina_nombre: Nombre de la oficina destino
-            asignador_nombre: Nombre de quien realiza la asignación
-            token_confirmacion: Token para confirmación
-            base_url: URL base de la aplicación
-            
-        Returns:
-            bool: True si se envió correctamente, False si falló
-        """
         try:
-            logger.info(f"📧 Preparando notificación de asignación con confirmación para {destinatario_email}")
-            
-            # Validar datos esenciales
             if not destinatario_email:
-                logger.error("❌ Email del destinatario es requerido")
+                logger.error("Email del destinatario es requerido")
                 return False
-            
             if not token_confirmacion:
-                logger.error("❌ Token de confirmación es requerido")
+                logger.error("Token de confirmación es requerido")
                 return False
-            
-            # Crear el enlace de confirmación
-            confirmacion_url = f"{base_url}/confirmacion/verificar/{token_confirmacion}"
-            logger.info(f"🔗 Generando enlace de confirmación: {confirmacion_url[:60]}...")
-            
-            # Detalles del producto
-            producto_nombre = producto_info.get('nombre', 'Producto de inventario')
-            producto_codigo = producto_info.get('codigo_unico', 'N/A')
-            producto_categoria = producto_info.get('categoria', 'General')
-            
-            # Crear mensaje de email
-            msg = MIMEMultipart('alternative')
-            msg['From'] = NotificationService.SMTP_CONFIG['from_email']
-            msg['To'] = destinatario_email
-            msg['Date'] = formatdate(localtime=True)
-            msg['Subject'] = f"📦 Asignación de Inventario - {producto_nombre}"
-            
-            # Cuerpo del email en HTML
-            html_content = f"""
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>Notificación de Asignación</title>
-                <style>
-                    body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-                    .container {{ max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }}
-                    .header {{ background-color: #f8f9fa; padding: 15px; border-bottom: 1px solid #ddd; text-align: center; }}
-                    .content {{ padding: 20px; }}
-                    .details {{ background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0; }}
-                    .btn-confirm {{ display: inline-block; background-color: #28a745; color: white; 
-                                 padding: 12px 24px; text-decoration: none; border-radius: 5px; 
-                                 font-weight: bold; margin: 15px 0; }}
-                    .footer {{ margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; 
-                             font-size: 12px; color: #666; text-align: center; }}
-                    .important {{ color: #dc3545; font-weight: bold; }}
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <div class="header">
-                        <h2>📦 Sistema de Gestión de Inventarios</h2>
-                        <h3>Asignación de Producto</h3>
-                    </div>
-                    
-                    <div class="content">
-                        <p>Estimado/a <strong>{destinatario_nombre}</strong>,</p>
-                        
-                        <p>Se le ha asignado un producto del inventario corporativo:</p>
-                        
-                        <div class="details">
-                            <h4>📋 Detalles de la Asignación</h4>
-                            <p><strong>Producto:</strong> {producto_nombre}</p>
-                            <p><strong>Código:</strong> {producto_codigo}</p>
-                            <p><strong>Categoría:</strong> {producto_categoria}</p>
-                            <p><strong>Cantidad:</strong> {cantidad} unidad(es)</p>
-                            <p><strong>Oficina Destino:</strong> {oficina_nombre}</p>
-                            <p><strong>Asignado por:</strong> {asignador_nombre}</p>
-                            <p><strong>Fecha de asignación:</strong> {datetime.now().strftime('%d/%m/%Y %H:%M')}</p>
-                        </div>
-                        
-                        <p class="important">⚠️ IMPORTANTE: Debe confirmar la recepción de este producto</p>
-                        
-                        <p>Para confirmar que ha recibido este producto, por favor haga clic en el siguiente botón:</p>
-                        
-                        <div style="text-align: center; margin: 25px 0;">
-                            <a href="{confirmacion_url}" class="btn-confirm">
-                                ✅ CONFIRMAR RECEPCIÓN
-                            </a>
-                        </div>
-                        
-                        <p>O copie y pegue este enlace en su navegador:</p>
-                        <p><small>{confirmacion_url}</small></p>
-                        
-                        <p><strong>Nota:</strong> Este enlace es válido por <span class="important">8 días</span> a partir de la fecha de asignación.</p>
-                        
-                        <p>Si usted no ha recibido este producto o existe algún error, por favor contacte al área de inventarios inmediatamente.</p>
-                    </div>
-                    
-                    <div class="footer">
-                        <p>Este es un mensaje automático del Sistema de Gestión de Inventarios de Qualitas Colombia.</p>
-                        <p>Por favor no responda a este correo.</p>
-                        <p>© {datetime.now().year} Qualitas Colombia - Todos los derechos reservados</p>
-                    </div>
-                </div>
-            </body>
-            </html>
-            """
-            
-            # Versión de texto plano
-            text_content = f"""
-            ASIGNACIÓN DE INVENTARIO - SISTEMA DE GESTIÓN DE INVENTARIOS
-            
-            Estimado/a {destinatario_nombre},
-            
-            Se le ha asignado un producto del inventario corporativo:
-            
-            📋 DETALLES DE LA ASIGNACIÓN:
-            ------------------------------
-            Producto: {producto_nombre}
-            Código: {producto_codigo}
-            Categoría: {producto_categoria}
-            Cantidad: {cantidad} unidad(es)
-            Oficina Destino: {oficina_nombre}
-            Asignado por: {asignador_nombre}
-            Fecha de asignación: {datetime.now().strftime('%d/%m/%Y %H:%M')}
-            
-            ⚠️ IMPORTANTE: Debe confirmar la recepción de este producto
-            
-            Para confirmar que ha recibido este producto, utilice el siguiente enlace:
-            
-            {confirmacion_url}
-            
-            Nota: Este enlace es válido por 8 días a partir de la fecha de asignación.
-            
-            Si usted no ha recibido este producto o existe algún error, por favor contacte al área de inventarios inmediatamente.
-            
-            --
-            Este es un mensaje automático del Sistema de Gestión de Inventarios de Qualitas Colombia.
-            Por favor no responda a este correo.
-            © {datetime.now().year} Qualitas Colombia - Todos los derechos reservados
-            """
-            
-            # Adjuntar ambas versiones
-            part1 = MIMEText(text_content, 'plain')
-            part2 = MIMEText(html_content, 'html')
-            
-            msg.attach(part1)
-            msg.attach(part2)
-            
-            # Enviar el email
-            success = NotificationService._send_email_smtp(msg)
-            
-            if success:
-                logger.info(f"✅ Notificación de asignación con confirmación enviada a {destinatario_email}")
-                return True
-            else:
-                logger.error(f"❌ No se pudo enviar notificación a {destinatario_email}")
-                return False
-                
-        except Exception as e:
-            logger.error("❌ Error en enviar_notificacion_asignacion_con_confirmacion: [error](%s)", type(e).__name__)
-            import traceback
-            logger.error(f"❌ Traceback: {traceback.format_exc()}")
+
+            confirmacion_url = "%s/confirmacion/verificar/%s" % (base_url, token_confirmacion)
+
+            producto_info = producto_info or {}
+            producto_nombre = producto_info.get("nombre", "Producto de inventario")
+            producto_codigo = producto_info.get("codigo_unico", "N/A")
+            producto_categoria = producto_info.get("categoria", "General")
+
+            subject = "📦 Asignación de Inventario - %s" % producto_nombre
+
+            btn_color = NotificationService.BRAND["blue"]
+            badge_color = NotificationService.BRAND["purple"]
+
+            inner_html = """
+<p>Estimado/a <strong>%s</strong>,</p>
+<p>Se le ha asignado un producto del inventario corporativo. Por favor confirme la recepción:</p>
+
+<div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;padding:14px;margin:16px 0;">
+  <div style="font-weight:800;margin-bottom:8px;">📋 Detalles de la asignación</div>
+  <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" style="font-size:14px;">
+    <tr><td style="padding:4px 0;"><b>Producto:</b></td><td style="padding:4px 0;">%s</td></tr>
+    <tr><td style="padding:4px 0;"><b>Código:</b></td><td style="padding:4px 0;">%s</td></tr>
+    <tr><td style="padding:4px 0;"><b>Categoría:</b></td><td style="padding:4px 0;">%s</td></tr>
+    <tr><td style="padding:4px 0;"><b>Cantidad:</b></td><td style="padding:4px 0;">%s unidad(es)</td></tr>
+    <tr><td style="padding:4px 0;"><b>Oficina destino:</b></td><td style="padding:4px 0;">%s</td></tr>
+    <tr><td style="padding:4px 0;"><b>Asignado por:</b></td><td style="padding:4px 0;">%s</td></tr>
+    <tr><td style="padding:4px 0;"><b>Fecha:</b></td><td style="padding:4px 0;">%s</td></tr>
+  </table>
+</div>
+
+<div style="padding:10px 12px;border-left:4px solid %s;background:#fbf5fb;border-radius:8px;margin:16px 0;">
+  <b>Importante:</b> el enlace de confirmación es válido por <b>8 días</b>.
+</div>
+
+<div style="text-align:center;margin:18px 0;">
+  <a href="%s"
+     style="display:inline-block;background:%s;color:#ffffff;text-decoration:none;
+            padding:12px 18px;border-radius:10px;font-weight:800;">
+    ✅ Confirmar recepción
+  </a>
+</div>
+
+<p style="margin-top:10px;">Si el botón no funciona, copie y pegue este enlace en su navegador:</p>
+<p style="word-break:break-all;"><small>%s</small></p>
+
+<p>Si no ha recibido el producto o hay alguna inconsistencia, contacte al área de inventarios.</p>
+""" % (
+                destinatario_nombre,
+                producto_nombre,
+                producto_codigo,
+                producto_categoria,
+                cantidad,
+                oficina_nombre,
+                asignador_nombre,
+                datetime.now().strftime("%d/%m/%Y %H:%M"),
+                badge_color,
+                confirmacion_url,
+                btn_color,
+                confirmacion_url,
+            )
+
+            text_content = """
+ASIGNACIÓN DE INVENTARIO
+
+Estimado/a %s,
+
+Producto: %s
+Código: %s
+Categoría: %s
+Cantidad: %s unidad(es)
+Oficina destino: %s
+Asignado por: %s
+Fecha: %s
+
+IMPORTANTE: Debe confirmar la recepción (válido por 8 días)
+Enlace:
+%s
+
+--
+Mensaje automático. No responder.
+""" % (
+                destinatario_nombre,
+                producto_nombre,
+                producto_codigo,
+                producto_categoria,
+                cantidad,
+                oficina_nombre,
+                asignador_nombre,
+                datetime.now().strftime("%d/%m/%Y %H:%M"),
+                confirmacion_url,
+            )
+
+            msg = NotificationService._build_related_message(
+                to_email=destinatario_email,
+                subject=subject,
+                plain_text=text_content,
+                inner_html=inner_html,
+                preheader="Asignación: %s" % producto_nombre
+            )
+
+            return NotificationService._send_email_smtp(msg)
+
+        except Exception:
+            logger.exception("Error en enviar_notificacion_asignacion_con_confirmacion")
             return False
-    
+
     @staticmethod
     def enviar_notificacion_asignacion_simple(
-        destinatario_email, 
-        destinatario_nombre, 
-        producto_info, 
+        destinatario_email,
+        destinatario_nombre,
+        producto_info,
         cantidad,
-        oficina_nombre, 
+        oficina_nombre,
         asignador_nombre
     ):
-        """
-        Envía notificación de asignación simple (sin confirmación).
-        
-        Args:
-            destinatario_email: Email del destinatario
-            destinatario_nombre: Nombre del destinatario
-            producto_info: Diccionario con información del producto
-            cantidad: Cantidad asignada
-            oficina_nombre: Nombre de la oficina destino
-            asignador_nombre: Nombre de quien realiza la asignación
-            
-        Returns:
-            bool: True si se envió correctamente, False si falló
-        """
         try:
-            logger.info(f"📧 Preparando notificación de asignación simple para {destinatario_email}")
-            
-            # Validar datos esenciales
             if not destinatario_email:
-                logger.error("❌ Email del destinatario es requerido")
+                logger.error("Email del destinatario es requerido")
                 return False
-            
-            # Detalles del producto
-            producto_nombre = producto_info.get('nombre', 'Producto de inventario')
-            producto_codigo = producto_info.get('codigo_unico', 'N/A')
-            producto_categoria = producto_info.get('categoria', 'General')
-            
-            # Crear mensaje de email
-            msg = MIMEMultipart('alternative')
-            msg['From'] = NotificationService.SMTP_CONFIG['from_email']
-            msg['To'] = destinatario_email
-            msg['Date'] = formatdate(localtime=True)
-            msg['Subject'] = f"📦 Asignación de Inventario - {producto_nombre}"
-            
-            # Cuerpo del email en HTML
-            html_content = f"""
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>Notificación de Asignación</title>
-                <style>
-                    body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-                    .container {{ max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }}
-                    .header {{ background-color: #f8f9fa; padding: 15px; border-bottom: 1px solid #ddd; text-align: center; }}
-                    .content {{ padding: 20px; }}
-                    .details {{ background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0; }}
-                    .footer {{ margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; 
-                             font-size: 12px; color: #666; text-align: center; }}
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <div class="header">
-                        <h2>📦 Sistema de Gestión de Inventarios</h2>
-                        <h3>Asignación de Producto</h3>
-                    </div>
-                    
-                    <div class="content">
-                        <p>Estimado/a <strong>{destinatario_nombre}</strong>,</p>
-                        
-                        <p>Se le ha asignado un producto del inventario corporativo:</p>
-                        
-                        <div class="details">
-                            <h4>📋 Detalles de la Asignación</h4>
-                            <p><strong>Producto:</strong> {producto_nombre}</p>
-                            <p><strong>Código:</strong> {producto_codigo}</p>
-                            <p><strong>Categoría:</strong> {producto_categoria}</p>
-                            <p><strong>Cantidad:</strong> {cantidad} unidad(es)</p>
-                            <p><strong>Oficina Destino:</strong> {oficina_nombre}</p>
-                            <p><strong>Asignado por:</strong> {asignador_nombre}</p>
-                            <p><strong>Fecha de asignación:</strong> {datetime.now().strftime('%d/%m/%Y %H:%M')}</p>
-                        </div>
-                        
-                        <p>Este producto ha sido registrado en el sistema de gestión de inventarios.</p>
-                        
-                        <p>Si existe algún error o discrepancia, por favor contacte al área de inventarios.</p>
-                    </div>
-                    
-                    <div class="footer">
-                        <p>Este es un mensaje automático del Sistema de Gestión de Inventarios de Qualitas Colombia.</p>
-                        <p>Por favor no responda a este correo.</p>
-                        <p>© {datetime.now().year} Qualitas Colombia - Todos los derechos reservados</p>
-                    </div>
-                </div>
-            </body>
-            </html>
-            """
-            
-            # Versión de texto plano
-            text_content = f"""
-            ASIGNACIÓN DE INVENTARIO - SISTEMA DE GESTIÓN DE INVENTARIOS
-            
-            Estimado/a {destinatario_nombre},
-            
-            Se le ha asignado un producto del inventario corporativo:
-            
-            📋 DETALLES DE LA ASIGNACIÓN:
-            ------------------------------
-            Producto: {producto_nombre}
-            Código: {producto_codigo}
-            Categoría: {producto_categoria}
-            Cantidad: {cantidad} unidad(es)
-            Oficina Destino: {oficina_nombre}
-            Asignado por: {asignador_nombre}
-            Fecha de asignación: {datetime.now().strftime('%d/%m/%Y %H:%M')}
-            
-            Este producto ha sido registrado en el sistema de gestión de inventarios.
-            
-            Si existe algún error o discrepancia, por favor contacte al área de inventarios.
-            
-            --
-            Este es un mensaje automático del Sistema de Gestión de Inventarios de Qualitas Colombia.
-            Por favor no responda a este correo.
-            © {datetime.now().year} Qualitas Colombia - Todos los derechos reservados
-            """
-            
-            # Adjuntar ambas versiones
-            part1 = MIMEText(text_content, 'plain')
-            part2 = MIMEText(html_content, 'html')
-            
-            msg.attach(part1)
-            msg.attach(part2)
-            
-            # Enviar el email
-            success = NotificationService._send_email_smtp(msg)
-            
-            if success:
-                logger.info(f"✅ Notificación de asignación simple enviada a {destinatario_email}")
-                return True
-            else:
-                logger.error(f"❌ No se pudo enviar notificación simple a {destinatario_email}")
-                return False
-                
-        except Exception as e:
-            logger.error("❌ Error en enviar_notificacion_asignacion_simple: [error](%s)", type(e).__name__)
-            import traceback
-            logger.error(f"❌ Traceback: {traceback.format_exc()}")
+
+            producto_info = producto_info or {}
+            producto_nombre = producto_info.get("nombre", "Producto de inventario")
+            producto_codigo = producto_info.get("codigo_unico", "N/A")
+            producto_categoria = producto_info.get("categoria", "General")
+
+            subject = "📦 Asignación de Inventario - %s" % producto_nombre
+
+            inner_html = """
+<p>Estimado/a <strong>%s</strong>,</p>
+<p>Se le ha asignado un producto del inventario corporativo:</p>
+
+<div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;padding:14px;margin:16px 0;">
+  <div style="font-weight:800;margin-bottom:8px;">📋 Detalles de la asignación</div>
+  <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" style="font-size:14px;">
+    <tr><td style="padding:4px 0;"><b>Producto:</b></td><td style="padding:4px 0;">%s</td></tr>
+    <tr><td style="padding:4px 0;"><b>Código:</b></td><td style="padding:4px 0;">%s</td></tr>
+    <tr><td style="padding:4px 0;"><b>Categoría:</b></td><td style="padding:4px 0;">%s</td></tr>
+    <tr><td style="padding:4px 0;"><b>Cantidad:</b></td><td style="padding:4px 0;">%s unidad(es)</td></tr>
+    <tr><td style="padding:4px 0;"><b>Oficina destino:</b></td><td style="padding:4px 0;">%s</td></tr>
+    <tr><td style="padding:4px 0;"><b>Asignado por:</b></td><td style="padding:4px 0;">%s</td></tr>
+    <tr><td style="padding:4px 0;"><b>Fecha:</b></td><td style="padding:4px 0;">%s</td></tr>
+  </table>
+</div>
+
+<p>Si existe algún error o discrepancia, por favor contacte al área de inventarios.</p>
+""" % (
+                destinatario_nombre,
+                producto_nombre,
+                producto_codigo,
+                producto_categoria,
+                cantidad,
+                oficina_nombre,
+                asignador_nombre,
+                datetime.now().strftime("%d/%m/%Y %H:%M"),
+            )
+
+            text_content = """
+ASIGNACIÓN DE INVENTARIO
+
+Estimado/a %s,
+
+Producto: %s
+Código: %s
+Categoría: %s
+Cantidad: %s unidad(es)
+Oficina destino: %s
+Asignado por: %s
+Fecha: %s
+
+Si existe algún error o discrepancia, contacte al área de inventarios.
+
+--
+Mensaje automático. No responder.
+""" % (
+                destinatario_nombre,
+                producto_nombre,
+                producto_codigo,
+                producto_categoria,
+                cantidad,
+                oficina_nombre,
+                asignador_nombre,
+                datetime.now().strftime("%d/%m/%Y %H:%M"),
+            )
+
+            msg = NotificationService._build_related_message(
+                to_email=destinatario_email,
+                subject=subject,
+                plain_text=text_content,
+                inner_html=inner_html,
+                preheader="Asignación: %s" % producto_nombre
+            )
+
+            return NotificationService._send_email_smtp(msg)
+
+        except Exception:
+            logger.exception("Error en enviar_notificacion_asignacion_simple")
             return False
-    
+
     @staticmethod
     def enviar_notificacion_confirmacion_exitosa(
-        destinatario_email, 
-        destinatario_nombre, 
-        producto_info, 
+        destinatario_email,
+        destinatario_nombre,
+        producto_info,
         asignador_nombre
     ):
-        """
-        Envía notificación de confirmación exitosa al asignador.
-        
-        Args:
-            destinatario_email: Email del asignador
-            destinatario_nombre: Nombre del asignador
-            producto_info: Diccionario con información del producto
-            asignador_nombre: Nombre de quien realizó la asignación
-            
-        Returns:
-            bool: True si se envió correctamente, False si falló
-        """
         try:
-            logger.info(f"📧 Preparando notificación de confirmación exitosa para {destinatario_email}")
-            
-            # Validar datos esenciales
             if not destinatario_email:
-                logger.error("❌ Email del destinatario es requerido")
+                logger.error("Email del destinatario es requerido")
                 return False
-            
-            # Detalles del producto
-            producto_nombre = producto_info.get('nombre', 'Producto de inventario')
-            producto_codigo = producto_info.get('codigo_unico', 'N/A')
-            
-            # Crear mensaje de email
-            msg = MIMEMultipart('alternative')
-            msg['From'] = NotificationService.SMTP_CONFIG['from_email']
-            msg['To'] = destinatario_email
-            msg['Date'] = formatdate(localtime=True)
-            msg['Subject'] = f"✅ Confirmación de Recepción - {producto_nombre}"
-            
-            # Cuerpo del email en HTML
-            html_content = f"""
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>Confirmación de Recepción</title>
-                <style>
-                    body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-                    .container {{ max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 5px; }}
-                    .header {{ background-color: #d4edda; padding: 15px; border-bottom: 1px solid #c3e6cb; text-align: center; color: #155724; }}
-                    .content {{ padding: 20px; }}
-                    .details {{ background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0; }}
-                    .footer {{ margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; 
-                             font-size: 12px; color: #666; text-align: center; }}
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <div class="header">
-                        <h2>✅ Sistema de Gestión de Inventarios</h2>
-                        <h3>Confirmación de Recepción Exitosa</h3>
-                    </div>
-                    
-                    <div class="content">
-                        <p>Estimado/a <strong>{destinatario_nombre}</strong>,</p>
-                        
-                        <p>Le informamos que la asignación del siguiente producto ha sido <strong>confirmada exitosamente</strong> por el destinatario:</p>
-                        
-                        <div class="details">
-                            <h4>📋 Detalles del Producto</h4>
-                            <p><strong>Producto:</strong> {producto_nombre}</p>
-                            <p><strong>Código:</strong> {producto_codigo}</p>
-                            <p><strong>Fecha de confirmación:</strong> {datetime.now().strftime('%d/%m/%Y %H:%M')}</p>
-                        </div>
-                        
-                        <p>✅ <strong>Estado:</strong> La recepción ha sido confirmada correctamente.</p>
-                        <p>📋 <strong>Proceso:</strong> Este producto ha completado el ciclo de asignación y confirmación en el sistema.</p>
-                    </div>
-                    
-                    <div class="footer">
-                        <p>Este es un mensaje automático del Sistema de Gestión de Inventarios de Qualitas Colombia.</p>
-                        <p>Por favor no responda a este correo.</p>
-                        <p>© {datetime.now().year} Qualitas Colombia - Todos los derechos reservados</p>
-                    </div>
-                </div>
-            </body>
-            </html>
-            """
-            
-            # Versión de texto plano
-            text_content = f"""
-            CONFIRMACIÓN DE RECEPCIÓN EXITOSA - SISTEMA DE GESTIÓN DE INVENTARIOS
-            
-            Estimado/a {destinatario_nombre},
-            
-            Le informamos que la asignación del siguiente producto ha sido CONFIRMADA EXITOSAMENTE por el destinatario:
-            
-            📋 DETALLES DEL PRODUCTO:
-            --------------------------
-            Producto: {producto_nombre}
-            Código: {producto_codigo}
-            Fecha de confirmación: {datetime.now().strftime('%d/%m/%Y %H:%M')}
-            
-            ✅ Estado: La recepción ha sido confirmada correctamente.
-            📋 Proceso: Este producto ha completado el ciclo de asignación y confirmación en el sistema.
-            
-            --
-            Este es un mensaje automático del Sistema de Gestión de Inventarios de Qualitas Colombia.
-            Por favor no responda a este correo.
-            © {datetime.now().year} Qualitas Colombia - Todos los derechos reservados
-            """
-            
-            # Adjuntar ambas versiones
-            part1 = MIMEText(text_content, 'plain')
-            part2 = MIMEText(html_content, 'html')
-            
-            msg.attach(part1)
-            msg.attach(part2)
-            
-            # Enviar el email
-            success = NotificationService._send_email_smtp(msg)
-            
-            if success:
-                logger.info(f"✅ Notificación de confirmación exitosa enviada a {destinatario_email}")
-                return True
-            else:
-                logger.error(f"❌ No se pudo enviar notificación de confirmación a {destinatario_email}")
-                return False
-                
-        except Exception as e:
-            logger.error("❌ Error en enviar_notificacion_confirmacion_exitosa: [error](%s)", type(e).__name__)
-            import traceback
-            logger.error(f"❌ Traceback: {traceback.format_exc()}")
+
+            producto_info = producto_info or {}
+            producto_nombre = producto_info.get("nombre", "Producto de inventario")
+            producto_codigo = producto_info.get("codigo_unico", "N/A")
+
+            subject = "✅ Confirmación de Recepción - %s" % producto_nombre
+
+            inner_html = """
+<p>Estimado/a <strong>%s</strong>,</p>
+<p>La recepción del producto asignado fue <strong>confirmada exitosamente</strong>.</p>
+
+<div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;padding:14px;margin:16px 0;">
+  <div style="font-weight:800;margin-bottom:8px;">📋 Detalles</div>
+  <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" style="font-size:14px;">
+    <tr><td style="padding:4px 0;"><b>Producto:</b></td><td style="padding:4px 0;">%s</td></tr>
+    <tr><td style="padding:4px 0;"><b>Código:</b></td><td style="padding:4px 0;">%s</td></tr>
+    <tr><td style="padding:4px 0;"><b>Asignador:</b></td><td style="padding:4px 0;">%s</td></tr>
+    <tr><td style="padding:4px 0;"><b>Fecha confirmación:</b></td><td style="padding:4px 0;">%s</td></tr>
+  </table>
+</div>
+
+<p><strong>Estado:</strong> Confirmado.</p>
+""" % (
+                destinatario_nombre,
+                producto_nombre,
+                producto_codigo,
+                asignador_nombre,
+                datetime.now().strftime("%d/%m/%Y %H:%M"),
+            )
+
+            text_content = """
+CONFIRMACIÓN DE RECEPCIÓN EXITOSA
+
+Destinatario: %s
+Producto: %s
+Código: %s
+Asignador: %s
+Fecha confirmación: %s
+
+Estado: Confirmado
+
+--
+Mensaje automático. No responder.
+""" % (
+                destinatario_nombre,
+                producto_nombre,
+                producto_codigo,
+                asignador_nombre,
+                datetime.now().strftime("%d/%m/%Y %H:%M"),
+            )
+
+            msg = NotificationService._build_related_message(
+                to_email=destinatario_email,
+                subject=subject,
+                plain_text=text_content,
+                inner_html=inner_html,
+                preheader="Confirmación: %s" % producto_nombre
+            )
+
+            return NotificationService._send_email_smtp(msg)
+
+        except Exception:
+            logger.exception("Error en enviar_notificacion_confirmacion_exitosa")
             return False
-    
+
     @staticmethod
     def enviar_notificacion_general(
         destinatario_email,
@@ -578,96 +621,80 @@ class NotificationService:
         mensaje_html,
         mensaje_texto=None
     ):
-        """
-        Envía una notificación general.
-        
-        Args:
-            destinatario_email: Email del destinatario
-            destinatario_nombre: Nombre del destinatario
-            asunto: Asunto del email
-            mensaje_html: Contenido HTML del mensaje
-            mensaje_texto: Contenido en texto plano (opcional)
-            
-        Returns:
-            bool: True si se envió correctamente, False si falló
-        """
         try:
-            logger.info(f"📧 Preparando notificación general para {destinatario_email}")
-            
-            # Validar datos esenciales
             if not destinatario_email:
-                logger.error("❌ Email del destinatario es requerido")
+                logger.error("Email del destinatario es requerido")
                 return False
-            
-            # Crear mensaje de email
-            msg = MIMEMultipart('alternative')
-            msg['From'] = NotificationService.SMTP_CONFIG['from_email']
-            msg['To'] = destinatario_email
-            msg['Date'] = formatdate(localtime=True)
-            msg['Subject'] = asunto
-            
-            # Adjuntar versión de texto plano si se proporciona
-            if mensaje_texto:
-                part1 = MIMEText(mensaje_texto, 'plain')
-                msg.attach(part1)
-            
-            # Adjuntar versión HTML
-            part2 = MIMEText(mensaje_html, 'html')
-            msg.attach(part2)
-            
-            # Enviar el email
-            success = NotificationService._send_email_smtp(msg)
-            
-            if success:
-                logger.info(f"✅ Notificación general enviada a {destinatario_email}")
-                return True
-            else:
-                logger.error(f"❌ No se pudo enviar notificación general a {destinatario_email}")
-                return False
-                
-        except Exception as e:
-            logger.error("❌ Error en enviar_notificacion_general: [error](%s)", type(e).__name__)
-            import traceback
-            logger.error(f"❌ Traceback: {traceback.format_exc()}")
+
+            inner_html = mensaje_html or "<p></p>"
+
+            msg = NotificationService._build_related_message(
+                to_email=destinatario_email,
+                subject=asunto,
+                plain_text=(mensaje_texto or ""),
+                inner_html=inner_html,
+                preheader=(destinatario_nombre or "")
+            )
+
+            return NotificationService._send_email_smtp(msg)
+
+        except Exception:
+            logger.exception("Error en enviar_notificacion_general")
             return False
-    
+
     @staticmethod
     def test_conexion_smtp():
-        """
-        Prueba la conexión SMTP.
-        
-        Returns:
-            dict: Resultado de la prueba
-        """
         try:
-            logger.info("🔧 Probando conexión SMTP...")
-            
             smtp = NotificationService._connect_smtp()
             if smtp:
                 smtp.quit()
-                logger.info("✅ Prueba SMTP exitosa")
                 return {
-                    'success': True,
-                    'message': 'Conexión SMTP exitosa',
-                    'config': {
-                        'server': NotificationService.SMTP_CONFIG['server'],
-                        'port': NotificationService.SMTP_CONFIG['port'],
-                        'use_tls': NotificationService.SMTP_CONFIG['use_tls'],
-                        'from_email': NotificationService.SMTP_CONFIG['from_email']
-                    }
+                    "success": True,
+                    "message": "Conexión SMTP exitosa",
+                    "config": {
+                        "server": NotificationService.SMTP_CONFIG["server"],
+                        "port": NotificationService.SMTP_CONFIG["port"],
+                        "use_tls": NotificationService.SMTP_CONFIG["use_tls"],
+                        "from_email": NotificationService.SMTP_CONFIG["from_email"],
+                    },
                 }
-            else:
-                logger.error("❌ Prueba SMTP fallida")
-                return {
-                    'success': False,
-                    'message': 'No se pudo conectar al servidor SMTP',
-                    'config': NotificationService.SMTP_CONFIG
-                }
-                
-        except Exception as e:
-            logger.error("❌ Error en prueba SMTP: [error](%s)", type(e).__name__)
+
             return {
-                'success': False,
-                'message': f'Error: {str(e)}',
-                'config': NotificationService.SMTP_CONFIG
+                "success": False,
+                "message": "No se pudo conectar al servidor SMTP",
+                "config": NotificationService.SMTP_CONFIG,
             }
+
+        except Exception as e:
+            return {
+                "success": False,
+                "message": "Error: %s" % str(e),
+                "config": NotificationService.SMTP_CONFIG,
+            }
+
+    # Compatibilidad (por si otros módulos lo llaman)
+    @staticmethod
+    def notificar_solicitud_creada(solicitud_info: dict) -> bool:
+        email = (solicitud_info or {}).get("email_solicitante")
+        if not email:
+            return False
+        nombre = (solicitud_info or {}).get("usuario_solicitante", "Usuario")
+        sid = (solicitud_info or {}).get("id", "N/A")
+        html = """
+        <p>Hola <b>%s</b>, tu solicitud fue creada exitosamente.</p>
+        <p><b>ID:</b> %s</p>
+        """ % (nombre, sid)
+        txt = "Solicitud creada. Hola %s. ID: %s" % (nombre, sid)
+        return NotificationService.enviar_notificacion_general(email, nombre, "📝 Solicitud #%s creada" % sid, html, txt)
+
+
+def servicio_notificaciones_disponible() -> bool:
+    if os.getenv("NOTIFICATIONS_ENABLED", "true").strip().lower() in ("0", "false", "no", "n"):
+        return False
+
+    cfg = getattr(NotificationService, "SMTP_CONFIG", {}) or {}
+    return bool(cfg.get("server")) and bool(cfg.get("port")) and bool(cfg.get("from_email"))
+
+
+def notificar_solicitud(solicitud_info: dict) -> bool:
+    return NotificationService.notificar_solicitud_creada(solicitud_info)

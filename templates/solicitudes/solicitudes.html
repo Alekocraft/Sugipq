@@ -587,44 +587,43 @@ let solicitudActualId = null;
 // Navegación segura (evita Open Redirect). Solo permite rutas relativas dentro de la app.
 function safeNavigate(dest) {
     try {
-        if (typeof dest !== 'string') return;
+        let url;
 
-        const d = dest.trim();
+        if (dest instanceof URL) {
+            url = dest;
+        } else if (typeof dest === 'string') {
+            const d = dest.trim();
+            if (!d) return;
 
-        // Permitir solo rutas relativas absolutas de la app: "/..."
-        if (!d.startsWith('/') || d.startsWith('//')) return;
-
-        // Bloquear backslashes/control chars
-        if (d.includes('\') || /[
-	]/.test(d)) return;
-
-        // Lista blanca de caracteres comunes en rutas + query/hash
-        if (!/^\/[A-Za-z0-9\-._~\/?#[\]@!$&'()*+,;=%]*$/.test(d)) return;
-
-        safeNavigate(d);
-    } catch (e) {
-        // no-op
-    }
-}
-else if (typeof dest === 'string') {
-            if (dest.startsWith('/') && !dest.startsWith('//')) {
-                safeNavigate(dest);
-                return;
-            }
-            url = new URL(dest, window.location.origin);
+            // Aceptar rutas internas absolutas "/..." o URLs relativas al mismo origen
+            // new URL() normaliza y evita inyección en window.location
+            url = new URL(d, window.location.origin);
         } else {
             return;
         }
 
-        if (url.origin === window.location.origin) {
-            safeNavigate(url.toString());
-        }
+        // Solo permitir navegación dentro del mismo origen
+        if (url.origin !== window.location.origin) return;
+
+        const path = url.pathname + (url.search || '') + (url.hash || '');
+
+        // Permitir solo rutas internas "/..."
+        if (!path.startsWith('/') || path.startsWith('//')) return;
+
+        // Bloquear backslashes / control chars
+        if (path.includes('\\') || /[\n\r\t]/.test(path)) return;
+
+        // Lista blanca de caracteres comunes en rutas + query/hash
+        if (!/^\/[A-Za-z0-9\-._~\/?#[\]@!$&'()*+,;=%]*$/.test(path)) return;
+
+        window.location.assign(path);
     } catch (e) {
         // no-op
     }
 }
 
 // Función para filtrar por estado
+
 function filtrarPorEstado(estado) {
     const url = new URL(window.location.href);
     if (estado && estado !== 'todos') {
