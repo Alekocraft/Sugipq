@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # blueprints/inventario_corporativo.py
 
-from flask import Blueprint, render_template, request, redirect, session, flash, jsonify, send_file
+from flask import Blueprint, render_template, request, redirect, url_for, session, flash, jsonify, send_file
 from werkzeug.utils import secure_filename
 from models.inventario_corporativo_model import InventarioCorporativoModel
 from models.oficinas_model import OficinaModel
@@ -13,8 +13,18 @@ from io import BytesIO
 from datetime import datetime
 from functools import wraps
 import logging
+import re
 
 logger = logging.getLogger(__name__)
+
+_SQL_IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+def _safe_sql_identifier(name: str, what: str = "identificador") -> str:
+    """Valida identificadores SQL (tabla/columna) para evitar inyección en SQL dinámico."""
+    if not name or not _SQL_IDENT_RE.match(name):
+        raise ValueError(f"{what} SQL inválido")
+    return name
+
 
 # ---------------------------------------------------------------------------
 # Decorators
@@ -73,11 +83,11 @@ def _can_approve_inv_requests() -> bool:
 
 def _handle_unauthorized():
     flash('No autorizado', 'danger')
-    return redirect('/inventario-corporativo')
+    return redirect(url_for('inventario_corporativo.listar_inventario_corporativo'))
 
 def _handle_not_found():
     flash('Producto no encontrado', 'danger')
-    return redirect('/inventario-corporativo')
+    return redirect(url_for('inventario_corporativo.listar_inventario_corporativo'))
 
 def _calculate_inventory_stats(productos):
     if not productos:
@@ -284,7 +294,7 @@ def crear_inventario_corporativo():
         if errors:
             for error in errors:
                 flash(error, 'danger')
-            return redirect(request.url)
+            return redirect(request.path)
 
         try:
             ruta_imagen = _handle_image_upload(request.files.get('imagen'))
@@ -310,12 +320,12 @@ def crear_inventario_corporativo():
 
             if nuevo_id:
                 flash('Producto creado correctamente.', 'success')
-                return redirect('/inventario-corporativo')
+                return redirect(url_for('inventario_corporativo.listar_inventario_corporativo'))
             else:
                 flash('Error al crear producto.', 'danger')
 
         except Exception as e:
-            logger.error(f"[ERROR CREAR] {e}")
+            logger.error("[ERROR CREAR] [error](%s)", type(e).__name__)
             flash('Error al crear producto.', 'danger')
 
     return render_template('inventario_corporativo/crear.html',
@@ -343,7 +353,7 @@ def editar_inventario_corporativo(producto_id):
         if errors:
             for error in errors:
                 flash(error, 'danger')
-            return redirect(request.url)
+            return redirect(request.path)
 
         try:
             ruta_imagen = _handle_image_upload(request.files.get('imagen'), producto)
@@ -365,12 +375,12 @@ def editar_inventario_corporativo(producto_id):
 
             if actualizado:
                 flash('Producto actualizado correctamente.', 'success')
-                return redirect(f'/inventario-corporativo/{producto_id}')
+                return redirect(url_for('inventario_corporativo.ver_inventario_corporativo', producto_id=producto_id))
             else:
                 flash('Error al actualizar producto.', 'danger')
 
         except Exception as e:
-            logger.error(f"[ERROR EDITAR] {e}")
+            logger.error("[ERROR EDITAR] [error](%s)", type(e).__name__)
             flash('Error al actualizar producto.', 'danger')
 
     return render_template('inventario_corporativo/editar.html',
@@ -395,10 +405,10 @@ def eliminar_inventario_corporativo(producto_id):
         InventarioCorporativoModel.eliminar(producto_id, session.get('usuario', 'Sistema'))
         flash('Producto eliminado correctamente.', 'success')
     except Exception as e:
-        logger.error(f"[ERROR ELIMINAR] {e}")
+        logger.error("[ERROR ELIMINAR] [error](%s)", type(e).__name__)
         flash('Error al eliminar producto.', 'danger')
 
-    return redirect('/inventario-corporativo')
+    return redirect(url_for('inventario_corporativo.listar_inventario_corporativo'))
 
 @inventario_corporativo_bp.route('/<int:producto_id>/asignar', methods=['GET', 'POST'])
 def asignar_inventario_corporativo(producto_id):
@@ -414,7 +424,7 @@ def asignar_inventario_corporativo(producto_id):
 
     if not producto.get('es_asignable'):
         flash('Este producto no es asignable.', 'warning')
-        return redirect(f'/inventario-corporativo/{producto_id}')
+        return redirect(url_for('inventario_corporativo.ver_inventario_corporativo', producto_id=producto_id))
 
     oficinas = InventarioCorporativoModel.obtener_oficinas() or []
     
@@ -436,11 +446,11 @@ def asignar_inventario_corporativo(producto_id):
 
             if cantidad_asignar > producto.get('cantidad', 0):
                 flash('No hay suficiente stock.', 'danger')
-                return redirect(request.url)
+                return redirect(request.path)
             
             if not oficina_id:
                 flash('Debe seleccionar una oficina.', 'danger')
-                return redirect(request.url)
+                return redirect(request.path)
 
             oficina_nombre = next(
                 (o['nombre'] for o in oficinas if o['id'] == oficina_id), 
@@ -497,13 +507,13 @@ def asignar_inventario_corporativo(producto_id):
                                 flash('No se pudo enviar el email de notificacion', 'warning')
                                 
                         except Exception as e:
-                            logger.error(f"Error enviando notificacion: {e}")
+                            logger.error("Error enviando notificacion: [error](%s)", type(e).__name__)
                             flash('Producto asignado pero no se pudo enviar la notificacion.', 'warning')
                     else:
                         if not usuario_ad_email:
                             flash('No se envio notificacion: usuario sin email', 'info')
                     
-                    return redirect(f'/inventario-corporativo/{producto_id}')
+                    return redirect(url_for('inventario_corporativo.ver_inventario_corporativo', producto_id=producto_id))
                 else:
                     flash(resultado.get('message', 'No se pudo asignar el producto.'), 'danger')
             else:
@@ -516,12 +526,12 @@ def asignar_inventario_corporativo(producto_id):
 
                 if asignado:
                     flash('Producto asignado correctamente.', 'success')
-                    return redirect(f'/inventario-corporativo/{producto_id}')
+                    return redirect(url_for('inventario_corporativo.ver_inventario_corporativo', producto_id=producto_id))
                 else:
                     flash('No se pudo asignar el producto.', 'danger')
 
         except Exception as e:
-            logger.error(f"[ERROR ASIGNAR] {e}")
+            logger.error("[ERROR ASIGNAR] [error](%s)", type(e).__name__)
             flash('Error al asignar producto.', 'danger')
 
     return render_template(
@@ -561,7 +571,7 @@ def api_buscar_usuarios_ad():
         })
         
     except Exception as e:
-        logger.error(f"Error buscando usuarios AD: {e}")
+        logger.error("Error buscando usuarios AD: [error](%s)", type(e).__name__)
         return jsonify({
             'error': 'Error al buscar usuarios',
             'usuarios': []
@@ -595,7 +605,7 @@ def api_obtener_usuario_ad(username):
             }), 404
             
     except Exception as e:
-        logger.error(f"Error obteniendo usuario AD: {e}")
+        logger.error("Error obteniendo usuario AD: [error](%s)", type(e).__name__)
         return jsonify({'error': 'Error al obtener usuario'}), 500
 
 @inventario_corporativo_bp.route('/api/estadisticas-dashboard')
@@ -619,7 +629,7 @@ def api_estadisticas_dashboard():
         })
         
     except Exception as e:
-        logger.error(f"Error en API estadisticas dashboard: {e}")
+        logger.error("Error en API estadisticas dashboard: [error](%s)", type(e).__name__)
         return jsonify({
             "total_productos": 0,
             "valor_total": 0,
@@ -649,7 +659,7 @@ def api_estadisticas_inventario():
         })
         
     except Exception as e:
-        logger.error(f"Error en API estadisticas: {e}")
+        logger.error("Error en API estadisticas: [error](%s)", type(e).__name__)
         return jsonify({
             "total_productos": 0,
             "valor_total": 0,
@@ -927,14 +937,16 @@ def _has_active_request_for_asignacion(conn, asignacion_id: int):
             activo_col = _first_existing_column(cur, devol_table, ['Activo', 'activo'])
             asig_col   = _first_existing_column(cur, devol_table, ['AsignacionId', 'asignacion_id'])
             if asig_col:
-                where = f"{asig_col} = ?"
+                where = f"[{_safe_sql_identifier(asig_col,'columna')}] = ?"
                 params = [asignacion_id]
                 if activo_col:
-                    where += f" AND {activo_col} = 1"
+                    where += f" AND [{_safe_sql_identifier(activo_col,'columna')}] = 1"
                 if estado_col:
                     # 'APROBADO/RECHAZADO' son los estados usados en el blueprint; si la BD usa otros, sigue funcionando por NOT IN
-                    where += f" AND ( {estado_col} IS NULL OR UPPER({estado_col}) NOT IN ('APROBADO','RECHAZADO') )"
-                cur.execute(f"SELECT TOP 1 1 FROM dbo.{devol_table} WHERE {where}", params)
+                    estado_col_safe = _safe_sql_identifier(estado_col, 'columna')
+                    where += f" AND ( [{estado_col_safe}] IS NULL OR UPPER([{estado_col_safe}]) NOT IN ('APROBADO','RECHAZADO') )"
+                devol_table_safe = _safe_sql_identifier(devol_table, 'tabla')
+                cur.execute(f"SELECT TOP 1 1 FROM dbo.[{devol_table_safe}] WHERE {where}", params)
                 has_dev = cur.fetchone() is not None
 
         if _table_exists(cur, tras_table):
@@ -942,13 +954,15 @@ def _has_active_request_for_asignacion(conn, asignacion_id: int):
             activo_col = _first_existing_column(cur, tras_table, ['Activo', 'activo'])
             asig_col   = _first_existing_column(cur, tras_table, ['AsignacionId', 'asignacion_id'])
             if asig_col:
-                where = f"{asig_col} = ?"
+                where = f"[{_safe_sql_identifier(asig_col,'columna')}] = ?"
                 params = [asignacion_id]
                 if activo_col:
-                    where += f" AND {activo_col} = 1"
+                    where += f" AND [{_safe_sql_identifier(activo_col,'columna')}] = 1"
                 if estado_col:
-                    where += f" AND ( {estado_col} IS NULL OR UPPER({estado_col}) NOT IN ('APROBADO','RECHAZADO') )"
-                cur.execute(f"SELECT TOP 1 1 FROM dbo.{tras_table} WHERE {where}", params)
+                    estado_col_safe = _safe_sql_identifier(estado_col, 'columna')
+                    where += f" AND ( [{estado_col_safe}] IS NULL OR UPPER([{estado_col_safe}]) NOT IN ('APROBADO','RECHAZADO') )"
+                tras_table_safe = _safe_sql_identifier(tras_table, 'tabla')
+                cur.execute(f"SELECT TOP 1 1 FROM dbo.[{tras_table_safe}] WHERE {where}", params)
                 has_tra = cur.fetchone() is not None
 
         return has_dev or has_tra
@@ -1113,7 +1127,7 @@ def api_aprobar_solicitud_inventario():
         params.append(solicitud_id)
 
         if activo_col:
-            where += f" AND {activo_col} = 1"
+            where += f" AND [{_safe_sql_identifier(activo_col,'columna')}] = 1"
 
         sql = f"UPDATE dbo.{table} SET " + ", ".join(sets) + " WHERE " + where
         cur.execute(sql, tuple(params))
@@ -1201,7 +1215,7 @@ def api_rechazar_solicitud_inventario():
         params.append(solicitud_id)
 
         if activo_col:
-            where += f" AND {activo_col} = 1"
+            where += f" AND [{_safe_sql_identifier(activo_col,'columna')}] = 1"
 
         sql = f"UPDATE dbo.{table} SET " + ", ".join(sets) + " WHERE " + where
         cur.execute(sql, tuple(params))

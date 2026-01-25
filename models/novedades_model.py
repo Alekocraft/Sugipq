@@ -89,8 +89,7 @@ class NovedadModel:
             
         except Exception as e:
             logger.info("❌ Error obteniendo novedades: [error](%s)", type(e).__name__)
-            import traceback
-            traceback.print_exc()
+            logger.exception("Excepción en novedades_model")
             
             # Intentar consulta alternativa más simple
             try:
@@ -200,8 +199,7 @@ class NovedadModel:
             
         except Exception as e:
             logger.info("❌ Error obteniendo novedad por ID: [error](%s)", type(e).__name__)
-            import traceback
-            traceback.print_exc()
+            logger.exception("Excepción en novedades_model")
             return None
         finally:
             try:
@@ -234,8 +232,7 @@ class NovedadModel:
         except Exception as e:
             conn.rollback()
             logger.info("❌ Error creando novedad: [error](%s)", type(e).__name__)
-            import traceback
-            traceback.print_exc()
+            logger.exception("Excepción en novedades_model")
             return None
         finally:
             cursor.close()
@@ -268,8 +265,7 @@ class NovedadModel:
             except:
                 pass
             logger.info("❌ Error actualizando novedad: [error](%s)", type(e).__name__)
-            import traceback
-            traceback.print_exc()
+            logger.exception("Excepción en novedades_model")
             return False
         finally:
             try:
@@ -308,8 +304,7 @@ class NovedadModel:
             
         except Exception as e:
             logger.info("❌ Error obteniendo estadísticas de novedades: [error](%s)", type(e).__name__)
-            import traceback
-            traceback.print_exc()
+            logger.exception("Excepción en novedades_model")
             return {"total": 0, "pendientes": 0, "resueltas": 0, "en_proceso": 0}
         finally:
             try:
@@ -375,8 +370,7 @@ class NovedadModel:
             
         except Exception as e:
             logger.info("❌ Error obteniendo novedades por solicitud: [error](%s)", type(e).__name__)
-            import traceback
-            traceback.print_exc()
+            logger.exception("Excepción en novedades_model")
             return []
         finally:
             try:

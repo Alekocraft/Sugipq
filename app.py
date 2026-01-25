@@ -103,7 +103,7 @@ try:
     else:
         logger.info("[OK] Servicio de notificaciones disponible")
 except ImportError as e:
-    logger.warning(f"No se pudo importar el servicio de notificaciones: {e}")
+    logger.warning("No se pudo importar el servicio de notificaciones: [error](%s)", type(e).__name__)
     
     def servicio_notificaciones_disponible():
         return False
@@ -258,7 +258,7 @@ try:
     from models.inventario_corporativo_model import InventarioCorporativoModel
     logger.info("Modelos cargados correctamente")
 except ImportError as e:
-    logger.error(f"Error cargando modelos: {e}")
+    logger.error("Error cargando modelos: [error](%s)", type(e).__name__)
     # Definir clases dummy para evitar errores
     class MaterialModel: 
         @staticmethod
@@ -294,7 +294,7 @@ try:
     )
     logger.info("Utilidades cargadas correctamente")
 except ImportError as e:
-    logger.error(f"Error cargando utilidades: {e}")
+    logger.error("Error cargando utilidades: [error](%s)", type(e).__name__)
     # Definir funciones dummy
     def filtrar_por_oficina_usuario(*args, **kwargs): return []
     def verificar_acceso_oficina(*args, **kwargs): return True
@@ -316,7 +316,7 @@ try:
     from utils.permissions_functions import PERMISSION_FUNCTIONS
     logger.info("Funciones de permisos para templates cargadas correctamente")
 except ImportError as e:
-    logger.warning(f"No se encontró permissions_functions.py, usando funciones por defecto: {e}")
+    logger.warning("No se encontró permissions_functions.py, usando funciones por defecto: [error](%s)", type(e).__name__)
     PERMISSION_FUNCTIONS = {}
 
 # ============================================================================
@@ -336,7 +336,7 @@ try:
     from certificado_route import certificado_bp  # ← LÍNEA AGREGADA
     logger.info("Blueprints principales cargados correctamente")
 except ImportError as e:
-    logger.error(f"Error cargando blueprints principales: {e}")
+    logger.error("Error cargando blueprints principales: [error](%s)", type(e).__name__)
     # Crear blueprints dummy
     from flask import Blueprint
     auth_bp = Blueprint('auth', __name__)
@@ -354,7 +354,7 @@ try:
     from blueprints.prestamos import prestamos_bp
     logger.info("Blueprint de préstamos cargado exitosamente")
 except ImportError as e:
-    logger.warning(f"Blueprint de préstamos no disponible: {e}")
+    logger.warning("Blueprint de préstamos no disponible: [error](%s)", type(e).__name__)
     from flask import Blueprint
     prestamos_bp = Blueprint('prestamos', __name__)
     
@@ -368,7 +368,7 @@ try:
     from blueprints.inventario_corporativo import inventario_corporativo_bp
     logger.info("Blueprint de inventario corporativo cargado desde blueprints")
 except ImportError as e:
-    logger.warning(f"Blueprint de inventario corporativo no encontrado en blueprints: {e}")
+    logger.warning("Blueprint de inventario corporativo no encontrado en blueprints: [error](%s)", type(e).__name__)
     try:
         from routes_inventario_corporativo import bp_inv as inventario_corporativo_bp
         logger.info("Blueprint de inventario corporativo cargado desde routes_inventario_corporativo")
@@ -387,7 +387,7 @@ try:
     from blueprints.confirmacion_asignaciones import confirmacion_bp
     logger.info("Blueprint de confirmaciones cargado exitosamente")
 except ImportError as e:
-    logger.warning(f"Blueprint de confirmaciones no disponible: {e}")
+    logger.warning("Blueprint de confirmaciones no disponible: [error](%s)", type(e).__name__)
     from flask import Blueprint
     confirmacion_bp = Blueprint('confirmacion', __name__)
     
@@ -425,7 +425,7 @@ def check_session_timeout():
                     flash('Su sesión ha expirado por inactividad. Por favor, inicie sesión nuevamente.', 'warning')
                     return redirect('/auth/login')
             except Exception as e:
-                logger.warning(f"Error verificando timeout de sesión: {e}")
+                logger.warning("Error verificando timeout de sesión: [error](%s)", type(e).__name__)
 
 @app.after_request
 def update_session_activity(response):
@@ -569,7 +569,7 @@ def utility_processor():
             'user_can_view_all': user_can_view_all
         })
     except Exception as e:
-        logger.error(f"No se pudieron importar funciones de permisos: {e}")
+        logger.error("No se pudieron importar funciones de permisos: [error](%s)", type(e).__name__)
     
     # Agregar funciones de PERMISSION_FUNCTIONS si existen
     if PERMISSION_FUNCTIONS:
@@ -673,7 +673,7 @@ def dashboard():
             aprobadores=aprobadores
         )
     except Exception as e:
-        logger.error(f"Error cargando dashboard: {e}")
+        logger.error("Error cargando dashboard: [error](%s)", type(e).__name__)
         return render_template('dashboard.html',
             materiales=[],
             oficinas=[],
@@ -763,7 +763,7 @@ def crear_material_backup():
             return redirect('/materiales')
             
         except Exception as e:
-            logger.error(f"Error creando material: {e}")
+            logger.error("Error creando material: [error](%s)", type(e).__name__)
             flash('Error creando material', 'danger')
     
     return render_template('materiales/crear.html')
@@ -786,7 +786,7 @@ def listar_solicitudes_backup():
             solicitudes=solicitudes
         )
     except Exception as e:
-        logger.error(f"Error listando solicitudes: {e}")
+        logger.error("Error listando solicitudes: [error](%s)", type(e).__name__)
         flash('Error cargando solicitudes', 'danger')
         return redirect('/dashboard')
 
@@ -819,7 +819,7 @@ def crear_solicitud_backup():
             return redirect('/solicitudes')
             
         except Exception as e:
-            logger.error(f"Error creando solicitud: {e}")
+            logger.error("Error creando solicitud: [error](%s)", type(e).__name__)
             flash('Error creando solicitud', 'danger')
     
     # Obtener materiales disponibles
@@ -855,7 +855,7 @@ def listar_usuarios_backup():
                                total_activos=len([u for u in usuarios if u.get('activo', True)]),
                                total_inactivos=len([u for u in usuarios if not u.get('activo', True)]))
     except Exception as e:
-        logger.error(f"Error listando usuarios: {e}")
+        logger.error("Error listando usuarios: [error](%s)", type(e).__name__)
         flash('Error cargando usuarios', 'danger')
         return redirect('/dashboard')
 
@@ -992,14 +992,14 @@ def api_estadisticas_inventario_dashboard():
         })
         
     except Exception as e:
-        logger.error(f"Error en API estadisticas inventario dashboard: {e}")
+        logger.error("Error en API estadisticas inventario dashboard: [error](%s)", type(e).__name__)
         return jsonify({
             "total_productos": 0,
             "valor_total": 0,
             "stock_bajo": 0,
             "productos_sede": 0,
             "productos_oficinas": 0,
-            "error": str(e)
+            "error": "Error interno"
         })
 
 if __name__ == '__main__':
@@ -1020,7 +1020,10 @@ if __name__ == '__main__':
             logger.warning("Inicialización de oficina tuvo problemas, pero el sistema continúa")
         logger.info("Sistema listo para operar")
     except Exception as e:
-        logger.error(f"Error en inicialización: {e}")
+        logger.error("Error en inicialización: [error](%s)", type(e).__name__)
+        _dbg = os.environ.get('FLASK_DEBUG', 'false')
+        if str(_dbg).strip().lower() in ('1', 'true', 'yes', 'y', 'si'):
+            logger.exception("Detalle de excepción en inicialización")
         logger.warning("Continuando con la ejecución a pesar del error de inicialización")
     
     # Configuración del puerto
@@ -1032,10 +1035,10 @@ if __name__ == '__main__':
     # =======================
     # En producción, usa HTTPS (TLS) a través de un proxy (Nginx/Apache/Ingress)
     # o habilita ssl_context para el servidor de desarrollo.
-    env_name = os.environ.get('FLASK_ENV', os.environ.get('ENV', '')).lower()
-    debug_env = os.environ.get('FLASK_DEBUG')
-    debug_mode = True if debug_env is None else (str(debug_env).lower() in ('1', 'true', 'yes', 'y'))
-    is_production = (env_name == 'production') and (not debug_mode)
+    env_name = os.environ.get('FLASK_ENV', os.environ.get('ENV', 'development')).strip().lower()
+    debug_env = os.environ.get('FLASK_DEBUG', 'false')
+    debug_mode = (env_name != 'production') and (str(debug_env).strip().lower() in ('1', 'true', 'yes', 'y', 'si'))
+    is_production = (env_name == 'production')
 
     # Permite forzar TLS por variable de entorno. En producción se recomienda activarlo.
     force_ssl = os.environ.get('FLASK_USE_SSL', '').lower() in ('1', 'true', 'yes', 'y') or is_production

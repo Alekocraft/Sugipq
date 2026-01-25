@@ -148,9 +148,8 @@ def login():
                 
         except Exception as e:
             logger.info("[ERROR] Exception en login: [error](%s)", type(e).__name__)
-            import traceback
-            traceback.print_exc()
-            flash('Error del sistema durante el login', 'danger')
+            logger.exception("[ERROR] Exception en login")
+            flash('Error inesperado, contacte a soporte', 'danger')
             return render_template('auth/login.html')
     
     return render_template('auth/login.html')

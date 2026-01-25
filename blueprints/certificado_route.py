@@ -131,7 +131,7 @@ def generar_certificado(asignacion_id):
         LEFT JOIN Oficinas o ON a.OficinaId = o.OficinaId
         LEFT JOIN TokensConfirmacionAsignacion t ON a.AsignacionId = t.AsignacionId
         WHERE a.AsignacionId = ? 
-          AND UPPER(LTRIM(RTRIM(a.Estado))) = 'CONFIRMADO' 
+          AND UPPER(LTRIM(RTRIM(a.Estado)) = 'CONFIRMADO' 
           AND a.Activo = 1
         """
         
@@ -452,7 +452,7 @@ def generar_certificado(asignacion_id):
         nombre_usuario = asignacion.get('UsuarioADNombre', 'Usuario').replace(' ', '_')
         nombre_archivo = f"Certificado_Asignacion_{asignacion['AsignacionId']:06d}_{nombre_usuario}.pdf"
         
-        logger.info(f"✅ Certificado generado exitosamente: {nombre_archivo}")
+        logger.info("✅ Certificado generado exitosamente")
         logger.info("=" * 80)
         return send_file(
             buffer,
@@ -462,7 +462,5 @@ def generar_certificado(asignacion_id):
         )
         
     except Exception as e:
-        logger.info("❌ ERROR al generar certificado: [error](%s)", type(e).__name__)
-        logger.info("=" * 80)
-        logger.exception("Excepción en certificado_route")
-        return f"Error al generar el certificado: {str(e)}", 500
+        logger.error("❌ Error al generar certificado: [error](%s)", type(e).__name__)
+        return "Error interno al generar el certificado", 500

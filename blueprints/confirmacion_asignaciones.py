@@ -275,7 +275,7 @@ def verificar_token(token):
                 )
 
             mensaje_error = resultado.get('message', 'Error al confirmar la asignación')
-            logger.error(f"❌ Error confirmando asignación: {mensaje_error}")
+            logger.error("❌ Error confirmando asignación")
             flash(mensaje_error, 'danger')
             return safe_render_template(
                 'confirmacion/confirmar.html',

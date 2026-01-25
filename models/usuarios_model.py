@@ -1,11 +1,11 @@
-﻿# models/usuarios_model.py 
+# models/usuarios_model.py 
 
 from database import get_database_connection
 import logging
 from config.config import Config
 import bcrypt
 import os
-from utils.helpers import sanitizar_username, sanitizar_email, sanitizar_ip  # ✅ CORRECCIÓN: Importar funciones de sanitización
+from utils.helpers import sanitizar_username, sanitizar_email, sanitizar_ip, sanitizar_log_text  # ✅ CORRECCIÓN: Importar funciones de sanitización
 
 logger = logging.getLogger(__name__)
 
@@ -37,8 +37,8 @@ class UsuarioModel:
                 cursor.execute("""
                     SELECT UsuarioId, ContraseñaHash, Activo 
                     FROM Usuarios 
-                    WHERE NombreUsuario = ? AND EsLDAP = 1
-                """, (usuario,))
+                    WHERE (NombreUsuario = ? OR UsuarioAD = ?) AND EsLDAP = 1
+                """, (usuario, usuario))
                 
                 usuario_ldap = cursor.fetchone()
                 conn.close()
@@ -136,8 +136,8 @@ class UsuarioModel:
                     u.EsLDAP
                 FROM Usuarios u
                 LEFT JOIN Oficinas o ON u.OficinaId = o.OficinaId
-                WHERE u.NombreUsuario = ? AND u.Activo = 1
-            """, (username,))
+                WHERE (u.NombreUsuario = ? OR u.UsuarioAD = ?) AND u.Activo = 1
+            """, (username, username))
             
             row = cursor.fetchone()
             
@@ -186,8 +186,8 @@ class UsuarioModel:
                     u.ContraseñaHash
                 FROM Usuarios u
                 LEFT JOIN Oficinas o ON u.OficinaId = o.OficinaId
-                WHERE u.NombreUsuario = ? AND u.Activo = 1
-            """, (usuario,))
+                WHERE (u.NombreUsuario = ? OR u.UsuarioAD = ?) AND u.Activo = 1
+            """, (usuario, usuario))
             
             row = cursor.fetchone()
             

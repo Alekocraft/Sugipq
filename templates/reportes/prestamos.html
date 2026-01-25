@@ -293,6 +293,18 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 
 <script>
+
+    function safeFilenamePart(value) {
+        // evita caracteres peligrosos en nombres de archivo (cliente)
+        if (value === null || value === undefined) return '';
+        const s = String(value);
+        // elimina controles, slashes y caracteres no deseados
+        return s.replace(/[\r\n\t\\/]+/g, ' ')
+                .replace(/[^A-Za-z0-9ÁÉÍÓÚÜÑáéíóúüñ ._-]+/g, '')
+                .trim()
+                .replace(/\s+/g, '_')
+                .slice(0, 80);
+    }
     function exportarExcel() {
         try {
             const tabla = document.getElementById('tablaPrestamos');
@@ -307,11 +319,11 @@
             
             if (oficina !== 'todas') {
                 const nombreOficina = document.getElementById('filtro_oficina').options[document.getElementById('filtro_oficina').selectedIndex].text;
-                nombreArchivo += `_${nombreOficina.replace(/\s+/g, '_')}`;
+                nombreArchivo += `_${safeFilenamePart(nombreOficina)}`;
             }
             
             if (estado !== 'todos') {
-                nombreArchivo += `_${estado}`;
+                nombreArchivo += `_${safeFilenamePart(estado)}`;
             }
             
             XLSX.writeFile(wb, `${nombreArchivo}.xlsx`);
@@ -389,10 +401,10 @@
 
             let nombreArchivo = `Reporte_Prestamos_${new Date().toISOString().split('T')[0]}`;
             if (oficina !== 'todas') {
-                nombreArchivo += `_${nombreOficina.replace(/\s+/g, '_')}`;
+                nombreArchivo += `_${safeFilenamePart(nombreOficina)}`;
             }
             if (estado !== 'todos') {
-                nombreArchivo += `_${estado}`;
+                nombreArchivo += `_${safeFilenamePart(estado)}`;
             }
 
             doc.save(`${nombreArchivo}.pdf`);

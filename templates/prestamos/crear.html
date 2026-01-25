@@ -24,7 +24,7 @@
     <div class="col-lg-7">
       <div class="card shadow-sm">
         <div class="card-body">
-          <form id="prestamoForm" method="POST" novalidate>
+          <form id="prestamoForm" method="POST">
             <div class="mb-3">
               <label for="elemento_id" class="form-label">Elemento</label>
               <select class="form-select" id="elemento_id" name="elemento_id" required>
@@ -36,7 +36,7 @@
                   data-valor="{{ e.valor }}"
                   data-disponible="{{ e.disponible }}"
                   data-imagen="{{ e.imagen|default('')|e }}"
-                >
+              >
                   {{ e.nombre }} (Disp: {{ e.disponible }})
                 </option>
                 {% endfor %}

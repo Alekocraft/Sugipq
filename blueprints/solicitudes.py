@@ -19,9 +19,6 @@ from utils.permissions import (
     can_create_novedad, can_manage_novedad, can_view_novedades
 )
 
-# Configuración de logging
-logger = logging.getLogger(__name__)
-
 # Importar servicio de notificaciones
 try:
     from services.notification_service import NotificationService, notificar_solicitud
@@ -29,6 +26,9 @@ try:
 except ImportError:
     NOTIFICACIONES_ACTIVAS = False
     logger.warning("⚠️ Servicio de notificaciones no disponible")
+
+# Configuración de logging
+logger = logging.getLogger(__name__)
 
 # Crear blueprint
 solicitudes_bp = Blueprint('solicitudes', __name__)
@@ -252,7 +252,7 @@ def _obtener_email_solicitante(usuario_id):
         row = cursor.fetchone()
         return row[0] if row else None
     except Exception as e:
-        logger.error(f"Error obteniendo email: {e}")
+        logger.error(sanitizar_log_text(f"Error obteniendo email: [error]({type(e).__name__})"))
         return None
     finally:
         cursor.close()
@@ -297,7 +297,7 @@ def _obtener_info_solicitud_completa(solicitud_id):
             }
         return None
     except Exception as e:
-        logger.error(f"Error obteniendo info solicitud: {e}")
+        logger.error(sanitizar_log_text(f"Error obteniendo info solicitud: [error]({type(e).__name__})"))
         return None
     finally:
         cursor.close()
@@ -416,9 +416,9 @@ def crear():
                         solicitud_info = _obtener_info_solicitud_completa(solicitud_id)
                         if solicitud_info:
                             NotificationService.notificar_solicitud_creada(solicitud_info)
-                            logger.info(f"📧 Notificación enviada: Nueva solicitud #{solicitud_id}")
+                            logger.info(sanitizar_log_text(f"📧 Notificación enviada: Nueva solicitud #{solicitud_id}"))
                     except Exception as e:
-                        logger.error(f"Error enviando notificación de solicitud creada: {e}")
+                        logger.error(sanitizar_log_text(f"Error enviando notificación de solicitud creada: [error]({type(e).__name__})"))
                 # =============================================
                 
                 flash('Solicitud creada exitosamente', 'success')
@@ -465,9 +465,9 @@ def aprobar_solicitud(solicitud_id):
                         'Aprobada',
                         usuario_nombre
                     )
-                    logger.info(f"📧 Notificación enviada: Solicitud #{solicitud_id} aprobada")
+                    logger.info(sanitizar_log_text(f"📧 Notificación enviada: Solicitud #{solicitud_id} aprobada"))
                 except Exception as e:
-                    logger.error(f"Error enviando notificación de aprobación: {e}")
+                    logger.error(sanitizar_log_text(f"Error enviando notificación de aprobación: [error]({type(e).__name__})"))
             # =============================================
             
             flash('Solicitud aprobada exitosamente', 'success')
@@ -516,9 +516,9 @@ def aprobar_parcial_solicitud(solicitud_id):
                         usuario_nombre,
                         f'Cantidad aprobada: {cantidad_aprobada}'
                     )
-                    logger.info(f"📧 Notificación enviada: Solicitud #{solicitud_id} aprobada parcialmente")
+                    logger.info(sanitizar_log_text(f"📧 Notificación enviada: Solicitud #{solicitud_id} aprobada parcialmente"))
                 except Exception as e:
-                    logger.error(f"Error enviando notificación de aprobación parcial: {e}")
+                    logger.error(sanitizar_log_text(f"Error enviando notificación de aprobación parcial: [error]({type(e).__name__})"))
             # =============================================
             
             return jsonify({'success': True, 'message': f'Solicitud aprobada parcialmente ({cantidad_aprobada} unidades)'})
@@ -562,9 +562,9 @@ def rechazar_solicitud(solicitud_id):
                         usuario_nombre,
                         observacion
                     )
-                    logger.info(f"📧 Notificación enviada: Solicitud #{solicitud_id} rechazada")
+                    logger.info(sanitizar_log_text(f"📧 Notificación enviada: Solicitud #{solicitud_id} rechazada"))
                 except Exception as e:
-                    logger.error(f"Error enviando notificación de rechazo: {e}")
+                    logger.error(sanitizar_log_text(f"Error enviando notificación de rechazo: [error]({type(e).__name__})"))
             # =============================================
             
             return jsonify({'success': True, 'message': 'Solicitud rechazada exitosamente'})
@@ -615,7 +615,7 @@ def solicitar_devolucion(solicitud_id):
             filepath = os.path.join(UPLOAD_FOLDER_DEVOLUCIONES, filename)
             imagen.save(filepath)
             ruta_imagen = f"images/devoluciones/{filename}"
-            logger.info(f'Imagen guardada para devolución: {filename}')
+            logger.info(sanitizar_log_text(f'Imagen guardada para devolución: {filename}'))
         
         # Registrar solicitud de devolución (estado pendiente)
         success, mensaje = SolicitudModel.solicitar_devolucion(
@@ -627,7 +627,7 @@ def solicitar_devolucion(solicitud_id):
         )
         
         if success:
-            logger.info(f'Devolución solicitada. Solicitud ID: {solicitud_id}, Cantidad: {cantidad_devuelta}, Usuario: {usuario_solicita}')
+            logger.info(sanitizar_log_text(f'Devolución solicitada. Solicitud ID: {solicitud_id}, Cantidad: {cantidad_devuelta}, Usuario: {usuario_solicita}'))
             return jsonify({'success': True, 'message': 'Solicitud de devolución registrada. Pendiente de aprobación.'})
         else:
             return jsonify({'success': False, 'message': mensaje})
@@ -663,7 +663,7 @@ def aprobar_devolucion():
         )
         
         if success:
-            logger.info(f'Devolución aprobada. ID: {devolucion_id}, Usuario: {usuario_aprueba}')
+            logger.info(sanitizar_log_text(f'Devolución aprobada. ID: {devolucion_id}, Usuario: {usuario_aprueba}'))
             return jsonify({'success': True, 'message': 'Devolución aprobada y procesada exitosamente'})
         else:
             return jsonify({'success': False, 'message': mensaje})
@@ -698,7 +698,7 @@ def rechazar_devolucion():
         )
         
         if success:
-            logger.info(f'Devolución rechazada. ID: {devolucion_id}, Usuario: {usuario_rechaza}')
+            logger.info(sanitizar_log_text(f'Devolución rechazada. ID: {devolucion_id}, Usuario: {usuario_rechaza}'))
             return jsonify({'success': True, 'message': 'Devolución rechazada'})
         else:
             return jsonify({'success': False, 'message': mensaje})
@@ -757,13 +757,13 @@ def registrar_novedad():
         usuario_nombre = session.get('usuario_nombre', 'Sistema')
         
         if not all([solicitud_id, tipo_novedad, descripcion, cantidad_afectada, usuario_id]):
-            logger.warning(f'Intento de registro de novedad con datos incompletos. Usuario: {usuario_id}')
+            logger.warning(sanitizar_log_text(f'Intento de registro de novedad con datos incompletos. Usuario: {usuario_id}'))
             return jsonify({'success': False, 'error': 'Faltan datos requeridos'}), 400
         
         # ✅ VALIDAR IMAGEN OBLIGATORIA
         imagen = request.files.get('imagen_novedad')
         if not imagen or not imagen.filename:
-            logger.warning(f'Intento de registro de novedad sin imagen. Usuario: {usuario_id}')
+            logger.warning(sanitizar_log_text(f'Intento de registro de novedad sin imagen. Usuario: {usuario_id}'))
             return jsonify({'success': False, 'error': 'La imagen de evidencia es obligatoria'}), 400
         
         # Obtener info de la solicitud
@@ -778,7 +778,7 @@ def registrar_novedad():
             filepath = os.path.join(UPLOAD_FOLDER_NOVEDADES, filename)
             imagen.save(filepath)
             ruta_imagen = f"images/novedades/{filename}"
-            logger.info(f'Imagen guardada para novedad: {filename}')
+            logger.info(sanitizar_log_text(f'Imagen guardada para novedad: {filename}'))
         else:
             return jsonify({'success': False, 'error': 'Tipo de archivo no permitido. Use: png, jpg, jpeg, gif, webp'}), 400
         
@@ -804,12 +804,12 @@ def registrar_novedad():
                         'usuario_registra': usuario_nombre
                     }
                     NotificationService.notificar_novedad_registrada(solicitud_info, novedad_info)
-                    logger.info(f"📧 Notificación enviada: Novedad registrada para solicitud #{solicitud_id}")
+                    logger.info(sanitizar_log_text(f"📧 Notificación enviada: Novedad registrada para solicitud #{solicitud_id}"))
                 except Exception as e:
                     logger.error('Error enviando notificación de novedad: %s', sanitizar_log_text(str(e)))
             # =============================================
             
-            logger.info(f'Novedad registrada exitosamente. Solicitud ID: {solicitud_id}, Usuario: {usuario_id}')
+            logger.info(sanitizar_log_text(f'Novedad registrada exitosamente. Solicitud ID: {solicitud_id}, Usuario: {usuario_id}'))
             return jsonify({
                 'success': True, 
                 'message': 'Novedad registrada correctamente'
@@ -839,13 +839,13 @@ def gestionar_novedad():
             observaciones = request.form.get('observaciones', '')
         
         if not all([solicitud_id, accion]):
-            logger.warning(f'Intento de gestión de novedad con datos incompletos')
+            logger.warning(sanitizar_log_text(f'Intento de gestión de novedad con datos incompletos'))
             return jsonify({'success': False, 'message': 'Datos incompletos'}), 400
 
         novedades = NovedadModel.obtener_por_solicitud(int(solicitud_id))
         
         if not novedades:
-            logger.warning(f'No se encontraron novedades para la solicitud ID: {solicitud_id}')
+            logger.warning(sanitizar_log_text(f'No se encontraron novedades para la solicitud ID: {solicitud_id}'))
             return jsonify({'success': False, 'message': 'No se encontró novedad para esta solicitud'}), 404
 
         novedad = novedades[0]
@@ -886,18 +886,18 @@ def gestionar_novedad():
                         usuario_gestion,
                         observaciones
                     )
-                    logger.info(f"📧 Notificación enviada: Novedad {log_action} para solicitud #{solicitud_id}")
+                    logger.info(sanitizar_log_text(f"📧 Notificación enviada: Novedad {log_action} para solicitud #{solicitud_id}"))
                 except Exception as e:
                     logger.error('Error enviando notificación de gestión novedad: %s', sanitizar_log_text(str(e)))
             # =============================================
             
-            logger.info(f'Novedad {log_action}. Solicitud ID: {solicitud_id}, Usuario: {usuario_gestion}')
+            logger.info(sanitizar_log_text(f'Novedad {log_action}. Solicitud ID: {solicitud_id}, Usuario: {usuario_gestion}'))
             return jsonify({
                 'success': True, 
                 'message': f'Novedad {nuevo_estado_novedad} exitosamente'
             })
         else:
-            logger.error(f'Error al procesar novedad. Solicitud ID: {solicitud_id}')
+            logger.error(sanitizar_log_text(f'Error al procesar novedad. Solicitud ID: {solicitud_id}'))
             return jsonify({'success': False, 'message': 'Error al procesar la novedad'}), 500
 
     except Exception as e:
@@ -920,7 +920,7 @@ def listar_novedades():
         
         tipos_novedad = NovedadModel.obtener_tipos_disponibles()
         
-        logger.info(f"Usuario {session.get('usuario_id')} visualizando {len(novedades)} novedades")
+        logger.info(sanitizar_log_text(f"Usuario {session.get('usuario_id')} visualizando {len(novedades)} novedades"))
         
         return render_template(
             'solicitudes/listar.html',
@@ -948,7 +948,7 @@ def obtener_novedades_pendientes():
     """Obtiene todas las novedades en estado pendiente"""
     try:
         novedades = NovedadModel.obtener_novedades_pendientes()
-        logger.info(f'Consulta de novedades pendientes. Usuario: {session.get("usuario_id")}')
+        logger.info(sanitizar_log_text(f'Consulta de novedades pendientes. Usuario: {session.get("usuario_id")}'))
         return jsonify({'success': True, 'novedades': novedades})
     except Exception as e:
         logger.error('Error al obtener novedades pendientes: %s', sanitizar_log_text(str(e)))
@@ -1066,7 +1066,7 @@ def actualizar_novedad(novedad_id):
         )
         
         if success:
-            logger.info(f"Novedad {novedad_id} actualizada a {nuevo_estado} por {usuario_resuelve}")
+            logger.info(sanitizar_log_text(f"Novedad {novedad_id} actualizada a {nuevo_estado} por {usuario_resuelve}"))
             return jsonify({'success': True, 'message': 'Novedad actualizada'})
         else:
             return jsonify({'success': False, 'message': 'Error al actualizar'}), 500

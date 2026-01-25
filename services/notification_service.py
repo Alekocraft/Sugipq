@@ -7,12 +7,18 @@ Incluye:
 - Sistema de tokens para confirmaciones
 """
 
+from __future__ import annotations
+
+# Compatibilidad: este proyecto puede ejecutarse con Python < 3.10.
+# Evitamos evaluar anotaciones como `str | None` en tiempo de ejecución.
+
 import smtplib
 import logging
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.utils import formatdate
 import os
+import html
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -672,6 +678,262 @@ Mensaje automático. No responder.
                 "config": NotificationService.SMTP_CONFIG,
             }
 
+
+
+    # ==============================
+    # Utilidades internas (HTML)
+    # ==============================
+
+    @staticmethod
+    def _escape_html(value) -> str:
+        """Escapa valores para ser usados en HTML."""
+        try:
+            return html.escape("" if value is None else str(value), quote=True)
+        except Exception:
+            return ""
+
+    # ==============================
+    # Notificaciones adicionales
+    # ==============================
+
+    @staticmethod
+    def notificar_cambio_estado_solicitud(
+        solicitud_info: dict,
+        estado_anterior: str,
+        estado_nuevo: str,
+        usuario_gestion: str | None = None,
+        observaciones: str | None = None,
+    ) -> bool:
+        """Notifica al solicitante el cambio de estado de una solicitud.
+
+        Cubre: aprobaciones, rechazos, aprobado parcial, devuelto y gestión de novedades.
+        """
+        info = solicitud_info or {}
+        email = info.get("email_solicitante")
+        if not email:
+            return False
+
+        nombre = info.get("usuario_solicitante", "Usuario")
+        sid = info.get("id", "N/A")
+        material = info.get("material_nombre") or info.get("material") or ""
+        cantidad = info.get("cantidad")
+        oficina = info.get("oficina_nombre") or ""
+
+        subject = f"📌 Solicitud #{sid} - {estado_nuevo}"
+
+        rows = []
+        if material:
+            rows.append(f"<tr><td><b>Material</b></td><td>{NotificationService._escape_html(material)}</td></tr>")
+        if cantidad is not None:
+            rows.append(f"<tr><td><b>Cantidad</b></td><td>{NotificationService._escape_html(cantidad)}</td></tr>")
+        if oficina:
+            rows.append(f"<tr><td><b>Oficina</b></td><td>{NotificationService._escape_html(oficina)}</td></tr>")
+        rows.append(f"<tr><td><b>Estado anterior</b></td><td>{NotificationService._escape_html(estado_anterior)}</td></tr>")
+        rows.append(f"<tr><td><b>Estado nuevo</b></td><td>{NotificationService._escape_html(estado_nuevo)}</td></tr>")
+        if usuario_gestion:
+            rows.append(f"<tr><td><b>Gestionado por</b></td><td>{NotificationService._escape_html(usuario_gestion)}</td></tr>")
+        if observaciones:
+            rows.append(f"<tr><td><b>Observaciones</b></td><td>{NotificationService._escape_html(observaciones)}</td></tr>")
+
+        table = "<table class='details'>" + "".join(rows) + "</table>"
+
+        html_body = (
+            f"<p>Hola <b>{NotificationService._escape_html(nombre)}</b>,</p>"
+            f"<p>Tu solicitud ha cambiado de estado.</p>"
+            f"{table}"
+        )
+
+        txt_lines = [
+            f"Hola {nombre}, tu solicitud #{sid} cambió de estado.",
+            f"Estado anterior: {estado_anterior}",
+            f"Estado nuevo: {estado_nuevo}",
+        ]
+        if material:
+            txt_lines.insert(1, f"Material: {material}")
+        if cantidad is not None:
+            txt_lines.insert(2, f"Cantidad: {cantidad}")
+        if oficina:
+            txt_lines.append(f"Oficina: {oficina}")
+        if usuario_gestion:
+            txt_lines.append(f"Gestionado por: {usuario_gestion}")
+        if observaciones:
+            txt_lines.append(f"Observaciones: {observaciones}")
+
+        return NotificationService.enviar_notificacion_general(
+            email, nombre, subject, html_body, "\n".join(txt_lines)
+        )
+
+    @staticmethod
+    def notificar_novedad_registrada(solicitud_info: dict, novedad_info: dict | None = None) -> bool:
+        """Notifica al solicitante cuando se registra una novedad."""
+        info = solicitud_info or {}
+        email = info.get("email_solicitante")
+        if not email:
+            return False
+
+        nombre = info.get("usuario_solicitante", "Usuario")
+        sid = info.get("id", "N/A")
+        material = info.get("material_nombre") or info.get("material") or ""
+
+        ninfo = novedad_info or {}
+        tipo = ninfo.get("tipo") or ninfo.get("tipo_novedad") or "Novedad"
+        descripcion = ninfo.get("descripcion") or ""
+        cantidad_afectada = ninfo.get("cantidad_afectada")
+        usuario_registra = ninfo.get("usuario_registra") or ninfo.get("usuario") or ""
+
+        subject = f"⚠️ Novedad registrada - Solicitud #{sid}"
+
+        rows = []
+        rows.append(f"<tr><td><b>Solicitud</b></td><td>#{NotificationService._escape_html(sid)}</td></tr>")
+        if material:
+            rows.append(f"<tr><td><b>Material</b></td><td>{NotificationService._escape_html(material)}</td></tr>")
+        rows.append(f"<tr><td><b>Tipo</b></td><td>{NotificationService._escape_html(tipo)}</td></tr>")
+        if cantidad_afectada is not None:
+            rows.append(f"<tr><td><b>Cantidad afectada</b></td><td>{NotificationService._escape_html(cantidad_afectada)}</td></tr>")
+        if usuario_registra:
+            rows.append(f"<tr><td><b>Registrado por</b></td><td>{NotificationService._escape_html(usuario_registra)}</td></tr>")
+        if descripcion:
+            rows.append(f"<tr><td><b>Descripción</b></td><td>{NotificationService._escape_html(descripcion)}</td></tr>")
+
+        table = "<table class='details'>" + "".join(rows) + "</table>"
+
+        html_body = (
+            f"<p>Hola <b>{NotificationService._escape_html(nombre)}</b>,</p>"
+            f"<p>Se registró una novedad asociada a tu solicitud.</p>"
+            f"{table}"
+        )
+
+        txt_lines = [
+            f"Hola {nombre}, se registró una novedad asociada a tu solicitud #{sid}.",
+            f"Tipo: {tipo}",
+        ]
+        if cantidad_afectada is not None:
+            txt_lines.append(f"Cantidad afectada: {cantidad_afectada}")
+        if usuario_registra:
+            txt_lines.append(f"Registrado por: {usuario_registra}")
+        if descripcion:
+            txt_lines.append(f"Descripción: {descripcion}")
+
+        return NotificationService.enviar_notificacion_general(
+            email, nombre, subject, html_body, "\n".join(txt_lines)
+        )
+
+    @staticmethod
+    def notificar_prestamo_creado(prestamo_info: dict) -> bool:
+        """Notifica al solicitante cuando se registra un préstamo."""
+        info = prestamo_info or {}
+        email = info.get("email_solicitante")
+        if not email:
+            return False
+
+        nombre = info.get("solicitante_nombre", "Usuario")
+        pid = info.get("id", "N/A")
+        material = info.get("material") or ""
+        cantidad = info.get("cantidad")
+        oficina = info.get("oficina_nombre") or ""
+        evento = info.get("evento") or ""
+        fecha_prevista = info.get("fecha_prevista") or ""
+
+        subject = f"📌 Préstamo #{pid} registrado"
+
+        rows = []
+        rows.append(f"<tr><td><b>Préstamo</b></td><td>#{NotificationService._escape_html(pid)}</td></tr>")
+        if material:
+            rows.append(f"<tr><td><b>Material</b></td><td>{NotificationService._escape_html(material)}</td></tr>")
+        if cantidad is not None:
+            rows.append(f"<tr><td><b>Cantidad</b></td><td>{NotificationService._escape_html(cantidad)}</td></tr>")
+        if oficina:
+            rows.append(f"<tr><td><b>Oficina</b></td><td>{NotificationService._escape_html(oficina)}</td></tr>")
+        if evento:
+            rows.append(f"<tr><td><b>Evento</b></td><td>{NotificationService._escape_html(evento)}</td></tr>")
+        if fecha_prevista:
+            rows.append(f"<tr><td><b>Fecha prevista</b></td><td>{NotificationService._escape_html(fecha_prevista)}</td></tr>")
+
+        table = "<table class='details'>" + "".join(rows) + "</table>"
+
+        html_body = (
+            f"<p>Hola <b>{NotificationService._escape_html(nombre)}</b>,</p>"
+            f"<p>Tu préstamo fue registrado en el sistema.</p>"
+            f"{table}"
+        )
+
+        txt_lines = [f"Hola {nombre}, tu préstamo #{pid} fue registrado."]
+        if material:
+            txt_lines.append(f"Material: {material}")
+        if cantidad is not None:
+            txt_lines.append(f"Cantidad: {cantidad}")
+        if oficina:
+            txt_lines.append(f"Oficina: {oficina}")
+        if evento:
+            txt_lines.append(f"Evento: {evento}")
+        if fecha_prevista:
+            txt_lines.append(f"Fecha prevista: {fecha_prevista}")
+
+        return NotificationService.enviar_notificacion_general(
+            email, nombre, subject, html_body, "\n".join(txt_lines)
+        )
+
+    @staticmethod
+    def notificar_cambio_estado_prestamo(
+        prestamo_info: dict,
+        estado_nuevo: str,
+        usuario_responsable: str | None = None,
+        comentario: str | None = None,
+    ) -> bool:
+        """Notifica al solicitante el cambio de estado de un préstamo."""
+        info = prestamo_info or {}
+        email = info.get("email_solicitante")
+        if not email:
+            return False
+
+        nombre = info.get("solicitante_nombre", "Usuario")
+        pid = info.get("id", "N/A")
+        material = info.get("material") or ""
+        cantidad = info.get("cantidad")
+        oficina = info.get("oficina_nombre") or ""
+
+        subject = f"📌 Préstamo #{pid} - {estado_nuevo}"
+
+        rows = []
+        rows.append(f"<tr><td><b>Préstamo</b></td><td>#{NotificationService._escape_html(pid)}</td></tr>")
+        if material:
+            rows.append(f"<tr><td><b>Material</b></td><td>{NotificationService._escape_html(material)}</td></tr>")
+        if cantidad is not None:
+            rows.append(f"<tr><td><b>Cantidad</b></td><td>{NotificationService._escape_html(cantidad)}</td></tr>")
+        if oficina:
+            rows.append(f"<tr><td><b>Oficina</b></td><td>{NotificationService._escape_html(oficina)}</td></tr>")
+        rows.append(f"<tr><td><b>Estado nuevo</b></td><td>{NotificationService._escape_html(estado_nuevo)}</td></tr>")
+        if usuario_responsable:
+            rows.append(f"<tr><td><b>Gestionado por</b></td><td>{NotificationService._escape_html(usuario_responsable)}</td></tr>")
+        if comentario:
+            rows.append(f"<tr><td><b>Observaciones</b></td><td>{NotificationService._escape_html(comentario)}</td></tr>")
+
+        table = "<table class='details'>" + "".join(rows) + "</table>"
+
+        html_body = (
+            f"<p>Hola <b>{NotificationService._escape_html(nombre)}</b>,</p>"
+            f"<p>Tu préstamo ha cambiado de estado.</p>"
+            f"{table}"
+        )
+
+        txt_lines = [
+            f"Hola {nombre}, tu préstamo #{pid} cambió de estado.",
+            f"Estado nuevo: {estado_nuevo}",
+        ]
+        if material:
+            txt_lines.insert(1, f"Material: {material}")
+        if cantidad is not None:
+            txt_lines.insert(2, f"Cantidad: {cantidad}")
+        if oficina:
+            txt_lines.append(f"Oficina: {oficina}")
+        if usuario_responsable:
+            txt_lines.append(f"Gestionado por: {usuario_responsable}")
+        if comentario:
+            txt_lines.append(f"Observaciones: {comentario}")
+
+        return NotificationService.enviar_notificacion_general(
+            email, nombre, subject, html_body, "\n".join(txt_lines)
+        )
     # Compatibilidad (por si otros módulos lo llaman)
     @staticmethod
     def notificar_solicitud_creada(solicitud_info: dict) -> bool:
