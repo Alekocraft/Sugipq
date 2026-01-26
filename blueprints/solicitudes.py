@@ -257,13 +257,12 @@ def _obtener_info_solicitud_completa(solicitud_id):
                 sm.CantidadEntregada,
                 o.NombreOficina as oficina_nombre,
                 sm.UsuarioSolicitante,
-                COALESCE(u_id.CorreoElectronico, u_user.CorreoElectronico) as email_solicitante,
+                u.CorreoElectronico as email_solicitante,
                 es.NombreEstado as estado
             FROM SolicitudesMaterial sm
             INNER JOIN Materiales m ON sm.MaterialId = m.MaterialId
             INNER JOIN Oficinas o ON sm.OficinaSolicitanteId = o.OficinaId
-            LEFT JOIN Usuarios u_id ON u_id.UsuarioId = TRY_CONVERT(INT, sm.UsuarioSolicitante)
-            LEFT JOIN Usuarios u_user ON u_user.NombreUsuario = CAST(sm.UsuarioSolicitante AS NVARCHAR(100))
+            LEFT JOIN Usuarios u ON sm.UsuarioSolicitante = u.NombreUsuario
             INNER JOIN EstadosSolicitud es ON sm.EstadoId = es.EstadoId
             WHERE sm.SolicitudId = ?
         """, (solicitud_id,))
@@ -438,7 +437,7 @@ def aprobar_solicitud(solicitud_id):
         
         if success:
             # ====== NOTIFICACIÓN: Solicitud aprobada ======
-            if NOTIFICACIONES_ACTIVAS and solicitud_info and solicitud_info.get('email_solicitante'):
+            if NOTIFICACIONES_ACTIVAS and solicitud_info:
                 try:
                     NotificationService.notificar_cambio_estado_solicitud(
                         solicitud_info, 
@@ -487,7 +486,7 @@ def aprobar_parcial_solicitud(solicitud_id):
         
         if success:
             # ====== NOTIFICACIÓN: Entrega parcial ======
-            if NOTIFICACIONES_ACTIVAS and solicitud_info and solicitud_info.get('email_solicitante'):
+            if NOTIFICACIONES_ACTIVAS and solicitud_info:
                 try:
                     NotificationService.notificar_cambio_estado_solicitud(
                         solicitud_info, 
@@ -532,7 +531,7 @@ def rechazar_solicitud(solicitud_id):
         
         if success:
             # ====== NOTIFICACIÓN: Solicitud rechazada ======
-            if NOTIFICACIONES_ACTIVAS and solicitud_info and solicitud_info.get('email_solicitante'):
+            if NOTIFICACIONES_ACTIVAS and solicitud_info:
                 try:
                     NotificationService.notificar_cambio_estado_solicitud(
                         solicitud_info, 
@@ -848,7 +847,7 @@ def gestionar_novedad():
 
         if success_novedad and success_solicitud:
             # ====== NOTIFICACIÓN: Novedad gestionada ======
-            if NOTIFICACIONES_ACTIVAS and solicitud_info and solicitud_info.get('email_solicitante'):
+            if NOTIFICACIONES_ACTIVAS and solicitud_info:
                 try:
                     NotificationService.notificar_cambio_estado_solicitud(
                         solicitud_info, 
