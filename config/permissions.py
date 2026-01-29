@@ -198,20 +198,23 @@ ROLE_PERMISSIONS = {
 
 # Oficinas conocidas
 OFFICE_FILTERS = {
+    "oficina_pepe_sierra": "PEPE SIERRA",
+    "oficina_polo_club": "POLO CLUB",
+    "oficina_nogal": "NOGAL",
+    "oficina_tunja": "TUNJA",
+    "oficina_cartagena": "CARTAGENA",
+    "oficina_morato": "MORATO",
+    "oficina_medellin": "MEDELLÍN",
+    "oficina_cedritos": "CEDRITOS",
     "oficina_coq": "COQ",
     "oficina_cali": "CALI",
+    "oficina_lourdes": "LOURDES",
     "oficina_pereira": "PEREIRA",
+    "oficina_bucaramanga": "BUCARAMANGA",
     "oficina_neiva": "NEIVA",
     "oficina_kennedy": "KENNEDY",
-    "oficina_bucaramanga": "BUCARAMANGA",
     "oficina_barranquilla": "BARRANQUILLA",
-    "oficina_cartagena": "CARTAGENA",
-    "oficina_medellin": "MEDELLIN",
-    "oficina_manizales": "MANIZALES",
-    "oficina_armenia": "ARMENIA",
-    "oficina_ibague": "IBAGUE",
-    "oficina_villavicencio": "VILLAVICENCIO",
-    "oficina_polo_club": "POLO CLUB",
+    "oficina_usaquen": "USAQUEN",
 }
 
 for role_key, office_name in OFFICE_FILTERS.items():

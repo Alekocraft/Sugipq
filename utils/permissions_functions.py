@@ -9,6 +9,7 @@ La seguridad REAL debe mantenerse en backend (decoradores / validaciones).
 from __future__ import annotations
 
 from flask import session
+from config.permissions import OFFICE_FILTERS
 import logging
 
 logger = logging.getLogger(__name__)
@@ -17,13 +18,7 @@ logger = logging.getLogger(__name__)
 ROLES_GESTION_COMPLETA = ['administrador', 'lider_inventario', 'aprobador']
 
 # ROLES DE OFICINA (pueden crear novedades, solicitar devoluciones, ver detalles)
-ROLES_OFICINA = [
-    'oficina_coq', 'oficina_cali', 'oficina_pereira', 'oficina_neiva',
-    'oficina_kennedy', 'oficina_bucaramanga', 'oficina_polo_club',
-    'oficina_nogal', 'oficina_tunja', 'oficina_cartagena', 'oficina_morato',
-    'oficina_medellin', 'oficina_cedritos', 'oficina_lourdes', 'oficina_regular'
-]
-
+ROLES_OFICINA = sorted(list(OFFICE_FILTERS.keys()) + ['oficina_regular'])
 
 def get_user_role() -> str:
     """Obtiene el rol del usuario actual en minúsculas."""

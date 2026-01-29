@@ -7,9 +7,21 @@ import logging
 from config.config import Config  
 from utils.helpers import sanitizar_email, sanitizar_username, sanitizar_ip, sanitizar_identificacion
 
+def _get_roles_disponibles():
+    """Lista de roles para creación/edición.
+
+    Se arma dinámicamente desde OFFICE_FILTERS para evitar desalineación con la BD.
+    """
+    roles_base = ['administrador', 'lider_inventario', 'tesoreria', 'aprobador']
+    roles_oficina = sorted(list(OFFICE_FILTERS.keys()))
+    return roles_base + roles_oficina + ['usuario']
+
+
+
 logger = logging.getLogger(__name__)
 
 usuarios_bp = Blueprint('usuarios', __name__, url_prefix='/usuarios')
+from config.permissions import OFFICE_FILTERS
 
 # ======================
 # DECORADORES (VERSIÓN ROBUSTA)
@@ -162,29 +174,8 @@ def listar_usuarios():
         aprobadores = [{'id': row[0], 'nombre': row[1]} for row in cursor.fetchall()]
         
         # Roles disponibles según config/permissions.py
-        roles_disponibles = [
-            'administrador',
-            'lider_inventario',
-            'tesoreria',
-            'aprobador',
-            'oficina_coq',
-            'oficina_polo_club',
-            'oficina_cali',
-            'oficina_pereira',
-            'oficina_neiva',
-            'oficina_kennedy',
-            'oficina_bucaramanga',
-            'oficina_nogal',
-            'oficina_tunja',
-            'oficina_cartagena',
-            'oficina_morato',
-            'oficina_medellin',
-            'oficina_cedritos',
-            'oficina_lourdes',
-            'usuario'
-        ]
-        
-        # Estadísticas
+        roles_disponibles = _get_roles_disponibles()
+            # Estadísticas
         cursor.execute("SELECT COUNT(*) FROM Usuarios WHERE Activo = 1")
         total_activos = cursor.fetchone()[0]
         
@@ -256,16 +247,7 @@ def crear_usuario():
             aprobadores = [{'id': row[0], 'nombre': row[1]} for row in cursor.fetchall()]
             
             # Roles disponibles
-            roles_disponibles = [
-                'administrador',
-                'lider_inventario',
-                'tesoreria',
-                'aprobador',
-                'oficina_coq',
-                'oficina_polo_club',
-                'usuario'
-            ]
-            
+            roles_disponibles = _get_roles_disponibles()
             return render_template('usuarios/crear.html',
                                  oficinas=oficinas,
                                  aprobadores=aprobadores,
@@ -453,16 +435,7 @@ def editar_usuario(usuario_id):
             aprobadores = [{'id': row[0], 'nombre': row[1]} for row in cursor.fetchall()]
             
             # Roles disponibles
-            roles_disponibles = [
-                'administrador',
-                'lider_inventario',
-                'tesoreria',
-                'aprobador',
-                'oficina_coq',
-                'oficina_polo_club',
-                'usuario'
-            ]
-            
+            roles_disponibles = _get_roles_disponibles()
             usuario_dict = {
                 'id': usuario[0],
                 'nombre_usuario': usuario[1],
