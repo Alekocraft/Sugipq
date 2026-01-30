@@ -112,26 +112,26 @@
                                 <div class="row">
                                     <div class="col-md-6 mb-3">
                                         <label for="usuario_ad_username" class="form-label">
-                                            <i class="bi bi-person-badge me-1"></i> Usuario Active Directory
+                                            <i class="bi bi-person-badge me-1"></i> Usuario de correo
                                         </label>
                                         <input type="text" class="form-control" id="usuario_ad_username"
                                                name="usuario_ad_username" required
-                                               placeholder="Ej: jperez"
+                                               placeholder="Ej: jperez o jperez@qualitascolombia.com.co"
                                                value="{{ request.form.usuario_ad_username if request.form }}" autocomplete="off">
                                         <div class="form-text">
-                                            Nombre de usuario de su cuenta corporativa (sin dominio)
+                                            Usuario de su correo corporativo (sin dominio o con @dominio)
                                         </div>
                                     </div>
 
                                     <div class="col-md-6 mb-3">
                                         <label for="usuario_ad_password" class="form-label">
-                                            <i class="bi bi-key me-1"></i> Contraseña AD
+                                            <i class="bi bi-key me-1"></i> Contraseña de correo
                                         </label>
                                         <input type="password" class="form-control" id="usuario_ad_password" autocomplete="off"
                                                name="usuario_ad_password" required
                                                placeholder="Ingrese su contraseña">
                                         <div class="form-text">
-                                            Contraseña de su cuenta corporativa
+                                            Contraseña de su correo corporativo
                                         </div>
                                     </div>
                                 </div>
@@ -181,6 +181,32 @@
                                 </p>
                             </div>
 
+
+                            <!-- Tratamiento de datos personales (obligatorio) -->
+                            <div class="alert alert-light border mt-4" style="border-radius: 12px;">
+                                <h6 class="mb-2">
+                                    <i class="bi bi-shield-check me-2 text-primary"></i>
+                                    Tratamiento de datos personales
+                                </h6>
+
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox"
+                                           id="acepto_tratamiento_datos"
+                                           name="acepto_tratamiento_datos"
+                                           required>
+                                    <label class="form-check-label" for="acepto_tratamiento_datos" style="cursor:pointer;">
+                                        Autorizo de manera expresa el tratamiento de mis datos personales conforme a los términos establecidos en la Política de Privacidad de Quálitas Compañía de Seguros Colombia S.A., la cual puede ser consultada en el siguiente enlace:
+                                        <a href="https://www.qualitascolombia.com.co/web/qco/politica-de-privacidad"
+                                           target="_blank" rel="noopener noreferrer">
+                                            https://www.qualitascolombia.com.co/web/qco/politica-de-privacidad
+                                        </a>
+                                    </label>
+                                    <div class="invalid-feedback">
+                                        Debes aceptar el tratamiento de datos para continuar.
+                                    </div>
+                                </div>
+                            </div>
+
                             <div class="d-grid gap-2 mt-4">
                                 <button type="submit" class="btn btn-qualitas btn-lg py-3">
                                     <i class="bi bi-check-circle-fill me-2"></i>
@@ -196,7 +222,7 @@
                     <div class="card-footer text-muted">
                         <small>
                             <i class="bi bi-shield-check text-primary"></i>
-                            <strong>Sistema Seguro:</strong> Su autenticación se valida contra Active Directory de Quálitas.<br>
+                            <strong>Sistema Seguro:</strong> Su autenticación se valida con sus credenciales de correo corporativo.<br>
                             <i class="bi bi-file-earmark-text text-success"></i>
                             Esta confirmación genera un registro permanente en el sistema de inventarios.
                         </small>
@@ -206,8 +232,8 @@
                 <div class="text-center mt-4">
                     <p class="text-muted">
                         <small>
-                            <i class="bi bi-telephone"></i> Soporte Técnico: Ext. 5000 |
-                            <i class="bi bi-envelope"></i> inventarios@qualitascolombia.com.co
+                            <i class="bi bi-telephone"></i> Soporte Técnico:
+                            <i class="bi bi-envelope"></i> lramirez@qualitascolombia.com.co
                         </small>
                     </p>
                 </div>
@@ -228,7 +254,7 @@
             }
         });
 
-        // Validación de usuario AD (solo letras, números y puntos)
+        // Validación de usuario (correo) (permite letras, números, puntos, guion, guion bajo y @)
         document.getElementById('usuario_ad_username').addEventListener('input', function(e) {
             // Remover espacios y caracteres especiales
             this.value = this.value.toLowerCase().replace(/[^a-z0-9.]/g, '');
@@ -252,6 +278,24 @@
                 this.innerHTML = type === 'password' ? '<i class="bi bi-eye"></i>' : '<i class="bi bi-eye-slash"></i>';
             });
         });
+
+        // Validación Bootstrap (incluye checkbox obligatorio)
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.querySelector('form');
+            if (!form) return;
+
+            form.classList.add('needs-validation');
+            form.setAttribute('novalidate', 'novalidate');
+
+            form.addEventListener('submit', function(event) {
+                if (!form.checkValidity()) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+                form.classList.add('was-validated');
+            }, false);
+        });
+
     </script>
 </body>
 </html>

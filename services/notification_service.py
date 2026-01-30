@@ -61,6 +61,16 @@ class NotificationService:
     def _truthy_env(name: str, default: str = "false") -> bool:
         return os.getenv(name, default).strip().lower() in ("1", "true", "yes", "y", "si")
 
+
+    @staticmethod
+    def _include_logo() -> bool:
+        """Define si el email debe incluir logo inline.
+
+        Por defecto: NO (EMAIL_INCLUDE_LOGO=false).
+        Si se habilita, se adjunta el logo como CID y se muestra en el header.
+        """
+        return NotificationService._truthy_env("EMAIL_INCLUDE_LOGO", "false")
+
     @staticmethod
     def notifications_enabled() -> bool:
         """Indica si las notificaciones están activas y hay config SMTP mínima."""
@@ -284,10 +294,14 @@ class NotificationService:
             logger.exception("Error adjuntando logo inline")
             return False
 
+
     @staticmethod
-    def _wrap_html(title: str, body_html: str, preheader: str = "") -> str:
-        """
-        Plantilla corporativa compatible con clientes de correo (Outlook-friendly).
+    def _wrap_html(title: str, body_html: str, preheader: str = "", include_logo: bool = False) -> str:
+        """Plantilla corporativa compatible con clientes de correo (Outlook-friendly).
+
+        - Suave (tarjeta, bordes redondeados, sombras sutiles).
+        - Corporativa (morado/azul/gris).
+        - Logo opcional (por defecto deshabilitado).
         """
         blue = NotificationService.BRAND["blue"]
         gray = NotificationService.BRAND["gray"]
@@ -304,41 +318,72 @@ class NotificationService:
             </div>
             """ % preheader
 
-        return """\
-<!doctype html>
+        # Header (logo opcional). Si no hay logo, se usa un badge simple.
+        if include_logo:
+            right_block = """                    <img src="cid:%s" alt="Qualitas" width="160" height="40"
+                         style="display:block;border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;">
+            """ % logo_cid
+        else:
+            right_block = """                    <div style="width:34px;height:34px;border-radius:999px;background:%s;
+                                color:#ffffff;font-weight:900;font-size:16px;line-height:34px;text-align:center;">
+                      Q
+                    </div>
+            """ % purple
+
+        return """<!doctype html>
 <html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width">
   <title>%s</title>
+  <style>
+    /* Algunos clientes lo ignoran, pero ayuda a los que sí lo respetan */
+    .details { width: 100%%; border-collapse: collapse; font-size: 14px; }
+    .details td { padding: 8px 10px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+    .details td:first-child { font-weight: 700; background: #f8fafc; width: 170px; }
+  </style>
 </head>
+
 <body style="margin:0;padding:0;background:%s;font-family:Arial,Helvetica,sans-serif;color:#111827;">
   %s
-  <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" style="background:%s;padding:24px 0;">
+
+  <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" style="background:%s;padding:28px 0;">
     <tr>
       <td align="center">
-        <table role="presentation" width="640" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,0.08);">
+
+        <table role="presentation" width="640" cellpadding="0" cellspacing="0"
+               style="background:#ffffff;border-radius:14px;overflow:hidden;
+                      border:1px solid rgba(15,23,42,0.10);
+                      box-shadow:0 6px 18px rgba(0,0,0,0.06);">
+
+          <!-- Franja morada superior -->
+          <tr>
+            <td style="background:%s;height:6px;line-height:6px;font-size:0;">&nbsp;</td>
+          </tr>
+
+          <!-- Header azul -->
           <tr>
             <td style="background:%s;padding:18px 22px;">
               <table role="presentation" width="100%%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td style="vertical-align:middle;">
-                    <div style="color:#ffffff;font-size:16px;font-weight:800;margin:0;">
+                    <div style="color:#ffffff;font-size:13px;font-weight:800;letter-spacing:0.2px;margin:0;">
                       %s
                     </div>
                     <div style="color:#e6f7fb;font-size:12px;margin-top:4px;">
                       %s
                     </div>
                   </td>
+
                   <td align="right" style="vertical-align:middle;">
-                    <!-- Outlook-friendly inline CID image -->
-                    <img src="cid:%s" alt="Qualitas" width="140" height="28" style="display:block;border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;">
+%s
                   </td>
                 </tr>
               </table>
             </td>
           </tr>
 
+          <!-- Título -->
           <tr>
             <td style="padding:18px 22px 0 22px;">
               <div style="font-size:18px;font-weight:900;color:#0f172a;margin:0;">
@@ -348,12 +393,14 @@ class NotificationService:
             </td>
           </tr>
 
+          <!-- Cuerpo -->
           <tr>
             <td style="padding:14px 22px 22px 22px;font-size:14px;line-height:1.65;">
               %s
             </td>
           </tr>
 
+          <!-- Footer -->
           <tr>
             <td style="padding:14px 22px;background:#f7fafc;color:#6b7280;font-size:12px;line-height:1.5;">
               Mensaje automático — por favor no responder.<br>
@@ -362,6 +409,7 @@ class NotificationService:
           </tr>
 
         </table>
+
       </td>
     </tr>
   </table>
@@ -372,16 +420,18 @@ class NotificationService:
             gray,
             preheader_html,
             gray,
+            purple,
             blue,
-            app_name,
             company,
-            logo_cid,
+            app_name,
+            right_block,
             title,
             purple,
             body_html,
             datetime.now().year,
             company,
         )
+
 
     @staticmethod
     def _build_related_message(to_email: str, subject: str, plain_text: str, inner_html: str, preheader: str = "") -> MIMEMultipart:
@@ -397,10 +447,14 @@ class NotificationService:
         if plain_text:
             alt.attach(MIMEText(plain_text, "plain", "utf-8"))
 
-        html = NotificationService._wrap_html(subject, inner_html, preheader=preheader)
+        include_logo = NotificationService._include_logo()
+        html = NotificationService._wrap_html(subject, inner_html, preheader=preheader, include_logo=include_logo)
         alt.attach(MIMEText(html, "html", "utf-8"))
 
-        NotificationService._attach_inline_logo(msg)
+        # Logo opcional (por defecto deshabilitado)
+        if include_logo:
+            NotificationService._attach_inline_logo(msg)
+
         return msg
 
     @staticmethod
