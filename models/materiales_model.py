@@ -1,5 +1,13 @@
 import logging
+import os
+from utils.helpers import sanitizar_log_text
 logger = logging.getLogger(__name__)
+
+
+def _error_id() -> str:
+    """Genera un identificador corto para correlación de errores sin exponer detalles."""
+    return os.urandom(4).hex()
+
 from database import get_database_connection
 
 class MaterialModel:
@@ -59,7 +67,7 @@ class MaterialModel:
                 materiales.append(material)
             return materiales
         except Exception as e:
-            logger.info("Error en MaterialModel.obtener_todos: [error](%s)", type(e).__name__)
+            logger.info("Error en MaterialModel.obtener_todos: ref=%s", sanitizar_log_text(_error_id()))
             return []
         finally:
             cursor.close()
@@ -111,7 +119,7 @@ class MaterialModel:
                 }
             return None
         except Exception as e:
-            logger.info("Error al obtener material por ID: [error](%s)", type(e).__name__)
+            logger.info("Error al obtener material por ID: ref=%s", sanitizar_log_text(_error_id()))
             return None
         finally:
             cursor.close()
@@ -183,9 +191,7 @@ class MaterialModel:
                 logger.info("No se pudo obtener el ID del material creado")
                 return None
         except Exception as e:
-            logger.info("ERROR CRITICO en MaterialModel.crear: [error](%s)", type(e).__name__)
-            import traceback
-            logger.info(traceback.format_exc())
+            logger.info("ERROR CRITICO en MaterialModel.crear: ref=%s", sanitizar_log_text(_error_id()))
             conn.rollback()
             return None
         finally:
@@ -225,7 +231,7 @@ class MaterialModel:
             conn.commit()
             return cursor.rowcount > 0
         except Exception as e:
-            logger.info("Error al actualizar material: [error](%s)", type(e).__name__)
+            logger.info("Error al actualizar material: ref=%s", sanitizar_log_text(_error_id()))
             conn.rollback()
             return False
         finally:
@@ -250,7 +256,7 @@ class MaterialModel:
             conn.commit()
             return affected > 0
         except Exception as e:
-            logger.info("Error al actualizar imagen: [error](%s)", type(e).__name__)
+            logger.info("Error al actualizar imagen: ref=%s", sanitizar_log_text(_error_id()))
             conn.rollback()
             return False
         finally:
@@ -269,7 +275,7 @@ class MaterialModel:
             conn.commit()
             return cursor.rowcount > 0
         except Exception as e:
-            logger.info("Error al eliminar material: [error](%s)", type(e).__name__)
+            logger.info("Error al eliminar material: ref=%s", sanitizar_log_text(_error_id()))
             conn.rollback()
             return False
         finally:

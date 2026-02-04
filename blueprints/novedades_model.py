@@ -5,6 +5,7 @@ Modelo para gestión de novedades de solicitudes.
 from database import get_database_connection
 import logging
 
+from utils.helpers import sanitizar_log_text
 logger = logging.getLogger(__name__)
 
 
@@ -150,7 +151,7 @@ class NovedadModel:
             return None
             
         except Exception as e:
-            logger.error("Error obteniendo novedad {novedad_id}: [error](%s)", type(e).__name__)
+            logger.error("Error obteniendo novedad %s: [error](%s)", novedad_id, type(e).__name__)
             return None
         finally:
             cursor.close()
@@ -187,7 +188,7 @@ class NovedadModel:
             """, (solicitud_id, tipo_novedad, descripcion, cantidad_afectada, usuario_reporta, ruta_imagen))
             
             conn.commit()
-            logger.info(f"Novedad creada para solicitud {solicitud_id}. Imagen: {ruta_imagen}")
+            logger.info("Novedad creada para solicitud %s. Imagen: %s", solicitud_id, sanitizar_log_text(ruta_imagen))
             return cursor.rowcount > 0
             
         except Exception as e:
@@ -217,7 +218,7 @@ class NovedadModel:
             """, (nuevo_estado, usuario_resuelve, comentario, novedad_id))
             
             conn.commit()
-            logger.info(f"Novedad {novedad_id} actualizada a estado {nuevo_estado}")
+            logger.info("Novedad %s actualizada a estado %s", novedad_id, sanitizar_log_text(nuevo_estado))
             return cursor.rowcount > 0
             
         except Exception as e:
@@ -316,7 +317,7 @@ class NovedadModel:
             return novedades
             
         except Exception as e:
-            logger.error("Error obteniendo novedades de solicitud {solicitud_id}: [error](%s)", type(e).__name__)
+            logger.error("Error obteniendo novedades de solicitud %s: [error](%s)", solicitud_id, type(e).__name__)
             return []
         finally:
             cursor.close()

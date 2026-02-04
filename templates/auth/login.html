@@ -51,6 +51,8 @@
                 <div class="card-body p-4">
 
                     <form method="POST" action="" class="login-form" id="loginForm" autocomplete="off">
+        {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
+
                         <!-- Campo Usuario -->
                         <div class="form-group mb-3">
                             <label for="usuario" class="form-label">

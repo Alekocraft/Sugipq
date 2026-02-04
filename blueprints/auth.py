@@ -1,104 +1,209 @@
 # blueprints/auth.py
 import logging
-logger = logging.getLogger(__name__)
-from flask import Blueprint, render_template, request, redirect, session, flash, current_app
-from models.usuarios_model import UsuarioModel
+import os
+import uuid
 from datetime import datetime, timedelta
 from functools import wraps
-import os
 
- 
+from flask import Blueprint, render_template, request, redirect, session, flash, current_app
+
+from models.usuarios_model import UsuarioModel
+from utils.helpers import sanitizar_log_text, sanitizar_username, sanitizar_ip
+
+logger = logging.getLogger(__name__)
+
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 
 SESSION_TIMEOUT_MINUTES = 10
 SESSION_ABSOLUTE_TIMEOUT_HOURS = 2
+
+
 def init_session_config(app):
-    """
-    Configura sesiones de forma segura según el entorno
-    
-    ✅ DÍA 5 - CORRECCIÓN CRÍTICA:
-    - Desarrollo (HTTP): SESSION_COOKIE_SECURE = False
-    - Producción (HTTPS): SESSION_COOKIE_SECURE = True
-    """
-    
-    is_production = os.getenv('FLASK_ENV') == 'production' or \
-                    'sugipq.qualitascolombia.com.co' in os.getenv('SERVER_NAME', '')
-    
-    
-    app.config['SESSION_COOKIE_SECURE'] = is_production
+    """Configura cookies de sesión de forma segura según el entorno."""
+    is_production = (
+        os.getenv('FLASK_ENV') == 'production'
+        or 'sugipq.qualitascolombia.com.co' in (os.getenv('SERVER_NAME', '') or '')
+    )
+
+    app.config['SESSION_COOKIE_SECURE'] = bool(is_production)
     app.config['SESSION_COOKIE_HTTPONLY'] = True
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=SESSION_ABSOLUTE_TIMEOUT_HOURS)
-    
-    
+
+    # Solo en producción (dominio real)
     if is_production:
         app.config['SESSION_COOKIE_DOMAIN'] = '.qualitascolombia.com.co'
-    
-    logger.info(f"[SESIÓN] Configuración: SECURE={app.config['SESSION_COOKIE_SECURE']}, HTTPONLY=True, SAMESITE=Lax")
-    logger.info(f"[SESIÓN] Entorno: {'PRODUCCIÓN (HTTPS)' if is_production else 'DESARROLLO (HTTP)'}")
-def check_session_timeout():
+
+    logger.info(
+        "[SESIÓN] Configuración: SECURE=%s, HTTPONLY=True, SAMESITE=Lax",
+        app.config.get('SESSION_COOKIE_SECURE'),
+    )
+    logger.info(
+        "[SESIÓN] Entorno: %s",
+        'PRODUCCIÓN (HTTPS)' if is_production else 'DESARROLLO (HTTP)',
+    )
+
+
+def check_session_timeout() -> bool:
     if 'usuario_id' not in session:
         return False
-    
+
     last_activity = session.get('last_activity')
-    if last_activity:
-        try:
-            if isinstance(last_activity, str):
-                last_activity = datetime.fromisoformat(last_activity)
-            
-            inactive_time = datetime.now() - last_activity
-            if inactive_time > timedelta(minutes=SESSION_TIMEOUT_MINUTES):
-                return True
-        except Exception as e:
-            logger.info("Error verificando timeout: [error](%s)", type(e).__name__)
-    return False
+    if not last_activity:
+        return False
+
+    try:
+        if isinstance(last_activity, str):
+            last_activity = datetime.fromisoformat(last_activity)
+
+        inactive_time = datetime.now() - last_activity
+        return inactive_time > timedelta(minutes=SESSION_TIMEOUT_MINUTES)
+    except Exception:
+        # No exponer detalles por logs
+        return False
+
 
 def update_session_activity():
     if 'usuario_id' in session:
         session['last_activity'] = datetime.now().isoformat()
         session.modified = True
 
+
 def clear_session_safely():
     try:
         session.clear()
-    except Exception as e:
-        logger.info("Error limpiando sesión: [error](%s)", type(e).__name__)
+    except Exception:
+        # No exponer detalles por logs
+        pass
+
+
 def require_login(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'usuario_id' not in session:
             flash('Por favor, inicie sesión para continuar', 'warning')
             return redirect('/auth/login')
-        
+
         if check_session_timeout():
             clear_session_safely()
-            flash(f'Su sesión ha expirado por inactividad ({SESSION_TIMEOUT_MINUTES} minutos). Por favor, inicie sesión nuevamente.', 'warning')
+            flash(
+                f'Su sesión ha expirado por inactividad ({SESSION_TIMEOUT_MINUTES} minutos). '
+                'Por favor, inicie sesión nuevamente.',
+                'warning',
+            )
             return redirect('/auth/login')
-        
+
         update_session_activity()
         return f(*args, **kwargs)
+
     return decorated_function
 
-def assign_role_by_office(office_name):
-    office_name = office_name.lower().strip() if office_name else ''
-    
-    if 'gerencia' in office_name:
+
+def assign_role_by_office(office_name: str) -> str:
+    office = (office_name or '').lower().strip()
+
+    if 'gerencia' in office:
         return 'admin'
-    elif 'almacén' in office_name or 'logística' in office_name:
+    if 'almacén' in office or 'almacen' in office or 'logística' in office or 'logistica' in office:
         return 'almacen'
-    elif 'finanzas' in office_name or 'contabilidad' in office_name:
+    if 'finanzas' in office or 'contabilidad' in office:
         return 'finanzas'
-    elif 'rrhh' in office_name or 'recursos humanos' in office_name:
+    if 'rrhh' in office or 'recursos humanos' in office:
         return 'rrhh'
-    else:
-        return 'usuario'
+    return 'usuario'
+
 
 def get_client_info():
+    # request.remote_addr puede ser None; no lo logueamos sin enmascarar.
     return {
         'ip': request.remote_addr,
         'user_agent': request.headers.get('User-Agent', 'Unknown'),
-        'timestamp': datetime.now().isoformat()
+        'timestamp': datetime.now().isoformat(),
     }
+
+
+def _as_dict(raw):
+    """Convierte salida de UsuarioModel a dict (sin asumir formato)."""
+    if raw is None:
+        return None
+
+    if isinstance(raw, dict):
+        return raw
+
+    # Algunos modelos devuelven {'user': {...}} o {'data': {...}}
+    if isinstance(raw, (list, tuple)) and raw and isinstance(raw[0], dict):
+        return raw[0]
+
+    # Objetos con atributos
+    try:
+        d = vars(raw)
+        return d if isinstance(d, dict) else None
+    except Exception:
+        return None
+
+
+def _pick(d: dict, keys, default=None):
+    for k in keys:
+        if k in d and d.get(k) not in (None, ''):
+            return d.get(k)
+    return default
+
+
+def _normalize_usuario_info(raw_info, fallback_username: str = ''):
+    """Normaliza llaves para evitar KeyError y permitir login.
+
+    Esto corrige el caso típico donde UsuarioModel devuelve columnas con
+    nombres distintos (ej: 'ID', 'Nombre', 'Usuario', 'Rol', etc.).
+    """
+    d = _as_dict(raw_info)
+    if not d:
+        return None
+
+    # Unwrap típico: {'user': {...}} / {'usuario': {...}} / {'data': {...}}
+    for container_key in ('user', 'usuario', 'data', 'result', 'usuario_info'):
+        if isinstance(d.get(container_key), dict):
+            d = d[container_key]
+            break
+
+    usuario_id = _pick(d, ['id', 'ID', 'Id', 'usuario_id', 'UsuarioId', 'user_id', 'UserId'])
+    if usuario_id in (None, ''):
+        return None
+
+    usuario_login = _pick(
+        d,
+        ['usuario', 'Usuario', 'username', 'Username', 'user', 'login', 'LOGIN'],
+        default=fallback_username,
+    )
+    nombre = _pick(
+        d,
+        ['nombre', 'Nombre', 'full_name', 'FullName', 'name', 'Name'],
+        default=usuario_login or fallback_username or 'Usuario',
+    )
+
+    oficina_id = _pick(d, ['oficina_id', 'OficinaId', 'office_id', 'id_oficina'], default=1)
+    try:
+        oficina_id = int(oficina_id) if oficina_id is not None else 1
+    except Exception:
+        oficina_id = 1
+
+    oficina_nombre = _pick(
+        d,
+        ['oficina_nombre', 'OficinaNombre', 'office_name', 'OfficeName', 'oficina'],
+        default='',
+    )
+
+    rol = _pick(d, ['rol', 'Rol', 'role', 'Role'], default='')
+    rol = (rol or '').strip() or assign_role_by_office(oficina_nombre)
+
+    return {
+        'id': usuario_id,
+        'usuario': usuario_login,
+        'nombre': nombre,
+        'rol': rol,
+        'oficina_id': oficina_id,
+        'oficina_nombre': oficina_nombre,
+    }
+
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
@@ -107,92 +212,133 @@ def login():
             clear_session_safely()
             return redirect('/auth/login')
         return redirect('/dashboard')
-    
+
     if request.method == 'POST':
-        usuario = request.form.get('usuario', '').strip()
-        contraseña = request.form.get('contraseña', '')
-        
+        usuario = (request.form.get('usuario') or '').strip()
+
+        # Compatibilidad con distintos nombres del campo
+        contraseña = (
+            request.form.get('contraseña')
+            or request.form.get('contrasena')
+            or request.form.get('password')
+            or ''
+        )
+
         if not usuario or not contraseña:
             flash('Por favor, ingrese usuario y contraseña', 'warning')
             return render_template('auth/login.html')
-        
+
         client_info = get_client_info()
-        
+
         try:
-            usuario_info = UsuarioModel.verificar_credenciales(usuario, contraseña)
-            
-            if usuario_info:
-                 
-                session.clear()
-                session.permanent = True
-                session['usuario_id'] = usuario_info['id']
-                session['usuario_nombre'] = usuario_info['nombre']
-                session['usuario'] = usuario_info['usuario']
-                session['rol'] = usuario_info['rol']
-                session['oficina_id'] = usuario_info.get('oficina_id', 1)
-                session['oficina_nombre'] = usuario_info.get('oficina_nombre', '')
-                session['login_time'] = datetime.now().isoformat()
-                session['last_activity'] = datetime.now().isoformat()
-                session['client_ip'] = client_info['ip']
-                session.modified = True
-                
-                logger.info(f"[SESIÓN] Creada para usuario: {usuario_info['usuario']}")
-                logger.info(f"[SESIÓN] Permanent: {session.permanent}")
-                flash(f'¡Bienvenido {usuario_info["nombre"]}!', 'success')
-                
-                 
-                return redirect('/dashboard')
-            else:
+            raw_info = UsuarioModel.verificar_credenciales(usuario, contraseña)
+            usuario_info = _normalize_usuario_info(raw_info, fallback_username=usuario)
+
+            if not usuario_info:
                 flash('Usuario o contraseña incorrectos', 'danger')
                 return render_template('auth/login.html')
-                
+
+            # ✅ Evitar session fixation: limpiar antes de setear.
+            session.clear()
+            session.permanent = True
+
+            session['usuario_id'] = usuario_info['id']
+            session['usuario_nombre'] = usuario_info['nombre']
+            session['usuario'] = usuario_info['usuario']
+            session['rol'] = usuario_info['rol']
+            session['oficina_id'] = usuario_info.get('oficina_id', 1)
+            session['oficina_nombre'] = usuario_info.get('oficina_nombre', '')
+
+            now_iso = datetime.now().isoformat()
+            session['login_time'] = now_iso
+            session['last_activity'] = now_iso
+
+            # Guardar IP en sesión (no en logs). Si no hay IP, dejar vacío.
+            session['client_ip'] = client_info.get('ip')
+            session.modified = True
+
+            logger.info(
+                "[SESIÓN] Creada para usuario=%s ip=%s",
+                sanitizar_username(usuario_info.get('usuario')),
+                sanitizar_ip(client_info.get('ip')),
+            )
+
+            flash(f'¡Bienvenido {usuario_info["nombre"]}!', 'success')
+            return redirect('/dashboard')
+
         except Exception as e:
-            logger.info("[ERROR] Exception en login: [error](%s)", type(e).__name__)
-            logger.exception("[ERROR] Exception en login")
+            error_id = uuid.uuid4().hex[:8]
+            logger.error(
+                "Error inesperado en login (error_id=%s, exc=%s)",
+                sanitizar_log_text(error_id),
+                sanitizar_log_text(type(e).__name__),
+            )
+            # Solo en desarrollo: stacktrace (evita exponerlo en prod)
+            try:
+                if current_app and current_app.debug:
+                    logger.exception("Stacktrace login (error_id=%s)", sanitizar_log_text(error_id))
+            except Exception:
+                pass
+
             flash('Error inesperado, contacte a soporte', 'danger')
             return render_template('auth/login.html')
-    
+
     return render_template('auth/login.html')
+
 
 @auth_bp.route('/logout')
 def logout():
     usuario = session.get('usuario', 'Desconocido')
     client_info = get_client_info()
-    
-    logger.info(f"[SESIÓN] Logout de usuario: {usuario}")
+
+    logger.info(
+        "[SESIÓN] Logout usuario=%s ip=%s",
+        sanitizar_username(usuario),
+        sanitizar_ip(client_info.get('ip')),
+    )
+
     clear_session_safely()
     flash('Sesión cerrada correctamente', 'info')
     return redirect('/auth/login')
+
 
 @auth_bp.route('/test-ldap', methods=['GET', 'POST'])
 def test_ldap():
     """Prueba de autenticación LDAP/AD y verificación de sincronización.
 
-    - Autentica credenciales contra AD.
-    - Verifica si el usuario existe en la base de datos local.
-    - NO crea/actualiza usuarios aquí (solo reporta estado).
+    Importante: por seguridad, este endpoint se deshabilita en producción.
     """
+
+    # ✅ Evita exponer info LDAP en producción
+    if (os.getenv('FLASK_ENV') or '').lower() == 'production':
+        return ("Not Found", 404)
+
     result = None
 
     if request.method == 'POST':
-        username = request.form.get('username', '').strip()
-        password = request.form.get('password', '')
+        username = (request.form.get('username') or '').strip()
+        password = request.form.get('password') or ''
 
         if not username or not password:
             flash('Debe ingresar usuario y contraseña', 'danger')
             return render_template('auth/test_ldap.html', result=None)
 
         try:
-            from utils.ldap_auth import ADAuth
-            from config.config import Config
+            # Preferir variables de entorno para no hardcodear valores
+            def _env_bool(name: str, default: bool = False) -> bool:
+                v = os.getenv(name)
+                if v is None:
+                    return default
+                return str(v).strip().lower() in ("1", "true", "yes", "y", "si", "on")
 
-            ldap_enabled = getattr(Config, 'LDAP_ENABLED', False)
-            ldap_server = getattr(Config, 'LDAP_SERVER', '') or ''
-            ldap_domain = getattr(Config, 'LDAP_DOMAIN', '') or ''
+            ldap_server = (os.getenv("LDAP_SERVER") or os.getenv("AD_SERVER") or '').strip()
+            ldap_domain = (os.getenv("LDAP_DOMAIN") or '').strip()
+            ldap_enabled = _env_bool("LDAP_ENABLED", bool(ldap_server))
+
+            from utils.ldap_auth import ADAuth
 
             ad_auth = ADAuth()
 
-            # test_connection en utils.ldap_auth devuelve dict {"success": bool, "message": ...}
             conn_res = ad_auth.test_connection()
             if isinstance(conn_res, dict):
                 connection_ok = bool(conn_res.get('success'))
@@ -210,7 +356,6 @@ def test_ldap():
             ad_user = ad_auth.authenticate_user(username, password)
 
             if ad_user:
-                # Normalización de llaves (compatibilidad entre implementaciones)
                 full_name = ad_user.get('full_name') or ad_user.get('nombre') or ad_user.get('name') or ''
                 department = ad_user.get('department') or ad_user.get('departamento') or ''
                 role_from_ad = ad_user.get('role') or ad_user.get('rol') or ''
@@ -245,41 +390,38 @@ def test_ldap():
                             'sync_status': 'Usuario NO existe en BD (se creará en primer login)',
                         }
 
-                except Exception as sync_err:
-                    sync_error = str(sync_err)
+                except Exception:
+                    sync_error = 'Error interno'
 
+                # Nota: se deja esta info en DEV para diagnóstico
                 result = {
                     'success': True,
                     'message': 'Autenticación exitosa',
-
-                    # ✅ estructura actual (anidada)
                     'ldap_config': {
                         'enabled': ldap_enabled,
                         'server': ldap_server,
-                        'domain': ldap_domain
+                        'domain': ldap_domain,
                     },
                     'connection': {
                         'status': 'OK' if connection_ok else 'Error',
                         'message': connection_message,
-                        **{k: v for k, v in conn_meta.items() if v is not None}
+                        **{k: v for k, v in conn_meta.items() if v is not None},
                     },
                     'user_data': {
                         'username': user_info['username'],
                         'full_name': user_info['full_name'],
                         'email': user_info['email'],
                         'department': user_info['department'],
-                        'role': user_info['role_from_ad']
+                        'role': user_info['role_from_ad'],
                     },
-
-                    # ✅ compatibilidad con el template (llaves planas)
+                    # compat template
                     'ldap_enabled': ldap_enabled,
                     'ldap_server': ldap_server,
                     'ldap_domain': ldap_domain,
                     'username': username,
                     'user_info': user_info,
-
                     'sync_info': sync_info,
-                    'sync_error': sync_error
+                    'sync_error': sync_error,
                 }
 
                 flash('Autenticación LDAP exitosa', 'success')
@@ -291,15 +433,13 @@ def test_ldap():
                     'ldap_config': {
                         'enabled': ldap_enabled,
                         'server': ldap_server,
-                        'domain': ldap_domain
+                        'domain': ldap_domain,
                     },
                     'connection': {
                         'status': 'OK' if connection_ok else 'Error',
                         'message': connection_message,
-                        **{k: v for k, v in conn_meta.items() if v is not None}
+                        **{k: v for k, v in conn_meta.items() if v is not None},
                     },
-
-                    # compatibilidad template
                     'ldap_enabled': ldap_enabled,
                     'ldap_server': ldap_server,
                     'ldap_domain': ldap_domain,
@@ -309,11 +449,13 @@ def test_ldap():
                 flash('Usuario o contraseña incorrectos', 'danger')
 
         except Exception as e:
-            result = {
-                'success': False,
-                'message': f'Error: {str(e)}',
-                'error_details': str(e)
-            }
-            flash(f'Error en prueba LDAP: {str(e)}', 'danger')
+            error_id = uuid.uuid4().hex[:8]
+            logger.error(
+                "[LDAP] Error en prueba LDAP (error_id=%s, exc=%s)",
+                sanitizar_log_text(error_id),
+                sanitizar_log_text(type(e).__name__),
+            )
+            flash('Error interno al realizar la prueba LDAP', 'danger')
+            result = {'success': False, 'message': 'Error interno'}
 
     return render_template('auth/test_ldap.html', result=result)

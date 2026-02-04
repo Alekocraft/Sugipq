@@ -1,6 +1,14 @@
 # models/solicitudes_model.py
 import logging
+import os
+from utils.helpers import sanitizar_log_text
 logger = logging.getLogger(__name__)
+
+
+def _error_id() -> str:
+    """Genera un identificador corto para correlación de errores sin exponer detalles."""
+    return os.urandom(4).hex()
+
 from database import get_database_connection
 
 
@@ -284,7 +292,7 @@ class SolicitudModel:
                 "material_imagen": material_imagen,
             }
         except Exception as e:
-            logger.info("❌ ERROR en obtener_info_devolucion:", str(e))
+            logger.error("❌ ERROR en obtener_info_devolucion: ref=%s", sanitizar_log_text(_error_id()))
             return None
         finally:
             cursor.close()
@@ -497,8 +505,8 @@ class SolicitudModel:
             return solicitudes
             
         except Exception as e:
-            logger.info("❌ Error obteniendo solicitudes: [error](%s)", type(e).__name__)
-            logger.exception("Excepción en solicitudes_model")
+            logger.info("❌ Error obteniendo solicitudes: ref=%s", sanitizar_log_text(_error_id()))
+            logger.error("Excepción en solicitudes_model")
             return []
         finally:
             cursor.close()
@@ -729,14 +737,14 @@ class SolicitudModel:
                         return usuario_db  # Fallback al ID del usuario
         
             # Si no encuentra al usuario, retornar un valor por defecto
-            logger.info(f"⚠️ Usuario {usuario_id} no encontrado. Usando aprobador por defecto.")
+            logger.info("⚠️ Usuario %s no encontrado. Usando aprobador por defecto.", sanitizar_log_text(usuario_id))
             cursor.execute("SELECT TOP 1 AprobadorId FROM Aprobadores WHERE Activo = 1 ORDER BY AprobadorId")
             aprobador_default = cursor.fetchone()
             return aprobador_default[0] if aprobador_default else 1
         
         except Exception as e:
-            logger.info("❌ Error obteniendo aprobador_id: [error](%s)", type(e).__name__)
-            logger.exception("Excepción en solicitudes_model")
+            logger.info("❌ Error obteniendo aprobador_id: ref=%s", sanitizar_log_text(_error_id()))
+            logger.error("Excepción en solicitudes_model")
             return usuario_id or 1  # Fallback seguro
         finally:
             if cursor:
@@ -810,7 +818,7 @@ class SolicitudModel:
             return [0, 0, 0, 0, 0, 0, 0]
             
         except Exception as e:
-            logger.info("Error obteniendo estadÃ­sticas para material {material_id}: [error](%s)", type(e).__name__)
+            logger.info("Error obteniendo estadÃ­sticas para material {material_id}: ref=%s", sanitizar_log_text(_error_id()))
             return [0, 0, 0, 0, 0, 0, 0]
         finally:
             cursor.close()
@@ -844,7 +852,7 @@ class SolicitudModel:
                 }
             return None
         except Exception as e:
-            logger.info("Error obteniendo oficina por nombre: [error](%s)", type(e).__name__)
+            logger.info("Error obteniendo oficina por nombre: ref=%s", sanitizar_log_text(_error_id()))
             return None
         finally:
             cursor.close()
@@ -914,7 +922,7 @@ class SolicitudModel:
             return solicitudes
             
         except Exception as e:
-            logger.info("Error obteniendo solicitudes con detalle: [error](%s)", type(e).__name__)
+            logger.info("Error obteniendo solicitudes con detalle: ref=%s", sanitizar_log_text(_error_id()))
             return []
         finally:
             if cursor:
@@ -993,8 +1001,8 @@ class SolicitudModel:
             
         except Exception as e:
             conn.rollback()
-            logger.info("❌ Error en solicitud de devolución: [error](%s)", type(e).__name__)
-            logger.exception("Excepción en solicitudes_model")
+            logger.info("❌ Error en solicitud de devolución: ref=%s", sanitizar_log_text(_error_id()))
+            logger.error("Excepción en solicitudes_model")
             return False, "Error inesperado, contacte a soporte"
         finally:
             cursor.close()
@@ -1072,8 +1080,8 @@ class SolicitudModel:
             
         except Exception as e:
             conn.rollback()
-            logger.info("❌ Error aprobando devolución: [error](%s)", type(e).__name__)
-            logger.exception("Excepción en solicitudes_model")
+            logger.info("❌ Error aprobando devolución: ref=%s", sanitizar_log_text(_error_id()))
+            logger.error("Excepción en solicitudes_model")
             return False, "Error inesperado, contacte a soporte"
         finally:
             cursor.close()
@@ -1117,7 +1125,7 @@ class SolicitudModel:
             
         except Exception as e:
             conn.rollback()
-            logger.info("❌ Error rechazando devolución: [error](%s)", type(e).__name__)
+            logger.info("❌ Error rechazando devolución: ref=%s", sanitizar_log_text(_error_id()))
             return False, "Error inesperado, contacte a soporte"
         finally:
             cursor.close()
@@ -1171,7 +1179,7 @@ class SolicitudModel:
             return None
             
         except Exception as e:
-            logger.info("❌ Error obteniendo devolución pendiente: [error](%s)", type(e).__name__)
+            logger.info("❌ Error obteniendo devolución pendiente: ref=%s", sanitizar_log_text(_error_id()))
             return None
         finally:
             cursor.close()

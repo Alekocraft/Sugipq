@@ -1,45 +1,55 @@
-# models/novedades_model.py
-import logging
-logger = logging.getLogger(__name__)
+﻿# models/novedades_model.py
+"""
+Modelo para gestión de novedades de solicitudes.
+"""
 from database import get_database_connection
-from datetime import datetime
+import logging
+
+from utils.helpers import sanitizar_log_text
+logger = logging.getLogger(__name__)
+
 
 class NovedadModel:
+    """Modelo para operaciones CRUD de novedades"""
     
     @staticmethod
     def obtener_todas(filtro_estado=None):
-        """Obtiene todas las novedades, opcionalmente filtradas por estado"""
+        """
+        Obtiene todas las novedades con información relacionada
+        
+        Args:
+            filtro_estado: Filtrar por estado de novedad (opcional)
+            
+        Returns:
+            list: Lista de novedades
+        """
         conn = get_database_connection()
         if conn is None:
-            logger.info("❌ No se pudo conectar a la base de datos")
             return []
         
         cursor = conn.cursor()
         try:
-            # Consulta con manejo de errores para tablas que pueden no existir
             sql = """
                 SELECT 
                     ns.NovedadId,
                     ns.SolicitudId,
-                    COALESCE(sm.MaterialId, 0) as MaterialId,
                     ns.TipoNovedad,
                     ns.Descripcion,
-                    COALESCE(ns.EstadoNovedad, 'pendiente') as Estado,
-                    ns.FechaRegistro as FechaReporte,
-                    COALESCE(ns.UsuarioRegistra, 'Sistema') as UsuarioReporta,
-                    ns.FechaResolucion,
+                    ns.CantidadAfectada,
+                    ns.EstadoNovedad,
+                    ns.UsuarioRegistra,
+                    ns.FechaRegistro,
                     ns.UsuarioResuelve,
-                    COALESCE(ns.ObservacionesResolucion, '') as ComentarioResolucion,
-                    COALESCE(m.NombreElemento, 'No especificado') as MaterialNombre,
-                    COALESCE(sm.CantidadSolicitada, 0) as CantidadSolicitada,
-                    COALESCE(sm.CantidadEntregada, 0) as CantidadEntregada,
-                    COALESCE(o.NombreOficina, 'No especificada') as NombreOficina,
-                    o.OficinaId,
-                    COALESCE(ns.Prioridad, 'media') as Prioridad
+                    ns.FechaResolucion,
+                    ns.ObservacionesResolucion,
+                    ns.RutaImagen,
+                    sm.UsuarioSolicitante,
+                    m.NombreElemento as MaterialNombre,
+                    o.NombreOficina as OficinaNombre
                 FROM NovedadesSolicitudes ns
-                LEFT JOIN SolicitudesMaterial sm ON ns.SolicitudId = sm.SolicitudId
-                LEFT JOIN Materiales m ON sm.MaterialId = m.MaterialId
-                LEFT JOIN Oficinas o ON sm.OficinaSolicitanteId = o.OficinaId
+                INNER JOIN SolicitudesMaterial sm ON ns.SolicitudId = sm.SolicitudId
+                INNER JOIN Materiales m ON sm.MaterialId = m.MaterialId
+                INNER JOIN Oficinas o ON sm.OficinaSolicitanteId = o.OficinaId
             """
             
             params = []
@@ -53,91 +63,35 @@ class NovedadModel:
             
             novedades = []
             for row in cursor.fetchall():
-                # Manejar fecha de forma segura
-                fecha_reporte = row[6]
-                if fecha_reporte:
-                    if isinstance(fecha_reporte, str):
-                        try:
-                            fecha_reporte = datetime.strptime(fecha_reporte, '%Y-%m-%d %H:%M:%S')
-                        except:
-                            pass
-                
                 novedades.append({
-                    "id": row[0],
-                    "solicitud_id": row[1],
-                    "material_id": row[2] if row[2] is not None else 0,
-                    "tipo": row[3] or "General",
-                    "tipo_novedad": row[3] or "General",
-                    "descripcion": row[4] or "",
-                    "estado": row[5] or "pendiente",
-                    "fecha_reporte": fecha_reporte,
-                    "usuario_registra": row[7] or "Sistema",
-                    "usuario_reporta": row[7] or "Sistema",
-                    "fecha_resolucion": row[8],
-                    "usuario_resuelve": row[9],
-                    "comentario_resolucion": row[10] or "",
-                    "material_nombre": row[11] or "No especificado",
-                    "cantidad_solicitada": row[12] or 0,
-                    "cantidad_entregada": row[13] or 0,
-                    "oficina_nombre": row[14] or "No especificada",
-                    "oficina_id": row[15],
-                    "prioridad": row[16] if len(row) > 16 else "media"
+                    'novedad_id': row[0],
+                    'id': row[0],  
+                    'solicitud_id': row[1],
+                    'tipo_novedad': row[2],
+                    'tipo': row[2],  # Alias
+                    'descripcion': row[3],
+                    'cantidad_afectada': row[4] or 0,
+                    'estado_novedad': row[5],
+                    'estado': row[5],  # Alias
+                    'usuario_registra': row[6],
+                    'fecha_registro': row[7],
+                    'usuario_resuelve': row[8],
+                    'fecha_resolucion': row[9],
+                    'observaciones_resolucion': row[10],
+                    'ruta_imagen': row[11],
+                    'usuario_solicitante': row[12],
+                    'material_nombre': row[13],
+                    'oficina_nombre': row[14]
                 })
             
-            logger.info(f"✅ Novedades obtenidas: {len(novedades)}")
             return novedades
             
         except Exception as e:
-            logger.info("❌ Error obteniendo novedades: [error](%s)", type(e).__name__)
-            logger.exception("Excepción en novedades_model")
-            
-            # Intentar consulta alternativa más simple
-            try:
-                cursor.execute("""
-                    SELECT 
-                        NovedadId, SolicitudId, TipoNovedad, Descripcion, 
-                        EstadoNovedad, FechaRegistro, UsuarioRegistra,
-                        FechaResolucion, UsuarioResuelve, ObservacionesResolucion
-                    FROM NovedadesSolicitudes
-                    ORDER BY FechaRegistro DESC
-                """)
-                
-                novedades = []
-                for row in cursor.fetchall():
-                    novedades.append({
-                        "id": row[0],
-                        "solicitud_id": row[1],
-                        "material_id": 0,
-                        "tipo": row[2] or "General",
-                        "tipo_novedad": row[2] or "General",
-                        "descripcion": row[3] or "",
-                        "estado": row[4] or "pendiente",
-                        "fecha_reporte": row[5],
-                        "usuario_registra": row[6] or "Sistema",
-                        "usuario_reporta": row[6] or "Sistema",
-                        "fecha_resolucion": row[7],
-                        "usuario_resuelve": row[8],
-                        "comentario_resolucion": row[9] or "",
-                        "material_nombre": "No especificado",
-                        "cantidad_solicitada": 0,
-                        "cantidad_entregada": 0,
-                        "oficina_nombre": "No especificada",
-                        "oficina_id": None,
-                        "prioridad": "media"
-                    })
-                
-                logger.info(f"⚠️ Novedades obtenidas (consulta alternativa): {len(novedades)}")
-                return novedades
-                
-            except Exception as e2:
-                logger.info(f"❌ Error en consulta alternativa: {e2}")
-                return []
+            logger.error("Error obteniendo novedades")
+            return []
         finally:
-            try:
-                cursor.close()
-                conn.close()
-            except:
-                pass
+            cursor.close()
+            conn.close()
     
     @staticmethod
     def obtener_por_id(novedad_id):
@@ -152,69 +106,77 @@ class NovedadModel:
                 SELECT 
                     ns.NovedadId,
                     ns.SolicitudId,
-                    COALESCE(sm.MaterialId, 0) as MaterialId,
                     ns.TipoNovedad,
                     ns.Descripcion,
-                    COALESCE(ns.EstadoNovedad, 'pendiente') as Estado,
-                    ns.FechaRegistro as FechaReporte,
-                    COALESCE(ns.UsuarioRegistra, 'Sistema') as UsuarioReporta,
-                    ns.FechaResolucion,
+                    ns.CantidadAfectada,
+                    ns.EstadoNovedad,
+                    ns.UsuarioRegistra,
+                    ns.FechaRegistro,
                     ns.UsuarioResuelve,
-                    COALESCE(ns.ObservacionesResolucion, '') as ComentarioResolucion,
-                    COALESCE(m.NombreElemento, 'No especificado') as MaterialNombre,
-                    COALESCE(sm.CantidadSolicitada, 0),
-                    COALESCE(sm.CantidadEntregada, 0),
-                    COALESCE(o.NombreOficina, 'No especificada'),
-                    o.OficinaId
+                    ns.FechaResolucion,
+                    ns.ObservacionesResolucion,
+                    ns.RutaImagen,
+                    sm.UsuarioSolicitante,
+                    m.NombreElemento as MaterialNombre,
+                    o.NombreOficina as OficinaNombre
                 FROM NovedadesSolicitudes ns
-                LEFT JOIN SolicitudesMaterial sm ON ns.SolicitudId = sm.SolicitudId
-                LEFT JOIN Materiales m ON sm.MaterialId = m.MaterialId
-                LEFT JOIN Oficinas o ON sm.OficinaSolicitanteId = o.OficinaId
+                INNER JOIN SolicitudesMaterial sm ON ns.SolicitudId = sm.SolicitudId
+                INNER JOIN Materiales m ON sm.MaterialId = m.MaterialId
+                INNER JOIN Oficinas o ON sm.OficinaSolicitanteId = o.OficinaId
                 WHERE ns.NovedadId = ?
             """, (novedad_id,))
             
             row = cursor.fetchone()
             if row:
                 return {
-                    "id": row[0],
-                    "solicitud_id": row[1],
-                    "material_id": row[2] if row[2] is not None else 0,
-                    "tipo": row[3] or "General",
-                    "tipo_novedad": row[3] or "General",
-                    "descripcion": row[4] or "",
-                    "estado": row[5] or "pendiente",
-                    "fecha_reporte": row[6],
-                    "usuario_registra": row[7] or "Sistema",
-                    "usuario_reporta": row[7] or "Sistema",
-                    "fecha_resolucion": row[8],
-                    "usuario_resuelve": row[9],
-                    "comentario_resolucion": row[10] or "",
-                    "material_nombre": row[11] or "No especificado",
-                    "cantidad_solicitada": row[12] or 0,
-                    "cantidad_entregada": row[13] or 0,
-                    "oficina_nombre": row[14] or "No especificada",
-                    "oficina_id": row[15]
+                    'novedad_id': row[0],
+                    'id': row[0],
+                    'solicitud_id': row[1],
+                    'tipo_novedad': row[2],
+                    'tipo': row[2],
+                    'descripcion': row[3],
+                    'cantidad_afectada': row[4] or 0,
+                    'estado_novedad': row[5],
+                    'estado': row[5],
+                    'usuario_registra': row[6],
+                    'fecha_registro': row[7],
+                    'usuario_resuelve': row[8],
+                    'fecha_resolucion': row[9],
+                    'observaciones_resolucion': row[10],
+                    'ruta_imagen': row[11],
+                    'usuario_solicitante': row[12],
+                    'material_nombre': row[13],
+                    'oficina_nombre': row[14]
                 }
             return None
             
         except Exception as e:
-            logger.info("❌ Error obteniendo novedad por ID: [error](%s)", type(e).__name__)
-            logger.exception("Excepción en novedades_model")
+            logger.error("Error obteniendo novedad %s", sanitizar_log_text(novedad_id))
             return None
         finally:
-            try:
-                cursor.close()
-                conn.close()
-            except:
-                pass
+            cursor.close()
+            conn.close()
     
     @staticmethod
     def crear(solicitud_id, tipo_novedad, descripcion, usuario_reporta, cantidad_afectada=None, ruta_imagen=None):
-        """Crea una nueva novedad"""
+        """
+        Crea una nueva novedad
+        
+        Args:
+            solicitud_id: ID de la solicitud
+            tipo_novedad: Tipo de novedad
+            descripcion: Descripción de la novedad
+            usuario_reporta: Usuario que registra
+            cantidad_afectada: Cantidad afectada (opcional)
+            ruta_imagen: Ruta de la imagen adjunta (opcional)
+            
+        Returns:
+            bool: True si se creó correctamente
+        """
         conn = get_database_connection()
         if conn is None:
             return None
-    
+        
         cursor = conn.cursor()
         try:
             cursor.execute("""
@@ -224,15 +186,14 @@ class NovedadModel:
                 )
                 VALUES (?, ?, ?, ?, 'registrada', ?, GETDATE(), ?)
             """, (solicitud_id, tipo_novedad, descripcion, cantidad_afectada, usuario_reporta, ruta_imagen))
-        
+            
             conn.commit()
-            logger.info(f"✅ Novedad creada para solicitud {solicitud_id}. Imagen: {ruta_imagen}")
+            logger.info("Novedad creada para solicitud %s. Imagen: %s", solicitud_id, sanitizar_log_text(ruta_imagen))
             return cursor.rowcount > 0
-        
+            
         except Exception as e:
             conn.rollback()
-            logger.info("❌ Error creando novedad: [error](%s)", type(e).__name__)
-            logger.exception("Excepción en novedades_model")
+            logger.error("Error creando novedad")
             return None
         finally:
             cursor.close()
@@ -257,38 +218,33 @@ class NovedadModel:
             """, (nuevo_estado, usuario_resuelve, comentario, novedad_id))
             
             conn.commit()
+            logger.info("Novedad %s actualizada a estado %s", novedad_id, sanitizar_log_text(nuevo_estado))
             return cursor.rowcount > 0
             
         except Exception as e:
-            try:
-                conn.rollback()
-            except:
-                pass
-            logger.info("❌ Error actualizando novedad: [error](%s)", type(e).__name__)
-            logger.exception("Excepción en novedades_model")
+            conn.rollback()
+            logger.error("Error actualizando novedad")
             return False
         finally:
-            try:
-                cursor.close()
-                conn.close()
-            except:
-                pass
+            cursor.close()
+            conn.close()
     
     @staticmethod
     def obtener_estadisticas():
         """Obtiene estadísticas de novedades"""
         conn = get_database_connection()
         if conn is None:
-            return {"total": 0, "pendientes": 0, "resueltas": 0, "en_proceso": 0}
+            return {"total": 0, "pendientes": 0, "resueltas": 0, "aceptadas": 0, "rechazadas": 0}
         
         cursor = conn.cursor()
         try:
             cursor.execute("""
                 SELECT 
                     COUNT(*) as total,
-                    SUM(CASE WHEN EstadoNovedad IN ('pendiente', 'registrada') THEN 1 ELSE 0 END) as pendientes,
-                    SUM(CASE WHEN EstadoNovedad IN ('resuelto', 'resuelta') THEN 1 ELSE 0 END) as resueltas,
-                    SUM(CASE WHEN EstadoNovedad = 'en_proceso' THEN 1 ELSE 0 END) as en_proceso
+                    SUM(CASE WHEN EstadoNovedad = 'registrada' THEN 1 ELSE 0 END) as pendientes,
+                    SUM(CASE WHEN EstadoNovedad IN ('resuelta', 'aceptada', 'rechazada') THEN 1 ELSE 0 END) as resueltas,
+                    SUM(CASE WHEN EstadoNovedad = 'aceptada' THEN 1 ELSE 0 END) as aceptadas,
+                    SUM(CASE WHEN EstadoNovedad = 'rechazada' THEN 1 ELSE 0 END) as rechazadas
                 FROM NovedadesSolicitudes
             """)
             
@@ -298,24 +254,21 @@ class NovedadModel:
                     "total": row[0] or 0,
                     "pendientes": row[1] or 0,
                     "resueltas": row[2] or 0,
-                    "en_proceso": row[3] or 0
+                    "aceptadas": row[3] or 0,
+                    "rechazadas": row[4] or 0
                 }
-            return {"total": 0, "pendientes": 0, "resueltas": 0, "en_proceso": 0}
+            return {"total": 0, "pendientes": 0, "resueltas": 0, "aceptadas": 0, "rechazadas": 0}
             
         except Exception as e:
-            logger.info("❌ Error obteniendo estadísticas de novedades: [error](%s)", type(e).__name__)
-            logger.exception("Excepción en novedades_model")
-            return {"total": 0, "pendientes": 0, "resueltas": 0, "en_proceso": 0}
+            logger.error("Error obteniendo estadísticas")
+            return {"total": 0, "pendientes": 0, "resueltas": 0, "aceptadas": 0, "rechazadas": 0}
         finally:
-            try:
-                cursor.close()
-                conn.close()
-            except:
-                pass
+            cursor.close()
+            conn.close()
     
     @staticmethod
     def obtener_por_solicitud(solicitud_id):
-        """Obtiene las novedades asociadas a una solicitud"""
+        """Obtiene todas las novedades de una solicitud específica"""
         conn = get_database_connection()
         if conn is None:
             return []
@@ -325,21 +278,18 @@ class NovedadModel:
             cursor.execute("""
                 SELECT 
                     ns.NovedadId,
+                    ns.SolicitudId,
                     ns.TipoNovedad,
                     ns.Descripcion,
-                    COALESCE(ns.EstadoNovedad, 'pendiente') as Estado,
-                    ns.FechaRegistro as FechaReporte,
-                    COALESCE(ns.UsuarioRegistra, 'Sistema') as UsuarioReporta,
-                    ns.FechaResolucion,
-                    ns.UsuarioResuelve,
-                    COALESCE(ns.ObservacionesResolucion, '') as ComentarioResolucion,
-                    COALESCE(m.NombreElemento, 'No especificado') as MaterialNombre,
                     ns.CantidadAfectada,
-                    ns.RutaImagen as NovedadImagen,
-                    m.RutaImagen as MaterialImagen
+                    ns.EstadoNovedad,
+                    ns.UsuarioRegistra,
+                    ns.FechaRegistro,
+                    ns.UsuarioResuelve,
+                    ns.FechaResolucion,
+                    ns.ObservacionesResolucion,
+                    ns.RutaImagen
                 FROM NovedadesSolicitudes ns
-                LEFT JOIN SolicitudesMaterial sm ON ns.SolicitudId = sm.SolicitudId
-                LEFT JOIN Materiales m ON sm.MaterialId = m.MaterialId
                 WHERE ns.SolicitudId = ?
                 ORDER BY ns.FechaRegistro DESC
             """, (solicitud_id,))
@@ -347,68 +297,45 @@ class NovedadModel:
             novedades = []
             for row in cursor.fetchall():
                 novedades.append({
-                    "id": row[0],
-                    "novedad_id": row[0],
-                    "tipo": row[1] or "General",
-                    "tipo_novedad": row[1] or "General",
-                    "descripcion": row[2] or "",
-                    "estado": row[3] or "pendiente",
-                    "fecha_reporte": row[4],
-                    "fecha_registro": row[4],
-                    "usuario_registra": row[5] or "Sistema",
-                    "usuario_reporta": row[5] or "Sistema",
-                    "fecha_resolucion": row[6],
-                    "usuario_resuelve": row[7],
-                    "comentario_resolucion": row[8] or "",
-                    "material_nombre": row[9] or "No especificado",
-                    "cantidad_afectada": row[10] or 0,
-                    "novedad_imagen": row[11],
-                    "material_imagen": row[12]
+                    'novedad_id': row[0],
+                    'id': row[0],
+                    'solicitud_id': row[1],
+                    'tipo_novedad': row[2],
+                    'tipo': row[2],
+                    'descripcion': row[3],
+                    'cantidad_afectada': row[4] or 0,
+                    'estado_novedad': row[5],
+                    'estado': row[5],
+                    'usuario_registra': row[6],
+                    'fecha_registro': row[7],
+                    'usuario_resuelve': row[8],
+                    'fecha_resolucion': row[9],
+                    'observaciones_resolucion': row[10],
+                    'ruta_imagen': row[11]
                 })
             
             return novedades
             
         except Exception as e:
-            logger.info("❌ Error obteniendo novedades por solicitud: [error](%s)", type(e).__name__)
-            logger.exception("Excepción en novedades_model")
+            logger.error("Error obteniendo novedades de solicitud %s", sanitizar_log_text(solicitud_id))
             return []
         finally:
-            try:
-                cursor.close()
-                conn.close()
-            except:
-                pass
+            cursor.close()
+            conn.close()
+    
+    @staticmethod
+    def obtener_novedades_pendientes():
+        """Obtiene todas las novedades en estado 'registrada' (pendientes)"""
+        return NovedadModel.obtener_todas(filtro_estado='registrada')
     
     @staticmethod
     def obtener_tipos_disponibles():
-        """Obtiene los tipos de novedad únicos que existen"""
-        conn = get_database_connection()
-        if conn is None:
-            return ['Daño', 'Faltante', 'Error en cantidad', 'Otro']
-        
-        cursor = conn.cursor()
-        try:
-            cursor.execute("""
-                SELECT DISTINCT TipoNovedad 
-                FROM NovedadesSolicitudes 
-                WHERE TipoNovedad IS NOT NULL AND TipoNovedad != ''
-                ORDER BY TipoNovedad
-            """)
-            
-            tipos = [row[0] for row in cursor.fetchall() if row[0]]
-            
-            # Si no hay tipos, retornar lista por defecto
-            if not tipos:
-                tipos = ['Daño', 'Faltante', 'Error en cantidad', 'Otro']
-            
-            return tipos
-            
-        except Exception as e:
-            logger.info("❌ Error obteniendo tipos de novedad: [error](%s)", type(e).__name__)
-            return ['Daño', 'Faltante', 'Error en cantidad', 'Otro']
-        finally:
-            try:
-                cursor.close()
-                conn.close()
-            except:
-                pass
+        """Retorna los tipos de novedad disponibles"""
+        return [
+            {'id': 'danado', 'nombre': 'Material Dañado'},
+            {'id': 'faltante', 'nombre': 'Material Faltante'},
+            {'id': 'exceso', 'nombre': 'Exceso de Material'},
+            {'id': 'equivocado', 'nombre': 'Material Equivocado'},
+            {'id': 'defectuoso', 'nombre': 'Material Defectuoso'},
+            {'id': 'otro', 'nombre': 'Otro'}
+        ]

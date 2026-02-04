@@ -8,12 +8,11 @@ from flask import (
     Flask, render_template, request, redirect, session, flash,
     jsonify, url_for, send_file, g, make_response
 )
+from utils.helpers import sanitizar_log_text
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 import uuid
 import json
-import traceback
-
 # ============================================================================
 # 0. CORRECCIÓN ENCODING PARA WINDOWS
 # ============================================================================
@@ -103,7 +102,7 @@ try:
     else:
         logger.info("[OK] Servicio de notificaciones disponible")
 except ImportError as e:
-    logger.warning("No se pudo importar el servicio de notificaciones: [error](%s)", type(e).__name__)
+    logger.warning("No se pudo importar el servicio de notificaciones")
     
     def servicio_notificaciones_disponible():
         return False
@@ -151,7 +150,16 @@ console_handler.setLevel(logging.WARNING)
 console_handler.setFormatter(formatter)
 ldap_logger.addHandler(console_handler)
 
-logger.info(f"Logging de LDAP configurado. Archivo: {ldap_log_file}")
+# Configurar logger de la aplicación para LDAP (utils/ldap_auth.py usa el logger 'ldap')
+app_ldap_logger = logging.getLogger('ldap')
+app_ldap_logger.setLevel(logging.INFO)
+# Evitar duplicar handlers si ya existen
+if not any(getattr(h, 'baseFilename', None) == ldap_log_file for h in app_ldap_logger.handlers):
+    app_ldap_logger.addHandler(file_handler)
+app_ldap_logger.propagate = False
+
+
+logger.info("Logging de LDAP configurado. Archivo: %s", sanitizar_log_text(ldap_log_file))
 
 # ============================================================================
 # 6. CREAR MÓDULO HELPERS SI NO EXISTE
@@ -236,7 +244,7 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-logger.info(f"Directorio de uploads configurado en: {os.path.abspath(UPLOAD_FOLDER)}")
+logger.info("Directorio de uploads configurado en: %s", sanitizar_log_text(os.path.abspath(UPLOAD_FOLDER)))
 
 app.config['SESSION_COOKIE_SECURE'] = os.environ.get('FLASK_ENV') == 'production'
 app.config['SESSION_COOKIE_HTTPONLY'] = False # ajuste a true cuando este el link 
@@ -258,7 +266,7 @@ try:
     from models.inventario_corporativo_model import InventarioCorporativoModel
     logger.info("Modelos cargados correctamente")
 except ImportError as e:
-    logger.error("Error cargando modelos: [error](%s)", type(e).__name__)
+    logger.error("Error cargando modelos")
     # Definir clases dummy para evitar errores
     class MaterialModel: 
         @staticmethod
@@ -294,7 +302,7 @@ try:
     )
     logger.info("Utilidades cargadas correctamente")
 except ImportError as e:
-    logger.error("Error cargando utilidades: [error](%s)", type(e).__name__)
+    logger.error("Error cargando utilidades")
     # Definir funciones dummy
     def filtrar_por_oficina_usuario(*args, **kwargs): return []
     def verificar_acceso_oficina(*args, **kwargs): return True
@@ -316,7 +324,7 @@ try:
     from utils.permissions_functions import PERMISSION_FUNCTIONS
     logger.info("Funciones de permisos para templates cargadas correctamente")
 except ImportError as e:
-    logger.warning("No se encontró permissions_functions.py, usando funciones por defecto: [error](%s)", type(e).__name__)
+    logger.warning("No se encontró permissions_functions.py, usando funciones por defecto")
     PERMISSION_FUNCTIONS = {}
 
 # ============================================================================
@@ -336,7 +344,7 @@ try:
     from certificado_route import certificado_bp  # ← LÍNEA AGREGADA
     logger.info("Blueprints principales cargados correctamente")
 except ImportError as e:
-    logger.error("Error cargando blueprints principales: [error](%s)", type(e).__name__)
+    logger.error("Error cargando blueprints principales")
     # Crear blueprints dummy
     from flask import Blueprint
     auth_bp = Blueprint('auth', __name__)
@@ -354,7 +362,7 @@ try:
     from blueprints.prestamos import prestamos_bp
     logger.info("Blueprint de préstamos cargado exitosamente")
 except ImportError as e:
-    logger.warning("Blueprint de préstamos no disponible: [error](%s)", type(e).__name__)
+    logger.warning("Blueprint de préstamos no disponible")
     from flask import Blueprint
     prestamos_bp = Blueprint('prestamos', __name__)
     
@@ -368,12 +376,12 @@ try:
     from blueprints.inventario_corporativo import inventario_corporativo_bp
     logger.info("Blueprint de inventario corporativo cargado desde blueprints")
 except ImportError as e:
-    logger.warning("Blueprint de inventario corporativo no encontrado en blueprints: [error](%s)", type(e).__name__)
+    logger.warning("Blueprint de inventario corporativo no encontrado en blueprints")
     try:
         from routes_inventario_corporativo import bp_inv as inventario_corporativo_bp
         logger.info("Blueprint de inventario corporativo cargado desde routes_inventario_corporativo")
     except ImportError as e2:
-        logger.warning(f"Blueprint de inventario corporativo no disponible: {e2}")
+        logger.warning("Blueprint de inventario corporativo no disponible")
         from flask import Blueprint
         inventario_corporativo_bp = Blueprint('inventario_corporativo', __name__)
         
@@ -387,7 +395,7 @@ try:
     from blueprints.confirmacion_asignaciones import confirmacion_bp
     logger.info("Blueprint de confirmaciones cargado exitosamente")
 except ImportError as e:
-    logger.warning("Blueprint de confirmaciones no disponible: [error](%s)", type(e).__name__)
+    logger.warning("Blueprint de confirmaciones no disponible")
     from flask import Blueprint
     confirmacion_bp = Blueprint('confirmacion', __name__)
     
@@ -420,12 +428,12 @@ def check_session_timeout():
                 
                 inactive_time = datetime.now() - last_activity
                 if inactive_time > timedelta(minutes=SESSION_TIMEOUT_MINUTES):
-                    logger.info(f"Sesión expirada por inactividad: {session.get('usuario')}")
+                    logger.info("Sesión expirada por inactividad: %s", sanitizar_log_text(session.get("usuario")))
                     session.clear()
                     flash('Su sesión ha expirado por inactividad. Por favor, inicie sesión nuevamente.', 'warning')
                     return redirect('/auth/login')
             except Exception as e:
-                logger.warning("Error verificando timeout de sesión: [error](%s)", type(e).__name__)
+                logger.warning("Error verificando timeout de sesión")
 
 @app.after_request
 def update_session_activity(response):
@@ -586,7 +594,7 @@ def utility_processor():
             'user_can_view_all': user_can_view_all
         })
     except Exception as e:
-        logger.error("No se pudieron importar funciones de permisos: [error](%s)", type(e).__name__)
+        logger.error("No se pudieron importar funciones de permisos")
     
     # Agregar funciones de PERMISSION_FUNCTIONS si existen
     if PERMISSION_FUNCTIONS:
@@ -690,7 +698,7 @@ def dashboard():
             aprobadores=aprobadores
         )
     except Exception as e:
-        logger.error("Error cargando dashboard: [error](%s)", type(e).__name__)
+        logger.error("Error cargando dashboard")
         return render_template('dashboard.html',
             materiales=[],
             oficinas=[],
@@ -780,7 +788,7 @@ def crear_material_backup():
             return redirect('/materiales')
             
         except Exception as e:
-            logger.error("Error creando material: [error](%s)", type(e).__name__)
+            logger.error("Error creando material")
             flash('Error creando material', 'danger')
     
     return render_template('materiales/crear.html')
@@ -803,7 +811,7 @@ def listar_solicitudes_backup():
             solicitudes=solicitudes
         )
     except Exception as e:
-        logger.error("Error listando solicitudes: [error](%s)", type(e).__name__)
+        logger.error("Error listando solicitudes")
         flash('Error cargando solicitudes', 'danger')
         return redirect('/dashboard')
 
@@ -836,7 +844,7 @@ def crear_solicitud_backup():
             return redirect('/solicitudes')
             
         except Exception as e:
-            logger.error("Error creando solicitud: [error](%s)", type(e).__name__)
+            logger.error("Error creando solicitud")
             flash('Error creando solicitud', 'danger')
     
     # Obtener materiales disponibles
@@ -872,7 +880,7 @@ def listar_usuarios_backup():
                                total_activos=len([u for u in usuarios if u.get('activo', True)]),
                                total_inactivos=len([u for u in usuarios if not u.get('activo', True)]))
     except Exception as e:
-        logger.error("Error listando usuarios: [error](%s)", type(e).__name__)
+        logger.error("Error listando usuarios")
         flash('Error cargando usuarios', 'danger')
         return redirect('/dashboard')
 
@@ -899,26 +907,26 @@ def reportes_backup():
 @app.errorhandler(404)
 def pagina_no_encontrada(error):
     """Maneja errores 404 - Página no encontrada"""
-    logger.warning(f"Página no encontrada: {request.path}")
+    logger.warning("Página no encontrada: %s", sanitizar_log_text(request.path))
     return render_template('error/404.html'), 404
 
 @app.errorhandler(500)
 def error_interno(error):
     """Maneja errores 500 - Error interno del servidor"""
-    logger.error(f"Error interno del servidor: {error}", exc_info=True)
+    logger.exception("Error interno del servidor")
     return render_template('error/500.html'), 500
 
 @app.errorhandler(413)
 def archivo_demasiado_grande(error):
     """Maneja errores 413 - Archivo demasiado grande"""
-    logger.warning(f"Intento de subir archivo demasiado grande: {request.url}")
+    logger.warning("Intento de subir archivo demasiado grande: %s", sanitizar_log_text(request.url))
     flash('El archivo es demasiado grande. Tamaño máximo: 16MB', 'danger')
     return redirect(request.referrer or '/')
 
 @app.errorhandler(401)
 def no_autorizado(error):
     """Maneja errores 401 - No autorizado"""
-    logger.warning(f"Acceso no autorizado: {request.path}")
+    logger.warning("Acceso no autorizado: %s", sanitizar_log_text(request.path))
     flash('No está autorizado para acceder a esta página', 'danger')
     return redirect('/auth/login')
 
@@ -959,7 +967,7 @@ def system_health():
         return jsonify({
             'status': 'unhealthy',
             'timestamp': datetime.now().isoformat(),
-            'error': str(e)
+            'error': 'internal_error'
         }), 500
 
 @app.route('/system/info')
@@ -1009,7 +1017,7 @@ def api_estadisticas_inventario_dashboard():
         })
         
     except Exception as e:
-        logger.error("Error en API estadisticas inventario dashboard: [error](%s)", type(e).__name__)
+        logger.error("Error en API estadisticas inventario dashboard")
         return jsonify({
             "total_productos": 0,
             "valor_total": 0,
@@ -1021,7 +1029,7 @@ def api_estadisticas_inventario_dashboard():
 
 if __name__ == '__main__':
     logger.info("Iniciando servidor Flask de Sistema de Gestión de Inventarios")
-    logger.info(f"Logging de LDAP activo en: {ldap_log_file}")
+    logger.info("Logging de LDAP activo en: %s", sanitizar_log_text(ldap_log_file))
     
     # Verificar disponibilidad del servicio de notificaciones
     if not servicio_notificaciones_disponible():
@@ -1037,7 +1045,7 @@ if __name__ == '__main__':
             logger.warning("Inicialización de oficina tuvo problemas, pero el sistema continúa")
         logger.info("Sistema listo para operar")
     except Exception as e:
-        logger.error("Error en inicialización: [error](%s)", type(e).__name__)
+        logger.error("Error en inicialización")
         _dbg = os.environ.get('FLASK_DEBUG', 'false')
         if str(_dbg).strip().lower() in ('1', 'true', 'yes', 'y', 'si'):
             logger.exception("Detalle de excepción en inicialización")
@@ -1045,7 +1053,7 @@ if __name__ == '__main__':
     
     # Configuración del puerto
     port = int(os.environ.get('PORT', 5010))
-    logger.info(f"Servidor iniciado en puerto: {port}")
+    logger.info("Servidor iniciado en puerto: %s", sanitizar_log_text(port))
 
     # =======================
     # Seguridad de transporte
@@ -1078,7 +1086,7 @@ if __name__ == '__main__':
         folder_path = os.path.join(BASE_DIR, folder)
         if not os.path.exists(folder_path):
             os.makedirs(folder_path, exist_ok=True)
-            logger.info(f"Carpeta creada: {folder_path}")
+            logger.info("Carpeta creada: %s", sanitizar_log_text(folder_path))
     
     app.run(
         debug=debug_mode,

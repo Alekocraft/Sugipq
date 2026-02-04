@@ -21,6 +21,8 @@
   <div class="card shadow-sm">
     <div class="card-body">
       <form id="materialForm" method="POST" enctype="multipart/form-data">
+        {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
+
         <div class="row g-3">
           <div class="col-md-6">
             <label class="form-label" for="nombre_elemento">Nombre del material</label>
@@ -61,7 +63,16 @@
 
 {% block scripts %}
 <script>
-  function safeNavigate(path) {
+  
+  function getCsrfToken() {
+    const meta = document.querySelector('meta[name=\"csrf-token\"]');
+    if (meta && meta.getAttribute('content')) return meta.getAttribute('content');
+    const inp = document.querySelector('input[name=\"csrf_token\"]');
+    if (inp && inp.value) return inp.value;
+    return '';
+  }
+
+function safeNavigate(path) {
     try {
       if (typeof path !== 'string') return;
       const dest = path.trim();
@@ -105,7 +116,7 @@
           method: 'POST',
           body: fd,
           credentials: 'same-origin',
-          headers: { 'X-Requested-With': 'XMLHttpRequest' }
+          headers: (function(){ const h = { 'X-Requested-With': 'XMLHttpRequest' }; const tkn = getCsrfToken(); if (tkn) h['X-CSRFToken'] = tkn; return h; })()
         });
 
         let data = null;

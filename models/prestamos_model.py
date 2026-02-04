@@ -3,6 +3,18 @@ import logging
 logger = logging.getLogger(__name__)
 from database import get_database_connection
 
+# Sanitización básica para prevenir log injection / fuga de detalles en logs
+try:
+    from utils.helpers import sanitizar_log_text  # type: ignore
+except Exception:
+    def sanitizar_log_text(value):
+        try:
+            s = "" if value is None else str(value)
+        except Exception:
+            s = ""
+        return s.replace("\r", "\\r").replace("\n", "\\n").replace("\t", "\\t")
+
+
 class PrestamosModel:
     
     @staticmethod
@@ -38,7 +50,7 @@ class PrestamosModel:
             prestamos = [dict(zip(columns, row)) for row in cursor.fetchall()]
             return prestamos
         except Exception as e:
-            logger.info("Error obteniendo prestamos: [error](%s)", type(e).__name__)
+            logger.info("Error obteniendo prestamos: [error]")
             return []
         finally:
             if cursor:
@@ -68,7 +80,7 @@ class PrestamosModel:
             conn.commit()
             return cursor.lastrowid
         except Exception as e:
-            logger.info("Error creando prestamo: [error](%s)", type(e).__name__)
+            logger.info("Error creando prestamo: [error]")
             conn.rollback()
             return None
         finally:
@@ -101,7 +113,7 @@ class PrestamosModel:
             
             estado_actual = row[0]
             if estado_actual not in ['APROBADO', 'APROBADO_PARCIAL']:
-                logger.info(f"No se puede devolver prestamo en estado: {estado_actual}")
+                logger.info("No se puede devolver prestamo en estado: %s", sanitizar_log_text(estado_actual))
                 return False
             
             # Registrar devolucion
@@ -116,7 +128,7 @@ class PrestamosModel:
             conn.commit()
             return cursor.rowcount > 0
         except Exception as e:
-            logger.info("Error registrando devolucion: [error](%s)", type(e).__name__)
+            logger.info("Error registrando devolucion: [error]")
             conn.rollback()
             return False
         finally:
@@ -141,7 +153,7 @@ class PrestamosModel:
             cursor.execute(query)
             return [{'id': row[0], 'nombre': row[1]} for row in cursor.fetchall()]
         except Exception as e:
-            logger.info("Error obteniendo usuarios: [error](%s)", type(e).__name__)
+            logger.info("Error obteniendo usuarios: [error]")
             return []
         finally:
             if cursor:
@@ -181,7 +193,7 @@ class PrestamosModel:
             conn.commit()
             return cursor.rowcount > 0
         except Exception as e:
-            logger.info("Error aprobando prestamo: [error](%s)", type(e).__name__)
+            logger.info("Error aprobando prestamo: [error]")
             if conn:
                 conn.rollback()
             return False
@@ -223,7 +235,7 @@ class PrestamosModel:
             conn.commit()
             return cursor.rowcount > 0
         except Exception as e:
-            logger.info("Error rechazando prestamo: [error](%s)", type(e).__name__)
+            logger.info("Error rechazando prestamo: [error]")
             if conn:
                 conn.rollback()
             return False
@@ -277,7 +289,7 @@ class PrestamosModel:
             conn.commit()
             return cursor.rowcount > 0
         except Exception as e:
-            logger.info("Error aprobando parcialmente prestamo: [error](%s)", type(e).__name__)
+            logger.info("Error aprobando parcialmente prestamo: [error]")
             if conn:
                 conn.rollback()
             return False

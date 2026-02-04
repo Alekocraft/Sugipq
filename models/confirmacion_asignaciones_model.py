@@ -1,4 +1,5 @@
 #models/confirmacion_asignaciones_model.py
+import os
 """
 Modelo para gestionar confirmaciones de asignaciones con tokens temporales.
 Incluye autenticación contra Active Directory y validación de cédula.
@@ -13,6 +14,12 @@ from datetime import datetime, timedelta
 import re
 
 logger = logging.getLogger(__name__)
+
+
+def _error_id() -> str:
+    """Genera un identificador corto para correlación de errores sin exponer detalles."""
+    return os.urandom(4).hex()
+
 
 # Intentar importar LDAP
 try:
@@ -129,10 +136,10 @@ class ConfirmacionAsignacionesModel:
                 }
                 
         except Exception as e:
-            logger.error("Error autenticando usuario AD: [error](%s)", type(e).__name__)
+            logger.error("Error autenticando usuario AD: ref=%s", sanitizar_log_text(_error_id()))
             return {
                 'success': False,
-                'message': f'Error de autenticación: {sanitizar_log_text(str(e))}'
+                'message': 'Error interno de autenticación'
             }
     
     @staticmethod
@@ -178,11 +185,11 @@ class ConfirmacionAsignacionesModel:
             """, (asignacion_id, token_raw, token_hash, usuario_ad_email, fecha_expiracion))
             
             conn.commit()
-            logger.info(f"Token generado para asignación {asignacion_id}")
+            logger.info("Código generado para asignación %s", sanitizar_log_text(asignacion_id))
             return token_raw
             
         except Exception as e:
-            logger.error("Error generando token: [error](%s)", type(e).__name__)
+            logger.error("Error generando código: ref=%s", sanitizar_log_text(_error_id()))
             if conn:
                 try:
                     conn.rollback()
@@ -301,8 +308,8 @@ class ConfirmacionAsignacionesModel:
             }
             
         except Exception as e:
-            logger.error("Error validando token: [error](%s)", type(e).__name__)
-            return {'es_valido': False, 'mensaje_error': f'Error al validar: {str(e)}'}
+            logger.error("Error validando código: ref=%s", sanitizar_log_text(_error_id()))
+            return {'es_valido': False, 'mensaje_error': 'Error interno al validar token'}
         finally:
             if cursor:
                 cursor.close()
@@ -385,8 +392,8 @@ class ConfirmacionAsignacionesModel:
             }
             
         except Exception as e:
-            logger.error("Error verificando usuario de asignación: [error](%s)", type(e).__name__)
-            return {'coincide': False, 'message': f'Error de verificación: {str(e)}'}
+            logger.error("Error verificando usuario de asignación: ref=%s", sanitizar_log_text(_error_id()))
+            return {'coincide': False, 'message': 'Error interno de verificación'}
         finally:
             if cursor:
                 cursor.close()
@@ -492,15 +499,7 @@ class ConfirmacionAsignacionesModel:
             conn.commit()
             
             # Registrar en log
-            logger.info(f"""
-                ✅ Confirmación exitosa:
-                - Asignación: {asignacion_id}
-                - Usuario: {username}
-                - Cédula: {numero_identificacion[:3]}***
-                - Producto: {validacion_token.get('producto_nombre')}
-                - IP: {direccion_ip}
-            """)
-            
+            logger.info("✅ Confirmación exitosa: asignacion_id=%s usuario=%s", sanitizar_log_text(asignacion_id), sanitizar_username(username))
             return {
                 'success': True,
                 'message': 'Asignación confirmada exitosamente',
@@ -513,13 +512,13 @@ class ConfirmacionAsignacionesModel:
             }
             
         except Exception as e:
-            logger.error("Error confirmando asignación: [error](%s)", type(e).__name__)
+            logger.error("Error confirmando asignación: ref=%s", sanitizar_log_text(_error_id()))
             if conn:
                 try:
                     conn.rollback()
                 except:
                     pass
-            return {'success': False, 'message': f'Error al procesar confirmación: {str(e)}'}
+            return {'success': False, 'message': 'Error interno al procesar confirmación'}
         finally:
             if cursor:
                 cursor.close()
@@ -590,7 +589,7 @@ class ConfirmacionAsignacionesModel:
             return resultados
             
         except Exception as e:
-            logger.error("Error obteniendo confirmaciones pendientes: [error](%s)", type(e).__name__)
+            logger.error("Error obteniendo confirmaciones pendientes: ref=%s", sanitizar_log_text(_error_id()))
             return []
         finally:
             if cursor:
@@ -624,12 +623,12 @@ class ConfirmacionAsignacionesModel:
             conn.commit()
             
             if eliminados > 0:
-                logger.info(f"Se eliminaron {eliminados} tokens expirados")
+                logger.info("Se eliminaron %s códigos expirados", sanitizar_log_text(eliminados))
             
             return eliminados
             
         except Exception as e:
-            logger.error("Error limpiando tokens expirados: [error](%s)", type(e).__name__)
+            logger.error("Error limpiando códigos expirados: ref=%s", sanitizar_log_text(_error_id()))
             return 0
         finally:
             if cursor:

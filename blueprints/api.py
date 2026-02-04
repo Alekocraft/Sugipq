@@ -18,7 +18,7 @@ def api_material(material_id):
             return jsonify(material)
         else:
             return jsonify({'error': 'Material no encontrado o sin permisos'}), 404
-    except Exception as e:
+    except Exception:
         logger.error("❌ Error API material: %s", sanitizar_log_text('Error interno'))
         return jsonify({'error': 'Error interno del servidor'}), 500
 
@@ -35,7 +35,7 @@ def api_material_stock(material_id):
             })
         else:
             return jsonify({'error': 'Material no encontrado o sin permisos'}), 404
-    except Exception as e:
+    except Exception:
         logger.error("❌ Error API stock: %s", sanitizar_log_text('Error interno'))
         return jsonify({'error': 'Error interno del servidor'}), 500
 
@@ -50,6 +50,6 @@ def api_oficina_materiales(oficina_id):
         materiales = MaterialModel.obtener_todos() or []
         materiales_oficina = [mat for mat in materiales if mat.get('oficina_id') == oficina_id]
         return jsonify(materiales_oficina)
-    except Exception as e:
+    except Exception:
         logger.error("❌ Error API oficina materiales: %s", sanitizar_log_text('Error interno'))
         return jsonify({'error': 'Error interno del servidor'}), 500

@@ -1,4 +1,6 @@
 # models/inventario_corporativo_model_extended.py
+import os
+from utils.helpers import sanitizar_log_text
 """
 Extensiones al modelo de inventario corporativo para soportar:
 - AsignaciÃ³n a usuarios del Active Directory
@@ -10,6 +12,12 @@ from database import get_database_connection
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def _error_id() -> str:
+    """Genera un identificador corto para correlación de errores sin exponer detalles."""
+    return os.urandom(4).hex()
+
 
 
 class InventarioCorporativoModelExtended:
@@ -121,7 +129,7 @@ class InventarioCorporativoModelExtended:
             }
             
         except Exception as e:
-            logger.error("Error asignar_a_usuario_ad: [error](%s)", type(e).__name__)
+            logger.error("Error asignar_a_usuario_ad: ref=%s", sanitizar_log_text(_error_id()))
             try:
                 if conn: conn.rollback()
             except:
@@ -250,12 +258,7 @@ class InventarioCorporativoModelExtended:
                     token_hash = hashlib.sha256(token_raw.encode()).hexdigest()
                     fecha_expiracion = datetime.now() + timedelta(days=8)
                     
-                    logger.info(f"[TOKEN] Generando token para asignacion {asignacion_id}")
-                    logger.info(f"[TOKEN] token_raw: {token_raw[:15]}... (len={len(token_raw)})")
-                    logger.info(f"[TOKEN] token_hash: {token_hash[:15]}... (len={len(token_hash)})")
-                    logger.info(f"[TOKEN] email: {usuario_email}")
-                    
-                    # Eliminar tokens anteriores
+                    logger.info("[CONF] Generando código para asignacion %s", sanitizar_log_text(asignacion_id))                    # Eliminar códigos anteriores
                     cursor.execute("""
                         DELETE FROM TokensConfirmacionAsignacion 
                         WHERE AsignacionId = ?
@@ -270,11 +273,11 @@ class InventarioCorporativoModelExtended:
                     
                     conn.commit()
                     token = token_raw
-                    logger.info(f"[TOKEN] Token generado exitosamente para asignación {asignacion_id}")
+                    logger.info("[CONF] Código generado exitosamente para asignación %s", sanitizar_log_text(asignacion_id))
                     
                 except Exception as e:
-                    logger.error("[TOKEN] Error generando token: [error](%s)", type(e).__name__)
-                    logger.error(f"[TOKEN] Traceback: {traceback.format_exc()}")
+                    logger.error("[CONF] Error generando código: ref=%s", sanitizar_log_text(_error_id()))
+                    logger.error("[CONF] Error generando código")
             
             return {
                 'success': True, 
@@ -287,7 +290,7 @@ class InventarioCorporativoModelExtended:
             }
             
         except Exception as e:
-            logger.error("Error asignar_a_usuario_ad_con_confirmacion: [error](%s)", type(e).__name__)
+            logger.error("Error asignar_a_usuario_ad_con_confirmacion: ref=%s", sanitizar_log_text(_error_id()))
             try:
                 if conn: conn.rollback()
             except:
@@ -357,7 +360,7 @@ class InventarioCorporativoModelExtended:
             return [dict(zip(cols, r)) for r in cursor.fetchall()]
             
         except Exception as e:
-            logger.error("Error obteniendo asignaciones con confirmaciÃ³n: [error](%s)", type(e).__name__)
+            logger.error("Error obteniendo asignaciones con confirmaciÃ³n: ref=%s", sanitizar_log_text(_error_id()))
             return []
         finally:
             if cursor: cursor.close()
@@ -421,7 +424,7 @@ class InventarioCorporativoModelExtended:
             return new_id[0] if new_id else None
             
         except Exception as e:
-            logger.error("Error obteniendo/creando usuario AD: [error](%s)", type(e).__name__)
+            logger.error("Error obteniendo/creando usuario AD: ref=%s", sanitizar_log_text(_error_id()))
             # Si falla, retornar el primer usuario activo como fallback
             cursor.execute(
                 "SELECT TOP 1 UsuarioId FROM Usuarios WHERE Activo = 1 ORDER BY UsuarioId"
@@ -472,7 +475,7 @@ class InventarioCorporativoModelExtended:
             return [dict(zip(cols, r)) for r in cursor.fetchall()]
             
         except Exception as e:
-            logger.error("Error obteniendo asignaciones por usuario: [error](%s)", type(e).__name__)
+            logger.error("Error obteniendo asignaciones por usuario: ref=%s", sanitizar_log_text(_error_id()))
             return []
         finally:
             if cursor: cursor.close()
@@ -518,7 +521,7 @@ class InventarioCorporativoModelExtended:
             return [dict(zip(cols, r)) for r in cursor.fetchall()]
             
         except Exception as e:
-            logger.error("Error historial_asignaciones_extendido: [error](%s)", type(e).__name__)
+            logger.error("Error historial_asignaciones_extendido: ref=%s", sanitizar_log_text(_error_id()))
             return []
         finally:
             if cursor: cursor.close()

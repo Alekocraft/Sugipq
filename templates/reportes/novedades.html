@@ -315,6 +315,24 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 
 <script>
+// ---------------------------------------------------------------------
+// Security helpers (XSS/Path/CSRF) - keep functionality intact
+// ---------------------------------------------------------------------
+function escapeHtml(value) {
+    if (value === null || value === undefined) return '';
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function getCsrfToken() {
+    const el = document.querySelector('meta[name="csrf-token"]');
+    return el ? el.getAttribute('content') || '' : '';
+}
+
 let tabla;
 
 $(document).ready(function() {
@@ -557,13 +575,15 @@ function exportarPDF() {
 // NOTIFICACIONES
 // ============================================================================
 function mostrarNotificacion(mensaje, tipo) {
+        const safeMsg = escapeHtml(mensaje);
+        const safeTipo = (tipo === 'success') ? 'success' : 'danger';
     const toastHTML = `
         <div class="position-fixed top-0 end-0 p-3" style="z-index: 1060">
-            <div class="toast align-items-center text-white bg-${tipo === 'success' ? 'success' : 'danger'} border-0 show" role="alert">
+            <div class="toast align-items-center text-white bg-${safeTipo} border-0 show" role="alert">
                 <div class="d-flex">
                     <div class="toast-body">
-                        <i class="fas fa-${tipo === 'success' ? 'check-circle' : 'exclamation-triangle'} me-2"></i>
-                        ${mensaje}
+                        <i class="fas fa-${safeTipo === 'success' ? 'check-circle' : 'exclamation-triangle'} me-2"></i>
+                        ${safeMsg}
                     </div>
                     <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
                 </div>
@@ -590,9 +610,11 @@ function mostrarNotificacion(mensaje, tipo) {
 window.cambiarEstadoNovedad = function(id, nuevoEstado) {
     if (confirm('¿Está seguro de cambiar el estado de esta novedad?')) {
         fetch('/api/novedades/' + id + '/estado', {
+            credentials: 'same-origin',
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken(),
             },
             body: JSON.stringify({ estado: nuevoEstado })
         })

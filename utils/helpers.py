@@ -25,7 +25,7 @@ def save_uploaded_file(file, subfolder=''):
     
     if not allowed_file(file.filename):
         allowed_extensions = ', '.join(Config.ALLOWED_EXTENSIONS)
-        logger.warning(f"Intento de subir archivo con extensión no permitida: {file.filename}")
+        logger.warning("Intento de subir archivo con extensión no permitida: %s", sanitizar_log_text(file.filename))
         raise ValueError(f"Tipo de archivo no permitido. Extensiones permitidas: {allowed_extensions}")
     
     filename = secure_filename(file.filename)
@@ -35,20 +35,20 @@ def save_uploaded_file(file, subfolder=''):
     filepath = os.path.join(upload_dir, filename)
     file.save(filepath)
     
-    logger.debug(f"Archivo guardado exitosamente: {filepath}")
+    logger.debug("Archivo guardado exitosamente: %s", sanitizar_log_text(os.path.basename(filepath)))
     return f'/{filepath.replace(os.sep, "/")}'
 
 def get_user_permissions():
     """Obtiene los permisos del usuario actual basados en su rol de sesión"""
     role = session.get('rol')
     permissions = Config.ROLES.get(role, [])
-    logger.debug(f"Permisos obtenidos para rol '{role}': {len(permissions)} permisos")
+    logger.debug("Permisos obtenidos para rol %s: %s permisos", sanitizar_log_text(role), len(permissions))
     return permissions
 
 def can_access(section):
     """Verifica si el usuario actual tiene acceso a la sección especificada"""
     has_access = section in get_user_permissions()
-    logger.debug(f"Acceso a sección '{section}': {has_access}")
+    logger.debug("Acceso a sección %s: %s", sanitizar_log_text(section), has_access)
     return has_access
 
 def format_currency(value):
@@ -59,7 +59,7 @@ def format_currency(value):
         formatted = f"${value:,.0f}"
         return formatted.replace(",", ".")
     except (ValueError, TypeError) as e:
-        logger.warning("Error formateando valor monetario: {value}, error: [error](%s)", type(e).__name__)
+        logger.warning("Error formateando valor monetario")
         return "$0"
 
 def format_date(date_value, format_str='%d/%m/%Y'):
@@ -73,8 +73,8 @@ def format_date(date_value, format_str='%d/%m/%Y'):
         formatted = date_value.strftime(format_str)
         return formatted
     except (AttributeError, ValueError) as e:
-        logger.warning("Error formateando fecha: {date_value}, error: [error](%s)", type(e).__name__)
-        return str(date_value)
+        logger.warning("Error formateando fecha")
+        return "{0}".format(date_value)
 
 def get_pagination_params(default_per_page=20):
     """Extrae parámetros de paginación de la solicitud actual"""
@@ -86,7 +86,7 @@ def get_pagination_params(default_per_page=20):
     if per_page < 1 or per_page > 100:
         per_page = default_per_page
     
-    logger.debug(f"Parámetros de paginación: página={page}, por_página={per_page}")
+    logger.debug("Parámetros de paginación: página=%s, por_página=%s", page, per_page)
     return page, per_page
 
 def flash_errors(form):
@@ -97,7 +97,7 @@ def flash_errors(form):
             flash(f"Error en {field_label}: {error}", 'danger')
     
     if form.errors:
-        logger.warning(f"Formulario con {len(form.errors)} errores de validación")
+        logger.warning("Formulario con %s errores de validación", len(form.errors))
 
 def generate_codigo_unico(prefix, existing_codes):
     """
@@ -109,10 +109,10 @@ def generate_codigo_unico(prefix, existing_codes):
         codigo = f"{prefix}-{random_part}"
         
         if codigo not in existing_codes:
-            logger.debug(f"Código único generado: {codigo} (intento {attempt + 1})")
+            logger.debug("Código único generado: %s (intento %s)", codigo, attempt + 1)
             return codigo
     
-    logger.error(f"No se pudo generar código único después de {max_attempts} intentos")
+    logger.error("No se pudo generar código único después de %s intentos", max_attempts)
     raise ValueError("No se pudo generar código único")
 
 def calcular_valor_total(cantidad, valor_unitario):
@@ -123,7 +123,7 @@ def calcular_valor_total(cantidad, valor_unitario):
         total = cantidad * valor_unitario
         return total
     except (TypeError, ValueError) as e:
-        logger.warning("Error calculando valor total: cantidad={cantidad}, valor={valor_unitario}, error: [error](%s)", type(e).__name__)
+        logger.warning("Error calculando valor total")
         return 0
 
 def validar_stock(cantidad_solicitada, stock_disponible):
@@ -134,7 +134,7 @@ def validar_stock(cantidad_solicitada, stock_disponible):
     
     es_valido = cantidad_solicitada <= stock_disponible
     if not es_valido:
-        logger.info(f"Validación de stock fallida: solicitado={cantidad_solicitada}, disponible={stock_disponible}")
+        logger.info("Validación de stock fallida: solicitado=%s, disponible=%s", cantidad_solicitada, stock_disponible)
     
     return es_valido
 
@@ -145,7 +145,7 @@ def obtener_mes_actual():
         'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
     ]
     mes_actual = meses[datetime.now().month - 1]
-    logger.debug(f"Mes actual obtenido: {mes_actual}")
+    logger.debug("Mes actual obtenido: %s", mes_actual)
     return mes_actual
 
 # ==================== FUNCIONES DE SANITIZACIÓN PARA LOGS ====================
@@ -159,12 +159,12 @@ def sanitizar_identificacion(numero):
         return '[identificacion-protegida]'
     
     try:
-        num_str = str(numero).strip()
+        num_str = "{0}".format(numero).strip()
         if len(num_str) <= 6:
             return '***' + num_str[-3:] if len(num_str) > 3 else '***'
         return num_str[:3] + '***' + num_str[-3:]
     except Exception as e:
-        logger.warning("Error sanitizando identificación: [error](%s)", type(e).__name__)
+        logger.warning("Error sanitizando identificación")
         return '[identificacion-protegida]'
 
 def sanitizar_email(email):
@@ -187,7 +187,7 @@ def sanitizar_email(email):
         
         return f"{usuario_sanitizado}@{dominio}"
     except Exception as e:
-        logger.warning("Error sanitizando email: [error](%s)", type(e).__name__)
+        logger.warning("Error sanitizando email")
         return '[email-protegido]'
 
 def sanitizar_username(username):
@@ -204,7 +204,7 @@ def sanitizar_username(username):
         else:
             return username[:2] + '***'
     except Exception as e:
-        logger.warning("Error sanitizando username: [error](%s)", type(e).__name__)
+        logger.warning("Error sanitizando username")
         return '[usuario-protegido]'
 
 def sanitizar_ip(ip):
@@ -224,7 +224,7 @@ def sanitizar_ip(ip):
         # Para IPv6 u otros formatos, enmascarar completamente
         return '[ip-protegida]'
     except Exception as e:
-        logger.warning("Error sanitizando IP: [error](%s)", type(e).__name__)
+        logger.warning("Error sanitizando IP")
         return '[ip-protegida]'
 
 
@@ -237,8 +237,11 @@ def sanitizar_log_text(value, max_len=500):
     """
     if value is None:
         return ''
+
+    if isinstance(value, BaseException):
+        return '[error]'
     try:
-        s = str(value)
+        s = "{0}".format(value)
     except Exception:
         return '[texto-protegido]'
 

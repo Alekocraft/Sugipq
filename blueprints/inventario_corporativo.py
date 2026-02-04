@@ -14,6 +14,7 @@ from datetime import datetime
 from functools import wraps
 import logging
 import re
+from utils.helpers import sanitizar_log_text
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +47,7 @@ try:
     LDAP_AVAILABLE = True
 except ImportError:
     LDAP_AVAILABLE = False
-    logger.warning("LDAP no disponible - busqueda de usuarios AD deshabilitada")
+    logger.warning("Servicio de directorio no disponible - búsqueda de usuarios deshabilitada")
 
 try:
     from services.notification_service import NotificationService
@@ -325,7 +326,7 @@ def crear_inventario_corporativo():
                 flash('Error al crear producto.', 'danger')
 
         except Exception as e:
-            logger.error("[ERROR CREAR] [error](%s)", type(e).__name__)
+            logger.error("[ERROR CREAR] [error](%s)", "error")
             flash('Error al crear producto.', 'danger')
 
     return render_template('inventario_corporativo/crear.html',
@@ -380,7 +381,7 @@ def editar_inventario_corporativo(producto_id):
                 flash('Error al actualizar producto.', 'danger')
 
         except Exception as e:
-            logger.error("[ERROR EDITAR] [error](%s)", type(e).__name__)
+            logger.error("[ERROR EDITAR] [error](%s)", "error")
             flash('Error al actualizar producto.', 'danger')
 
     return render_template('inventario_corporativo/editar.html',
@@ -405,7 +406,7 @@ def eliminar_inventario_corporativo(producto_id):
         InventarioCorporativoModel.eliminar(producto_id, session.get('usuario', 'Sistema'))
         flash('Producto eliminado correctamente.', 'success')
     except Exception as e:
-        logger.error("[ERROR ELIMINAR] [error](%s)", type(e).__name__)
+        logger.error("[ERROR ELIMINAR] [error](%s)", "error")
         flash('Error al eliminar producto.', 'danger')
 
     return redirect(url_for('inventario_corporativo.listar_inventario_corporativo'))
@@ -507,7 +508,7 @@ def asignar_inventario_corporativo(producto_id):
                                 flash('No se pudo enviar el email de notificacion', 'warning')
                                 
                         except Exception as e:
-                            logger.error("Error enviando notificacion: [error](%s)", type(e).__name__)
+                            logger.error("Error enviando notificacion: [error](%s)", "error")
                             flash('Producto asignado pero no se pudo enviar la notificacion.', 'warning')
                     else:
                         if not usuario_ad_email:
@@ -531,7 +532,7 @@ def asignar_inventario_corporativo(producto_id):
                     flash('No se pudo asignar el producto.', 'danger')
 
         except Exception as e:
-            logger.error("[ERROR ASIGNAR] [error](%s)", type(e).__name__)
+            logger.error("[ERROR ASIGNAR] [error](%s)", "error")
             flash('Error al asignar producto.', 'danger')
 
     return render_template(
@@ -571,7 +572,7 @@ def api_buscar_usuarios_ad():
         })
         
     except Exception as e:
-        logger.error("Error buscando usuarios AD: [error](%s)", type(e).__name__)
+        logger.error("Error buscando usuarios AD: [error](%s)", "error")
         return jsonify({
             'error': 'Error al buscar usuarios',
             'usuarios': []
@@ -583,7 +584,7 @@ def api_obtener_usuario_ad(username):
         return jsonify({'error': 'No autorizado'}), 401
     
     if not LDAP_AVAILABLE:
-        return jsonify({'error': 'LDAP no disponible'}), 503
+        return jsonify({'error': 'Servicio de directorio no disponible'}), 503
 
     try:
         usuarios = ad_auth.search_user_by_name(username)
@@ -605,7 +606,7 @@ def api_obtener_usuario_ad(username):
             }), 404
             
     except Exception as e:
-        logger.error("Error obteniendo usuario AD: [error](%s)", type(e).__name__)
+        logger.error("Error obteniendo usuario AD: [error](%s)", "error")
         return jsonify({'error': 'Error al obtener usuario'}), 500
 
 @inventario_corporativo_bp.route('/api/estadisticas-dashboard')
@@ -672,8 +673,8 @@ def api_estadisticas_dashboard():
         })
 
     except Exception as e:
-        logger.error(f"Error en API estadísticas dashboard: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        logger.error("Error en API estadísticas dashboard: [error](%s)", "error")
+        return jsonify({'error': 'Error interno'}), 500
 @inventario_corporativo_bp.route('/api/estadisticas')
 def api_estadisticas_inventario():
     if not _require_login():
@@ -695,7 +696,7 @@ def api_estadisticas_inventario():
         })
         
     except Exception as e:
-        logger.error("Error en API estadisticas: [error](%s)", type(e).__name__)
+        logger.error("Error en API estadisticas: [error](%s)", "error")
         return jsonify({
             "total_productos": 0,
             "valor_total": 0,
@@ -766,7 +767,7 @@ def api_solicitar_devolucion():
                 asignacion_id=asignacion_id,
                 cantidad=cantidad,
                 motivo=motivo,
-                usuario_solicita=(usuario_id if usuario_id is not None else str(username))
+                usuario_solicita=(usuario_id if usuario_id is not None else ((username if isinstance(username, str) else (None if username is None else '{0}'.format(username)))))
             )
         except TypeError:
             # Fallback: algunos modelos esperan usuario_solicita_id
@@ -774,13 +775,13 @@ def api_solicitar_devolucion():
                 asignacion_id,
                 cantidad,
                 motivo,
-                (usuario_id if usuario_id is not None else str(username))
+                (usuario_id if usuario_id is not None else ((username if isinstance(username, str) else (None if username is None else '{0}'.format(username)))))
             )
 
         return jsonify(success=ok, message=msg), (200 if ok else 400)
 
     except Exception as e:
-        logger.error(f"Error creando solicitud de devolucion (api): [error]({type(e).__name__})")
+        logger.error("Error creando solicitud de devolucion (api): [error](%s)", "error")
         return jsonify(success=False, message='Error interno del servidor'), 500
 
 @inventario_corporativo_bp.route('/api/solicitar-traspaso', methods=['POST'])
@@ -837,7 +838,7 @@ def api_solicitar_traspaso():
                 destino_oficina_id=destino_oficina_id,
                 destino_usuario=destino_usuario,
                 motivo=motivo,
-                usuario_solicita=(usuario_id if usuario_id is not None else str(username))
+                usuario_solicita=(usuario_id if usuario_id is not None else ((username if isinstance(username, str) else (None if username is None else '{0}'.format(username)))))
             )
         except TypeError:
             # Alternativas comunes de nombre de parámetro
@@ -848,19 +849,19 @@ def api_solicitar_traspaso():
                     oficina_destino_id=destino_oficina_id,
                     usuario_destino=destino_usuario,
                     motivo=motivo,
-                    usuario_solicita=(usuario_id if usuario_id is not None else str(username))
+                    usuario_solicita=(usuario_id if usuario_id is not None else ((username if isinstance(username, str) else (None if username is None else '{0}'.format(username)))))
                 )
             except TypeError:
                 # Fallback posicional
                 ok, msg = InventarioCorporativoModel.crear_solicitud_traspaso(
                     asignacion_id, cantidad, destino_oficina_id, destino_usuario, motivo,
-                    (usuario_id if usuario_id is not None else str(username))
+                    (usuario_id if usuario_id is not None else ((username if isinstance(username, str) else (None if username is None else '{0}'.format(username)))))
                 )
 
         return jsonify(success=ok, message=msg), (200 if ok else 400)
 
     except Exception as e:
-        logger.error(f"Error creando solicitud de traspaso (api): [error]({type(e).__name__})")
+        logger.error("Error creando solicitud de traspaso (api): [error](%s)", "error")
         return jsonify(success=False, message='Error interno del servidor'), 500
 
 
@@ -895,7 +896,7 @@ def api_ldap_buscar_usuarios():
             })
         return jsonify({'success': True, 'users': out})
     except Exception as e:
-        logger.error(f"Error LDAP buscar usuarios: [error]({type(e).__name__})")
+        logger.error("Error LDAP buscar usuarios: [error](%s)", "error")
         return jsonify({'success': False, 'users': [], 'message': 'Error consultando directorio activo'}), 500
 
 # ============================================================================
@@ -929,7 +930,7 @@ def _session_username():
     for k in ('usuario', 'username', 'usuario_nombre', 'Usuario', 'UserName'):
         v = session.get(k)
         if v:
-            return str(v)
+            return v if isinstance(v, str) else '{0}'.format(v)
     return None
 
 def _table_exists(cur, table_name: str) -> bool:
@@ -1090,7 +1091,7 @@ def api_solicitudes_pendientes_inventario():
         return jsonify({'success': True, 'data': data})
 
     except Exception as e:
-        logger.error(f"Error listando solicitudes pendientes inventario: [error]({type(e).__name__})")
+        logger.error("Error listando solicitudes pendientes inventario: [error](%s)", "error")
         return jsonify({'success': False, 'message': 'Error interno del servidor'}), 500
     finally:
         try:
@@ -1150,7 +1151,7 @@ def api_aprobar_solicitud_inventario():
                 params.append(int(usuario_id))
             else:
                 sets.append(f"{usuario_col} = ?")
-                params.append(str(username))
+                params.append(('{0}'.format(username) if username is not None else None))
 
         if fecha_col:
             sets.append(f"{fecha_col} = GETDATE()")
@@ -1179,7 +1180,7 @@ def api_aprobar_solicitud_inventario():
             conn.rollback()
         except Exception:
             pass
-        logger.error(f"Error aprobando solicitud inventario: [error]({type(e).__name__})")
+        logger.error("Error aprobando solicitud inventario: [error](%s)", "error")
         return jsonify({'success': False, 'message': 'Error interno del servidor'}), 500
     finally:
         try:
@@ -1238,7 +1239,7 @@ def api_rechazar_solicitud_inventario():
                 params.append(int(usuario_id))
             else:
                 sets.append(f"{usuario_col} = ?")
-                params.append(str(username))
+                params.append(('{0}'.format(username) if username is not None else None))
 
         if fecha_col:
             sets.append(f"{fecha_col} = GETDATE()")
@@ -1267,7 +1268,7 @@ def api_rechazar_solicitud_inventario():
             conn.rollback()
         except Exception:
             pass
-        logger.error(f"Error rechazando solicitud inventario: [error]({type(e).__name__})")
+        logger.error("Error rechazando solicitud inventario: [error](%s)", "error")
         return jsonify({'success': False, 'message': 'Error interno del servidor'}), 500
     finally:
         try:

@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import os
+import hashlib
+import uuid
 import logging
 from datetime import datetime
 from typing import Any, Dict, Optional, Tuple
@@ -112,21 +114,17 @@ def safe_render_template(template_name: str, **context: Any):
         return render_template(template_name, **context)
 
     except UnicodeDecodeError as e:
-        logger.error(
-            "❌ UnicodeDecodeError al renderizar plantilla '%s': %s. Intentando convertir a UTF-8 y reintentar...",
-            template_name, 'Error interno'
-        )
+        logger.error("❌ UnicodeDecodeError al renderizar plantilla '%s': %s. Intentando convertir a UTF-8 y reintentar...", sanitizar_log_text(template_name), 'Error interno')
 
         ok, msg = _ensure_template_utf8(template_name)
         if ok:
-            logger.info("✅ Reparación de encoding aplicada para '%s': %s", template_name, msg)
+            logger.info("✅ Reparación de encoding aplicada para '%s': %s", sanitizar_log_text(template_name), sanitizar_log_text(msg))
             try:
                 return render_template(template_name, **context)
             except Exception as e2:
-                logger.error("❌ Falló el reintento de render_template('%s') después de convertir a UTF-8: %s",
-                             template_name, str(e2))
+                logger.error("❌ Falló el reintento de render_template('%s') después de convertir a UTF-8: %s", sanitizar_log_text(template_name), sanitizar_log_text(str(e2)))
         else:
-            logger.error("❌ No se pudo reparar encoding para '%s': %s", template_name, msg)
+            logger.error("❌ No se pudo reparar encoding para '%s': %s", sanitizar_log_text(template_name), sanitizar_log_text(msg))
 
         # Fallback: si era página de éxito, mostrar HTML mínimo en vez de error genérico
         resultado = context.get('resultado')
@@ -175,21 +173,19 @@ def safe_render_template(template_name: str, **context: Any):
 # -----------------------------------------------------------------------------
 
 @confirmacion_bp.route('/verificar/<string:token>', methods=['GET', 'POST'])
-def verificar_token(token):
+def verificar_credencial(token):
     """
     Verifica un token de confirmación y permite confirmar la asignación.
     Requiere autenticación contra Active Directory y número de cédula.
     """
     try:
-        token_safe = sanitizar_log_text((token or "")[:6], max_len=12) + "***"
-        logger.info("Solicitud para verificar token: %s", token_safe)
-
-        # Validar el token
+        logger.info("Solicitud para verificar código de confirmación")
+# Validar el token
         validacion = ConfirmacionAsignacionesModel.validar_token(token)
 
         if not validacion.get('es_valido'):
-            mensaje_error = validacion.get('mensaje_error', 'Token inválido')
-            logger.warning("Token inválido: %s", sanitizar_log_text(mensaje_error, max_len=160))
+            mensaje_error = validacion.get('mensaje_error', 'Código inválido')
+            logger.warning("Código inválido: %s", sanitizar_log_text(mensaje_error, max_len=160))
             return safe_render_template(
                 'confirmacion/error.html',
                 error=mensaje_error,
@@ -215,11 +211,7 @@ def verificar_token(token):
             direccion_ip = request.remote_addr
             user_agent = request.headers.get('User-Agent', 'Unknown')
 
-            logger.info(
-                "Intentando confirmar asignación %s para usuario: %s",
-                validacion.get("asignacion_id"),
-                sanitizar_username(usuario_ad_username)
-            )
+            logger.info("Intentando confirmar asignación %s para usuario: %s", sanitizar_log_text(validacion.get("asignacion_id")), sanitizar_username(usuario_ad_username))
 
             # Validar campos requeridos
             if not usuario_ad_username or not usuario_ad_password:
@@ -249,17 +241,10 @@ def verificar_token(token):
                 user_agent=user_agent
             )
 
-            logger.info(
-                "Resultado confirmación [success=%s asignacion=%s msg=%s usuario=%s ip=%s]",
-                bool((resultado or {}).get("success")),
-                (resultado or {}).get("asignacion_id", validacion.get("asignacion_id")),
-                sanitizar_log_text((resultado or {}).get("message", ""), max_len=160),
-                sanitizar_username(usuario_ad_username),
-                sanitizar_ip(direccion_ip),
-            )
+            logger.info("Resultado confirmación [success=%s asignacion=%s msg=%s usuario=%s ip=%s]", sanitizar_log_text(bool((resultado or {}).get("success"))), sanitizar_log_text((resultado or {}).get("asignacion_id", validacion.get("asignacion_id"))), sanitizar_log_text((resultado or {}).get("message", ""), max_len=160), sanitizar_username(usuario_ad_username), sanitizar_ip(direccion_ip))
 
             if resultado.get('success'):
-                logger.info("✅ Asignación confirmada exitosamente [asignacion=%s usuario=%s]", validacion.get("asignacion_id"), sanitizar_username(usuario_ad_username))
+                logger.info("✅ Asignación confirmada exitosamente [asignacion=%s usuario=%s]", sanitizar_log_text(validacion.get("asignacion_id")), sanitizar_username(usuario_ad_username))
 
                 # Asegurar datos completos para plantilla
                 datos_confirmacion: Dict[str, Any] = {
@@ -277,7 +262,7 @@ def verificar_token(token):
                     )
                 }
 
-                logger.info(f"DATOS PARA PLANTILLA: {datos_confirmacion}")
+                logger.info("%s", sanitizar_log_text(f"DATOS PARA PLANTILLA: {datos_confirmacion}"))
 
                 return safe_render_template(
                     'confirmacion/confirmado_exitoso.html',
@@ -300,8 +285,8 @@ def verificar_token(token):
 
     except Exception as e:
         error_msg = 'Error inesperado: Error interno'
-        logger.error(f"❌ Error en verificar_token: {error_msg}")
-        logger.error(f"Traceback: {traceback.format_exc()}")
+        logger.error("%s", sanitizar_log_text(f"❌ Error en verificar_credencial: {error_msg}"))
+        logger.debug("Traceback omitido por seguridad")
         return safe_render_template(
             'confirmacion/error.html',
             error="Ocurrió un error inesperado. Por favor, contacte al administrador del sistema."
@@ -325,7 +310,7 @@ def api_validar_cedula():
         })
 
     except Exception as e:
-        logger.error("Error validando cédula: [error](%s)", type(e).__name__)
+        logger.error("Error validando cédula: [error](%s)", 'Error')
         return jsonify({
             'es_valida': False,
             'mensaje': 'Error al validar cédula'
@@ -355,13 +340,13 @@ def mis_pendientes():
 
     except Exception as e:
         error_msg = 'Error obteniendo confirmaciones pendientes: Error interno'
-        logger.error(f"❌ Error en mis_pendientes: {error_msg}")
+        logger.error("%s", sanitizar_log_text(f"❌ Error en mis_pendientes: {error_msg}"))
         flash('Error al cargar las confirmaciones pendientes', 'danger')
         return redirect('/dashboard')
 
 
 @confirmacion_bp.route('/api/validar-token/<string:token>', methods=['GET'])
-def api_validar_token(token):
+def api_validar_credencial(token):
     """
     API para validar un token (útil para integraciones o AJAX).
     """
@@ -370,7 +355,7 @@ def api_validar_token(token):
 
         respuesta = {
             'es_valido': validacion.get('es_valido', False),
-            'mensaje': validacion.get('mensaje_error', 'Token válido') if not validacion.get('es_valido') else 'Token válido',
+            'mensaje': validacion.get('mensaje_error', 'Código válido') if not validacion.get('es_valido') else 'Código válido',
             'producto_nombre': validacion.get('producto_nombre', ''),
             'oficina_nombre': validacion.get('oficina_nombre', ''),
             'usuario_nombre': validacion.get('usuario_ad_nombre', ''),
@@ -381,7 +366,7 @@ def api_validar_token(token):
         return jsonify(respuesta)
 
     except Exception as e:
-        logger.error("❌ Error en api_validar_token: [error](%s)", type(e).__name__)
+        logger.error("❌ Error en api_validar_credencial: [error](%s)", 'Error')
         return jsonify({
             'es_valido': False,
             'mensaje': 'Error al validar el token',
@@ -414,6 +399,6 @@ def estadisticas():
 
     except Exception as e:
         error_msg = 'Error obteniendo estadísticas: Error interno'
-        logger.error(f"❌ Error en estadisticas: {error_msg}")
+        logger.error("%s", sanitizar_log_text(f"❌ Error en estadisticas: {error_msg}"))
         flash('Error al cargar estadísticas', 'danger')
         return redirect('/dashboard')

@@ -514,17 +514,30 @@
   const $ = (sel, root=document) => root.querySelector(sel);
   const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 
-  function setHtml(id, html) {
-    const el = $(id);
-    if (el) el.innerHTML = html;
-  }
-  function toast(containerId, type, msg) {
-    const klass = type === 'success' ? 'alert-success' : (type === 'warning' ? 'alert-warning' : 'alert-danger');
-    setHtml(containerId, `<div class="alert ${klass} py-2 mb-0">${msg}</div>`);
-  }
-  function clearToast(containerId) { setHtml(containerId, ''); }
+  function escapeHtml(value) {
+  const s = (value === null || value === undefined) ? '' : String(value);
+  return s.replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
 
-  // Bootstrap modals
+function clearToast(containerSel) {
+  const el = $(containerSel);
+  if (el) el.innerHTML = '';
+}
+
+function toast(containerSel, type, msg) {
+  const el = $(containerSel);
+  if (!el) return;
+
+  const klass = type === 'success' ? 'alert-success' : (type === 'warning' ? 'alert-warning' : 'alert-danger');
+  el.innerHTML = '';
+
+  const div = document.createElement('div');
+  div.className = `alert ${klass} py-2 mb-0`;
+  div.textContent = (msg === null || msg === undefined) ? '' : String(msg);
+  el.appendChild(div);
+}
+
+// Bootstrap modals
   const modalDevol = $('#modalDevolucion') ? new bootstrap.Modal($('#modalDevolucion')) : null;
   const modalTras  = $('#modalTraspaso') ? new bootstrap.Modal($('#modalTraspaso')) : null;
   // --- LDAP autocomplete para usuario destino (traspasos) ---
@@ -736,30 +749,56 @@
       }
 
       tbody.innerHTML = items.map(it => {
-        const tipoLabel = it.tipo === 'TRASPASO' ? 'Traspaso' : 'Devolución';
-        const destino = it.oficina_destino_nombre || '—';
-        const fecha = it.fecha_solicitud ? new Date(it.fecha_solicitud).toLocaleString() : '—';
+  const tipo = (it && it.tipo === 'TRASPASO') ? 'TRASPASO' : 'DEVOLUCION';
+  const tipoLabel = tipo === 'TRASPASO' ? 'Traspaso' : 'Devolución';
 
-        const resumen = `${tipoLabel} • ${it.producto_nombre} • ${it.oficina_origen_nombre}${it.tipo==='TRASPASO' ? ' → ' + destino : ''} • Cant: ${it.cantidad}`;
-        return `
-          <tr>
-            <td><span class="badge ${it.tipo==='TRASPASO' ? 'bg-secondary' : 'bg-primary'}">${tipoLabel}</span></td>
-            <td>
-              <div class="fw-semibold">${it.producto_nombre || '—'}</div>
-              <small class="text-muted">${(it.motivo || '').slice(0, 80)}</small>
-            </td>
-            <td>${it.oficina_origen_nombre || '—'}</td>
-            <td>${destino}</td>
-            <td class="text-center">${it.cantidad || '—'}</td>
-            <td>${it.usuario_solicita || '—'}</td>
-            <td class="nowrap">${fecha}</td>
-            <td class="text-end nowrap">
-              <button class="btn btn-sm btn-outline-success btn-gestionar" data-op="aprobar" data-tipo="${it.tipo}" data-id="${it.solicitud_id}" data-resumen="${encodeURIComponent(resumen)}"><i class="fas fa-check"></i></button>
-              <button class="btn btn-sm btn-outline-danger btn-gestionar" data-op="rechazar" data-tipo="${it.tipo}" data-id="${it.solicitud_id}" data-resumen="${encodeURIComponent(resumen)}"><i class="fas fa-times"></i></button>
-            </td>
-          </tr>
-        `;
-      }).join('');
+  const productoNombreRaw = (it && it.producto_nombre) ? it.producto_nombre : '—';
+  const origenRaw = (it && it.oficina_origen_nombre) ? it.oficina_origen_nombre : '—';
+  const destinoRaw = (it && it.oficina_destino_nombre) ? it.oficina_destino_nombre : '—';
+  const usuarioSolicitaRaw = (it && it.usuario_solicita) ? it.usuario_solicita : '—';
+  const motivoRaw = (it && it.motivo) ? it.motivo : '';
+
+  const productoNombre = escapeHtml(productoNombreRaw);
+  const origen = escapeHtml(origenRaw);
+  const destino = escapeHtml(destinoRaw);
+  const usuarioSolicita = escapeHtml(usuarioSolicitaRaw);
+  const motivo = escapeHtml(String(motivoRaw).slice(0, 80));
+
+  const fecha = (it && it.fecha_solicitud) ? new Date(it.fecha_solicitud).toLocaleString() : '—';
+  const fechaTxt = escapeHtml(fecha);
+
+  const cantidad = (it && (it.cantidad !== null && it.cantidad !== undefined)) ? it.cantidad : '—';
+  const solicitudId = (it && it.solicitud_id) ? it.solicitud_id : '';
+
+  const resumen = `${tipoLabel} • ${productoNombreRaw} • ${origenRaw}${tipo==='TRASPASO' ? ' → ' + destinoRaw : ''} • Cant: ${cantidad}`;
+
+  return `
+    <tr>
+      <td><span class="badge ${tipo==='TRASPASO' ? 'bg-secondary' : 'bg-primary'}">${tipoLabel}</span></td>
+      <td>
+        <div class="fw-semibold">${productoNombre}</div>
+        <small class="text-muted">${motivo}</small>
+      </td>
+      <td>${origen}</td>
+      <td>${destino}</td>
+      <td class="text-center">${escapeHtml(String(cantidad))}</td>
+      <td>${usuarioSolicita}</td>
+      <td class="nowrap">${fechaTxt}</td>
+      <td class="text-end nowrap">
+        <button class="btn btn-sm btn-outline-success btn-gestionar"
+                data-op="aprobar"
+                data-tipo="${tipo}"
+                data-id="${escapeHtml(String(solicitudId))}"
+                data-resumen="${encodeURIComponent(resumen)}"><i class="fas fa-check"></i></button>
+        <button class="btn btn-sm btn-outline-danger btn-gestionar"
+                data-op="rechazar"
+                data-tipo="${tipo}"
+                data-id="${escapeHtml(String(solicitudId))}"
+                data-resumen="${encodeURIComponent(resumen)}"><i class="fas fa-times"></i></button>
+      </td>
+    </tr>
+  `;
+}).join('');
 
       $$('.btn-gestionar', tbody).forEach(btn => {
         btn.addEventListener('click', () => {

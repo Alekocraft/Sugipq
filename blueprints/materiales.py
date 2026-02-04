@@ -8,6 +8,7 @@ import os
 from datetime import datetime
 
 # Third-party
+import uuid
 from flask import Blueprint, render_template, request, redirect, session, flash, url_for, current_app
 from werkzeug.utils import secure_filename
 

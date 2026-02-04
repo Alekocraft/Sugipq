@@ -25,7 +25,7 @@ ROLES_OFICINA = sorted(list(OFFICE_FILTERS.keys()) + ['oficina_regular'] + EXTRA
 def get_user_role() -> str:
     """Obtiene el rol del usuario actual en minúsculas."""
     rol = (session.get('rol') or '').lower()
-    logger.debug("get_user_role: %s", rol)
+    logger.debug("get_user_role: %s", sanitizar_log_text(rol))
     return rol
 
 
@@ -33,7 +33,7 @@ def has_gestion_completa() -> bool:
     """Verifica si el usuario tiene permisos de gestión completa."""
     rol = get_user_role()
     result = rol in ROLES_GESTION_COMPLETA
-    logger.debug("has_gestion_completa: rol=%s result=%s", rol, result)
+    logger.debug("has_gestion_completa: rol=%s result=%s", sanitizar_log_text(rol), sanitizar_log_text(result))
     return result
 
 
@@ -41,7 +41,7 @@ def is_oficina_role() -> bool:
     """Verifica si el usuario tiene rol de oficina."""
     rol = get_user_role()
     result = rol in ROLES_OFICINA or rol.startswith('oficina')
-    logger.debug("is_oficina_role: rol=%s result=%s", rol, result)
+    logger.debug("is_oficina_role: rol=%s result=%s", sanitizar_log_text(rol), sanitizar_log_text(result))
     return result
 
 
@@ -49,7 +49,7 @@ def can_create_or_view() -> bool:
     """Puede crear novedades o ver detalles (roles gestión completa u oficina)."""
     rol = get_user_role()
     result = rol in ROLES_GESTION_COMPLETA or rol in ROLES_OFICINA or rol.startswith('oficina')
-    logger.debug("can_create_or_view: rol=%s result=%s", rol, result)
+    logger.debug("can_create_or_view: rol=%s result=%s", sanitizar_log_text(rol), sanitizar_log_text(result))
     return result
 
 
@@ -79,7 +79,7 @@ def should_show_devolucion_button(solicitud: dict) -> bool:
     result = cantidad_entregada > cantidad_devuelta
     logger.debug(
         "should_show_devolucion_button: estado_id=%s entregada=%s devuelta=%s result=%s",
-        estado_id, cantidad_entregada, cantidad_devuelta, result
+        sanitizar_log_text(estado_id), sanitizar_log_text(cantidad_entregada), sanitizar_log_text(cantidad_devuelta), sanitizar_log_text(result)
     )
     return result
 
@@ -103,14 +103,14 @@ def should_show_gestion_devolucion_button(solicitud: dict) -> bool:
     try:
         from models.solicitudes_model import SolicitudModel
         result = bool(SolicitudModel.tiene_devolucion_pendiente(int(solicitud_id)))
-        logger.debug("should_show_gestion_devolucion_button: solicitud_id=%s result=%s", solicitud_id, result)
+        logger.debug("should_show_gestion_devolucion_button: solicitud_id=%s result=%s", sanitizar_log_text(solicitud_id), sanitizar_log_text(result))
         return result
     except Exception as e:
         # Fallback: si viene marcado desde el backend, úsalo.
         fallback = bool(solicitud.get('devolucion_pendiente'))
         logger.debug(
             "should_show_gestion_devolucion_button fallback: solicitud_id=%s devolucion_pendiente=%s err=%s",
-            solicitud_id, fallback, e
+            sanitizar_log_text(solicitud_id), sanitizar_log_text(fallback), sanitizar_log_text(e)
         )
         return fallback
 
@@ -132,7 +132,7 @@ def should_show_novedad_button(solicitud: dict) -> bool:
         return False
 
     result = estado_id in (2, 4, 5)
-    logger.debug("should_show_novedad_button: estado_id=%s result=%s", estado_id, result)
+    logger.debug("should_show_novedad_button: estado_id=%s result=%s", sanitizar_log_text(estado_id), sanitizar_log_text(result))
     return result
 
 
@@ -146,7 +146,7 @@ def should_show_gestion_novedad_button(solicitud: dict) -> bool:
 
     estado_id = solicitud.get('estado_id') or 1
     result = estado_id == 7
-    logger.debug("should_show_gestion_novedad_button: estado_id=%s result=%s", estado_id, result)
+    logger.debug("should_show_gestion_novedad_button: estado_id=%s result=%s", sanitizar_log_text(estado_id), sanitizar_log_text(result))
     return result
 
 
@@ -160,7 +160,7 @@ def should_show_aprobacion_buttons(solicitud: dict) -> bool:
 
     estado_id = solicitud.get('estado_id') or 1
     result = estado_id == 1
-    logger.debug("should_show_aprobacion_buttons: estado_id=%s result=%s", estado_id, result)
+    logger.debug("should_show_aprobacion_buttons: estado_id=%s result=%s", sanitizar_log_text(estado_id), sanitizar_log_text(result))
     return result
 
 

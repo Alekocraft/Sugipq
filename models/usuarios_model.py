@@ -5,9 +5,15 @@ import logging
 from config.config import Config
 import bcrypt
 import os
-from utils.helpers import sanitizar_username, sanitizar_email, sanitizar_ip, sanitizar_log_text  # ✅ CORRECCIÓN: Importar funciones de sanitización
+from utils.helpers import sanitizar_username, sanitizar_email, sanitizar_ip, sanitizar_identificacion, sanitizar_log_text  # ✅ CORRECCIÓN: Importar funciones de sanitización
 
 logger = logging.getLogger(__name__)
+
+
+def _error_id() -> str:
+    """Genera un identificador corto para correlación de errores sin exponer detalles."""
+    return os.urandom(4).hex()
+
 
 class UsuarioModel:
     
@@ -17,17 +23,17 @@ class UsuarioModel:
         Verifica credenciales PRIORIZANDO BD local, luego LDAP como fallback
         Maneja usuarios LDAP pendientes de sincronización
         """
-        logger.info(f"🔐 Intentando autenticación para: {sanitizar_username(usuario)}")   
+        logger.info("🔐 Intentando validación para: %s", sanitizar_username(usuario))   
         
         # 1. PRIMERO: Intentar autenticación local
-        logger.info(f"🔄 1. Intentando autenticación LOCAL para: {sanitizar_username(usuario)}")   
+        logger.info("🔄 1. Intentando validación LOCAL para: %s", sanitizar_username(usuario))   
         usuario_local = UsuarioModel._verificar_localmente_corregido(usuario, contraseña)
         
         if usuario_local:
-            logger.info(f"✅ Autenticación LOCAL exitosa para: {sanitizar_username(usuario)}")   
+            logger.info("✅ validación LOCAL exitosa para: %s", sanitizar_username(usuario))   
             return usuario_local
         
-        logger.info(f"❌ Autenticación LOCAL falló para: {sanitizar_username(usuario)}")   
+        logger.info("❌ validación LOCAL falló para: %s", sanitizar_username(usuario))   
         
         # 2. Verificar si es usuario LDAP pendiente
         conn = get_database_connection()
@@ -44,11 +50,11 @@ class UsuarioModel:
                 conn.close()
                 
                 if usuario_ldap:
-                    logger.info(f"🔄 Usuario LDAP encontrado: {sanitizar_username(usuario)}")   
+                    logger.info("🔄 Usuario directorio encontrado: %s", sanitizar_username(usuario))   
                     
                     # Si está pendiente o es usuario LDAP
                     if usuario_ldap[1] in ['LDAP_PENDING', 'LDAP_USER']:
-                        logger.info(f"🔄 2. Intentando LDAP para usuario registrado: {sanitizar_username(usuario)}")   
+                        logger.info("🔄 2. Intentando directorio para usuario registrado: %s", sanitizar_username(usuario))   
                         
                         if Config.LDAP_ENABLED:
                             try:
@@ -56,7 +62,7 @@ class UsuarioModel:
                                 ad_user = ad_auth.authenticate_user(usuario, contraseña)
                                 
                                 if ad_user:
-                                    logger.info(f"✅ LDAP exitoso para usuario registrado: {sanitizar_username(usuario)}")  
+                                    logger.info("✅ directorio exitoso para usuario registrado: %s", sanitizar_username(usuario))  
                                     
                                     # Completar sincronización si estaba pendiente
                                     if usuario_ldap[1] == 'LDAP_PENDING':
@@ -77,41 +83,41 @@ class UsuarioModel:
                                             'oficina_nombre': ''
                                         }
                             except Exception as ldap_error:
-                                logger.error(f"❌ Error en LDAP para usuario registrado: {ldap_error}")
+                                logger.error("❌ Error en directorio para usuario registrado: ref=%s", sanitizar_log_text(_error_id()))
                         
                         # Si LDAP falla pero el usuario existe
                         if usuario_ldap[2] == 1:  # Si está activo
-                            logger.warning(f"⚠️ Usuario LDAP no pudo autenticarse: {sanitizar_username(usuario)}")  # ✅ CORRECCIÓN
+                            logger.warning("⚠️ Usuario directorio no pudo validarse: %s", sanitizar_username(usuario))  # ✅ CORRECCIÓN
                             return None
             
             except Exception as e:
-                logger.error("❌ Error verificando usuario LDAP: [error](%s)", type(e).__name__)
+                logger.error("❌ Error verificando usuario directorio: ref=%s", sanitizar_log_text(_error_id()))
                 if conn:
                     conn.close()
         
         # 3. SEGUNDO: Solo si LDAP está habilitado y no es usuario registrado
         if Config.LDAP_ENABLED:
-            logger.info(f"🔄 3. Intentando LDAP para usuario nuevo: {sanitizar_username(usuario)}")  # ✅ CORRECCIÓN
+            logger.info("🔄 3. Intentando directorio para usuario nuevo: %s", sanitizar_username(usuario))  # ✅ CORRECCIÓN
             try:
                 from utils.ldap_auth import ad_auth
                 ad_user = ad_auth.authenticate_user(usuario, contraseña)
                 
                 if ad_user:
-                    logger.info(f"✅ LDAP exitoso para usuario nuevo: {sanitizar_username(usuario)}")  # ✅ CORRECCIÓN
+                    logger.info("✅ directorio exitoso para usuario nuevo: %s", sanitizar_username(usuario))  # ✅ CORRECCIÓN
                     # Sincronizar con BD local
                     usuario_info = UsuarioModel.sync_user_from_ad(ad_user)
                     
                     if usuario_info:
                         return usuario_info
                     else:
-                        logger.error(f"❌ Error sincronizando usuario LDAP nuevo: {sanitizar_username(usuario)}")  # ✅ CORRECCIÓN
+                        logger.error("❌ Error sincronizando usuario directorio nuevo: %s", sanitizar_username(usuario))  # ✅ CORRECCIÓN
                 else:
-                    logger.warning(f"❌ LDAP también falló para: {sanitizar_username(usuario)}")  # ✅ CORRECCIÓN
+                    logger.warning("❌ directorio también falló para: %s", sanitizar_username(usuario))  # ✅ CORRECCIÓN
             except Exception as ldap_error:
-                logger.error(f"❌ Error en LDAP para usuario nuevo: {ldap_error}")
+                logger.error("❌ Error en directorio para usuario nuevo: ref=%s", sanitizar_log_text(_error_id()))
         
         # 4. Si todo falla
-        logger.error(f"❌ TODAS las autenticaciones fallaron para: {sanitizar_username(usuario)}")  # ✅ CORRECCIÓN
+        logger.error("❌ TODAS las validaciones fallaron para: %s", sanitizar_username(usuario))  # ✅ CORRECCIÓN
         return None
 
     @staticmethod
@@ -155,7 +161,7 @@ class UsuarioModel:
             return None
                 
         except Exception as e:
-            logger.error("❌ Error obteniendo info usuario: [error](%s)", type(e).__name__)
+            logger.error("❌ Error obteniendo info usuario: ref=%s", sanitizar_log_text(_error_id()))
             return None
         finally:
             if conn:
@@ -210,7 +216,7 @@ class UsuarioModel:
                 'usuario_ad': row[8] if row[8] else None,
             }
         except Exception as e:
-            logger.error(f"❌ Error en get_by_username: {e}")
+            logger.error("❌ Error en get_by_username (ref=%s)", sanitizar_log_text(_error_id()))
             return None
         finally:
             try:
@@ -218,88 +224,129 @@ class UsuarioModel:
             except Exception:
                 pass
     @staticmethod
-    def _verificar_localmente_corregido(usuario, contraseña):
+    def _verificar_localmente_corregido(usuario: str, password: str):
+        """Verifica credenciales contra la BD local (bcrypt).
+
+        Reglas:
+        - Si el usuario está marcado como LDAP (ContraseñaHash='LDAP_USER'/'LDAP_PENDING'),
+          se omite la validación local para permitir el fallback a LDAP.
+        - No expone información sensible en logs (usuario/IP se enmascaran).
         """
-        Autenticación local CORREGIDA - compatible con tu BD exacta
-        """
+        if not usuario or password is None:
+            return None
+
+        ref = _error_id()
+
+        # Si el usuario parece un documento numérico, enmascarar como identificación.
+        def _mask(u: str) -> str:
+            try:
+                u_s = str(u or '').strip()
+                if u_s.isdigit():
+                    return sanitizar_identificacion(u_s)
+                return sanitizar_username(u_s)
+            except Exception:
+                return '[usuario-protegido]'
+
         conn = get_database_connection()
         if not conn:
-            logger.error("❌ No hay conexión a la BD")
+            logger.error("❌ Sin conexión a BD en login local: ref=%s", sanitizar_log_text(ref))
             return None
-            
+
         try:
             cursor = conn.cursor()
-            
-            # CONSULTA CORREGIDA según tu estructura exacta de BD
-            cursor.execute("""
-                SELECT 
-                    u.UsuarioId, 
-                    u.NombreUsuario, 
+            cursor.execute(
+                """
+                SELECT
+                    u.UsuarioId,
+                    u.NombreUsuario,
                     u.CorreoElectronico,
-                    u.Rol, 
-                    u.OficinaId, 
+                    u.Rol,
+                    u.OficinaId,
                     o.NombreOficina,
-                    u.ContraseñaHash
+                    u.ContraseñaHash,
+                    u.Activo,
+                    u.EsLDAP,
+                    u.UsuarioAD
                 FROM Usuarios u
                 LEFT JOIN Oficinas o ON u.OficinaId = o.OficinaId
-                WHERE (u.NombreUsuario = ? OR u.UsuarioAD = ?) AND u.Activo = 1
-            """, (usuario, usuario))
-            
+                WHERE (u.NombreUsuario = ? OR u.UsuarioAD = ?)
+                """,
+                (usuario, usuario)
+            )
             row = cursor.fetchone()
-            
-            if row:
-                logger.info(f"✅ Usuario encontrado en BD: {sanitizar_username(usuario)}")  # ✅ CORRECCIÓN
-                logger.info(f"📋 Datos fila: UsuarioId={row[0]}, Rol={row[3]}, OficinaId={row[4]}")
-                
-                # Verificar contraseña hash
-                stored_hash = row[6]  # ContraseñaHash está en posición 7 (índice 6)
-                
-                if not stored_hash:
-                    logger.error(f"❌ Hash de contraseña vacío para: {sanitizar_username(usuario)}")  # ✅ CORRECCIÓN
-                    return None
-                
-                logger.info(f"🔑 Hash almacenado (primeros 30 chars): {stored_hash[:30]}...")
-                logger.info(f"🔑 Longitud hash: {len(stored_hash)}")
-                
-                try:
-                    # IMPORTANTE: bcrypt.checkpw necesita ambos parámetros como bytes
-                    password_bytes = contraseña.encode('utf-8')
-                    hash_bytes = stored_hash.encode('utf-8')
-                    
-                    logger.info(f"🔑 Verificando contraseña...")
-                    if bcrypt.checkpw(password_bytes, hash_bytes):
-                        usuario_info = {
-                            'id': row[0],           # UsuarioId
-                            'usuario': row[1],      # NombreUsuario
-                            'nombre': row[2] if row[2] else row[1],  # CorreoElectronico o NombreUsuario
-                            'rol': row[3],          # Rol
-                            'oficina_id': row[4],   # OficinaId
-                            'oficina_nombre': row[5] if row[5] else ''  # NombreOficina
-                        }
-                        logger.info(f"✅ Contraseña CORRECTA para: {sanitizar_username(usuario)}")  # ✅ CORRECCIÓN
-                        logger.info(f"📊 Info usuario final: usuario_id={usuario_info['id']}, rol={usuario_info['rol']}")  # ✅ CORRECCIÓN: No mostrar nombre completo
-                        return usuario_info
-                    else:
-                        logger.error(f"❌ Contraseña INCORRECTA para: {sanitizar_username(usuario)}")  # ✅ CORRECCIÓN
-                        return None
-                        
-                except Exception as bcrypt_error:
-                    logger.error(f"❌ Error en bcrypt.checkpw: {bcrypt_error}")
-                    logger.error(f"❌ Tipo de hash: {type(stored_hash)}")
-                    logger.error(f"❌ Contraseña proporcionada: '[PROTEGIDA]'")  # ✅ CORRECCIÓN: No mostrar contraseña
-                    return None
-            else:
-                logger.warning(f"⚠️ Usuario NO encontrado en BD local: {sanitizar_username(usuario)}")  # ✅ CORRECCIÓN
+            if not row:
+                logger.info("❌ Usuario no encontrado en BD local: %s", _mask(usuario))
                 return None
-                
-        except Exception as e:
-            logger.error("❌ Error en _verificar_localmente_corregido: [error](%s)", type(e).__name__)
+
+            activo = row[7]
+            if activo not in (1, True):
+                logger.info("❌ Usuario inactivo en BD local: %s", _mask(usuario))
+                return None
+
+            stored_hash = row[6]
+
+            # Usuarios LDAP: no se valida localmente
+            if isinstance(stored_hash, str) and stored_hash in ("LDAP_USER", "LDAP_PENDING"):
+                logger.info("🔄 Usuario marcado como LDAP, se omite validación local: %s", _mask(usuario))
+                return None
+
+            if stored_hash is None:
+                logger.info("⚠️ Usuario sin hash local: %s", _mask(usuario))
+                return None
+
+            # Normaliza types (puede venir bytes/memoryview o str)
+            if isinstance(stored_hash, memoryview):
+                stored_hash = stored_hash.tobytes()
+
+            if isinstance(stored_hash, (bytes, bytearray)):
+                stored_hash_bytes = bytes(stored_hash)
+            else:
+                stored_hash_bytes = str(stored_hash).encode("utf-8", errors="ignore")
+
+            pw_bytes = password if isinstance(password, (bytes, bytearray)) else str(password).encode("utf-8", errors="ignore")
+
+            try:
+                ok = bcrypt.checkpw(pw_bytes, stored_hash_bytes)
+            except Exception:
+                # Hash inválido o formato no compatible (no revelar detalles)
+                logger.warning("⚠️ Hash inválido/no compatible en BD local: %s (ref=%s)", _mask(usuario), sanitizar_log_text(ref))
+                return None
+
+            if not ok:
+                logger.info("❌ Contraseña local inválida: %s", _mask(usuario))
+                return None
+
+            logger.info("✅ Login local exitoso: %s", _mask(usuario))
+
+            usuario_id = row[0]
+            nombre_usuario = row[1]
+            correo = row[2] or ''
+            rol = row[3]
+            oficina_id = row[4] if row[4] is not None else 1
+            oficina_nombre = row[5] or ''
+            es_ldap = bool(row[8]) if row[8] is not None else False
+
+            # Para compatibilidad con blueprints/auth.py
+            return {
+                'id': usuario_id,
+                'usuario': nombre_usuario,
+                'nombre': nombre_usuario,  # No hay campo de nombre completo en el schema
+                'correo': correo,
+                'rol': rol,
+                'oficina_id': oficina_id,
+                'oficina_nombre': oficina_nombre,
+                'es_ldap': es_ldap,
+            }
+
+        except Exception:
+            logger.error("❌ Error en auth local (ref=%s)", sanitizar_log_text(ref))
             return None
         finally:
-            if conn:
+            try:
                 conn.close()
-    
-    @staticmethod
+            except Exception:
+                pass
+
     def sync_user_from_ad(ad_user):
         """
         Sincroniza usuario desde AD a la base de datos local
@@ -336,7 +383,7 @@ class UsuarioModel:
                     'oficina_id': existing[4],
                     'oficina_nombre': ''
                 }
-                logger.info(f"ℹ️ Usuario ya existía en BD local: {sanitizar_username(ad_user['username'])}")  # ✅ CORRECCIÓN
+                logger.info("ℹ️ Usuario ya existía en BD local: %s", sanitizar_username(ad_user['username']))  # ✅ CORRECCIÓN
                 return usuario_info
             else:
                 # Crear nuevo usuario desde AD
@@ -398,10 +445,10 @@ class UsuarioModel:
                     'es_ldap': True
                 }
             
-                logger.info(f"✅ Nuevo usuario sincronizado desde AD: {sanitizar_username(ad_user['username'])}")  # ✅ CORRECCIÓN
+                logger.info("✅ Nuevo usuario sincronizado desde directorio: %s", sanitizar_username(ad_user['username']))  # ✅ CORRECCIÓN
                 return usuario_info
         except Exception as e:
-            logger.error("❌ Error sincronizando usuario AD: [error](%s)", type(e).__name__)
+            logger.error("❌ Error sincronizando usuario directorio: ref=%s", sanitizar_log_text(_error_id()))
             if conn:
                 conn.rollback()
             return None
@@ -471,7 +518,7 @@ class UsuarioModel:
             return default_office[0] if default_office else 1
             
         except Exception as e:
-            logger.error("❌ Error obteniendo oficina por defecto: [error](%s)", type(e).__name__)
+            logger.error("❌ Error obteniendo oficina por defecto: ref=%s", sanitizar_log_text(_error_id()))
             return 1
         finally:
             if conn:
@@ -511,7 +558,7 @@ class UsuarioModel:
             return aprobadores
             
         except Exception as e:
-            logger.error("❌ Error obteniendo aprobadores: [error](%s)", type(e).__name__)
+            logger.error("❌ Error obteniendo aprobadores: ref=%s", sanitizar_log_text(_error_id()))
             return []
         finally:
             if conn:
@@ -561,11 +608,11 @@ class UsuarioModel:
             ))
             
             conn.commit()
-            logger.info(f"✅ Usuario manual creado: {sanitizar_username(usuario_data['usuario'])}")  # ✅ CORRECCIÓN
+            logger.info("✅ Usuario manual creado: %s", sanitizar_username(usuario_data['usuario']))  # ✅ CORRECCIÓN
             return True
             
         except Exception as e:
-            logger.error("❌ Error creando usuario manual: [error](%s)", type(e).__name__)
+            logger.error("❌ Error creando usuario manual: ref=%s", sanitizar_log_text(_error_id()))
             conn.rollback()
             return False
         finally:
@@ -607,8 +654,8 @@ class UsuarioModel:
             admin_password = os.getenv('ADMIN_DEFAULT_PASSWORD')
             
             if not admin_password:
-                logger.error("❌ ADMIN_DEFAULT_PASSWORD no configurado en variables de entorno")
-                logger.error("   Configurar en .env: ADMIN_DEFAULT_PASSWORD=tu_contraseña_segura")
+                logger.error("❌ Falta configuración inicial del usuario administrador en variables de entorno")
+                logger.error("   Configura el parámetro requerido en .env (valor oculto)")
                 return False
             
             # Generar hash para contraseña del administrador
@@ -632,12 +679,12 @@ class UsuarioModel:
             
             conn.commit()
             logger.info("✅ Usuario administrador creado exitosamente")
-            logger.info("🔑 Credenciales: usuario=admin, contraseña=[PROTEGIDA]")  # ✅ CORRECCIÓN: No mostrar contraseña
-            logger.info("ℹ️ La contraseña se obtuvo de la variable de entorno ADMIN_DEFAULT_PASSWORD")
+            logger.info("🔑 Credenciales creadas para usuario=admin (clave protegida)")  # ✅ CORRECCIÓN: No mostrar contraseña
+            logger.info("ℹ️ La clave se obtuvo de una variable de entorno (oculta)")
             return True
             
         except Exception as e:
-            logger.error("❌ Error creando usuario admin: [error](%s)", type(e).__name__)
+            logger.error("❌ Error creando usuario admin: ref=%s", sanitizar_log_text(_error_id()))
             if conn:
                 conn.rollback()
             return False
@@ -683,7 +730,7 @@ class UsuarioModel:
             return None
             
         except Exception as e:
-            logger.error("❌ Error obteniendo usuario por ID: [error](%s)", type(e).__name__)
+            logger.error("❌ Error obteniendo usuario por ID: ref=%s", sanitizar_log_text(_error_id()))
             return None
         finally:
             if conn:
@@ -732,7 +779,7 @@ class UsuarioModel:
             return usuarios
             
         except Exception as e:
-            logger.error("❌ Error obteniendo todos los usuarios: [error](%s)", type(e).__name__)
+            logger.error("❌ Error obteniendo todos los usuarios: ref=%s", sanitizar_log_text(_error_id()))
             return []
         finally:
             if conn:
@@ -826,7 +873,7 @@ class UsuarioModel:
             """, (usuario_data['usuario'],))
             
             if cursor.fetchone():
-                logger.warning(f"⚠️ Usuario LDAP ya existe: {sanitizar_username(usuario_data['usuario'])}")  # ✅ CORRECCIÓN
+                logger.warning("⚠️ Usuario directorio ya existe: %s", sanitizar_username(usuario_data['usuario']))  # ✅ CORRECCIÓN
                 return None
             
             # Insertar usuario LDAP (con hash especial)
@@ -862,11 +909,11 @@ class UsuarioModel:
                 'oficina_id': usuario_data.get('oficina_id', 1)
             }
             
-            logger.info(f"✅ Usuario LDAP manual creado: {sanitizar_username(usuario_data['usuario'])} (pendiente de autenticación)")  # ✅ CORRECCIÓN
+            logger.info("✅ Usuario directorio manual creado: %s (pendiente de validación)", sanitizar_username(usuario_data['usuario']))  # ✅ CORRECCIÓN
             return usuario_info
                 
         except Exception as e:
-            logger.error("❌ Error creando usuario LDAP manual: [error](%s)", type(e).__name__)
+            logger.error("❌ Error creando usuario directorio manual: ref=%s", sanitizar_log_text(_error_id()))
             if conn:
                 conn.rollback()
             return None
@@ -920,11 +967,11 @@ class UsuarioModel:
                 ))
             
             conn.commit()
-            logger.info(f"✅ Sincronización LDAP completada para: {sanitizar_username(username)}")  # ✅ CORRECCIÓN
+            logger.info("✅ Sincronización directorio completada para: %s", sanitizar_username(username))  # ✅ CORRECCIÓN
             return True
                 
         except Exception as e:
-            logger.error("❌ Error completando sincronización LDAP: [error](%s)", type(e).__name__)
+            logger.error("❌ Error completando sincronización directorio: ref=%s", sanitizar_log_text(_error_id()))
             if conn:
                 conn.rollback()
             return False
@@ -965,11 +1012,11 @@ class UsuarioModel:
                     'FechaCreacion': row[4]
                 })
             
-            logger.info(f"✅ Se encontraron {len(aprobadores)} aprobadores desde tabla Aprobadores")  # ✅ CORRECCIÓN: Línea 859 ahora está segura
+            logger.info("✅ Se encontraron %s aprobadores desde tabla Aprobadores", sanitizar_log_text(len(aprobadores)))  # ✅ CORRECCIÓN: Línea 859 ahora está segura
             return aprobadores
             
         except Exception as e:
-            logger.error("❌ Error obteniendo aprobadores desde tabla: [error](%s)", type(e).__name__)
+            logger.error("❌ Error obteniendo aprobadores desde tabla: ref=%s", sanitizar_log_text(_error_id()))
             return []
         finally:
             if conn:

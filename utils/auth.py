@@ -1,116 +1,124 @@
+# -*- coding: utf-8 -*-
+# utils/auth.py
+"""Helpers de autenticación y autorización para proteger rutas.
+
+Este módulo provee:
+- require_login(): valida sesión activa.
+- has_role(*roles): valida rol en sesión.
+- login_required / roles_required: decoradores para rutas.
+"""
+
 import logging
-from flask import session, flash, redirect, url_for, request
 from functools import wraps
+from flask import session, flash, redirect, url_for, request
+
+from utils.helpers import sanitizar_log_text, sanitizar_username
 
 logger = logging.getLogger(__name__)
 
-def require_login():
-    """
-    Verifica si el usuario está autenticado en el sistema
-    
-    Returns:
-        bool: True si el usuario tiene sesión activa
-    """
-    is_authenticated = 'user_id' in session or 'usuario_id' in session
-    logger.debug(f"Verificación de autenticación: {is_authenticated}")
-    return is_authenticated
 
-def has_role(*roles):
-    """
-    Verifica si el usuario tiene alguno de los roles especificados
-    
-    Args:
-        *roles: Roles a verificar
-        
-    Returns:
-        bool: True si el usuario tiene al menos uno de los roles
-    """
+def require_login() -> bool:
+    """Retorna True si existe sesión de usuario."""
+    is_authenticated = ('user_id' in session) or ('usuario_id' in session)
+    logger.debug("Verificación de autenticación: %s", sanitizar_log_text(is_authenticated))
+    return bool(is_authenticated)
+
+
+def has_role(*roles: str) -> bool:
+    """Verifica si el rol en sesión coincide con alguno de los roles indicados."""
     user_role = (session.get('rol', '') or '').strip().lower()
-    target_roles = [r.lower() for r in roles]
-    has_valid_role = user_role in target_roles
-    
-    logger.debug(f"Usuario rol '{user_role}' tiene alguno de {roles}: {has_valid_role}")
-    return has_valid_role
+    target_roles = [str(r).strip().lower() for r in roles if r is not None]
+
+    has_valid_role = (user_role in target_roles) if target_roles else False
+    logger.debug(
+        "Usuario rol '%s' tiene alguno de %s: %s",
+        sanitizar_log_text(user_role),
+        sanitizar_log_text(target_roles),
+        sanitizar_log_text(has_valid_role),
+    )
+    return bool(has_valid_role)
+
 
 def login_required(f):
-    """
-    Decorador para proteger rutas que requieren autenticación
-    
-    Args:
-        f: Función a decorar
-    """
+    """Decorador para requerir autenticación."""
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if not require_login():
-            logger.warning(f"Intento de acceso no autenticado a {request.endpoint}")
+            logger.warning(
+                "Intento de acceso no autenticado a %s",
+                sanitizar_log_text(getattr(request, 'endpoint', '') or ''),
+            )
             flash('Por favor inicie sesión para acceder a esta página.', 'warning')
             return redirect(url_for('auth_bp.login', next=request.url))
-        
-        logger.debug(f"Acceso autorizado a {request.endpoint}")
+
+        logger.debug(
+            "Acceso autorizado a %s",
+            sanitizar_log_text(getattr(request, 'endpoint', '') or ''),
+        )
         return f(*args, **kwargs)
     return decorated_function
 
-def role_required(*roles):
-    """
-    Decorador para proteger rutas que requieren roles específicos
-    
-    Args:
-        *roles: Roles requeridos para acceder
-    """
+
+def roles_required(*roles: str):
+    """Decorador para requerir autenticación + uno de los roles indicados."""
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
             if not require_login():
-                logger.warning(f"Intento de acceso no autenticado a ruta con roles {roles}")
-                flash('Por favor inicie sesión.', 'warning')
+                logger.warning(
+                    "Intento de acceso no autenticado a ruta con roles %s",
+                    sanitizar_log_text(roles),
+                )
+                flash('Por favor inicie sesión para acceder a esta página.', 'warning')
                 return redirect(url_for('auth_bp.login', next=request.url))
-            
-            if not has_role(*roles):
-                user_role = session.get('rol', 'No definido')
-                logger.warning(f"Usuario rol '{user_role}' intentó acceder a ruta que requiere roles {roles}")
-                flash('No tiene permisos para acceder a esta sección.', 'danger')
-                return redirect(url_for('auth_bp.dashboard'))
-            
-            logger.debug(f"Acceso autorizado con rol a {request.endpoint}")
+
+            user_role = (session.get('rol', '') or '').strip().lower()
+            if roles and user_role not in [str(r).strip().lower() for r in roles]:
+                logger.warning(
+                    "Usuario rol '%s' intentó acceder a ruta que requiere roles %s",
+                    sanitizar_log_text(user_role),
+                    sanitizar_log_text(roles),
+                )
+                flash('No tiene permisos para acceder a esta página.', 'danger')
+                return redirect(url_for('dashboard'))
+
+            logger.debug(
+                "Acceso autorizado con rol a %s",
+                sanitizar_log_text(getattr(request, 'endpoint', '') or ''),
+            )
             return f(*args, **kwargs)
         return decorated_function
     return decorator
 
-def get_current_user():
-    """
-    Obtiene la información del usuario actualmente autenticado
-    
-    Returns:
-        dict: Información del usuario o None si no está autenticado
-    """
-    if not require_login():
-        return None
-    
+
+def get_user_data() -> dict:
+    """Devuelve datos básicos de usuario desde sesión (sin exponer info sensible en logs)."""
     user_data = {
-        'id': session.get('user_id') or session.get('usuario_id'),
-        'nombre': session.get('user_name') or session.get('usuario_nombre'),
-        'rol': session.get('rol'),
-        'oficina_id': session.get('oficina_id'),
-        'oficina_nombre': session.get('oficina_nombre')
+        'id': session.get('usuario_id') or session.get('user_id'),
+        'nombre': session.get('usuario_nombre') or session.get('nombre') or '',
+        'rol': session.get('rol') or '',
     }
-    
-    logger.debug(f"Datos de usuario obtenidos: {user_data['nombre']} ({user_data['rol']})")
+    logger.debug(
+        "Datos de usuario obtenidos: %s (%s)",
+        sanitizar_username(user_data.get('nombre')),
+        sanitizar_log_text(user_data.get('rol')),
+    )
     return user_data
 
-def can_access_module(module_name):
-    """
-    Verifica si el usuario puede acceder a un módulo específico según su rol
-    
-    Args:
-        module_name: Nombre del módulo a verificar
-        
-    Returns:
-        bool: True si el usuario tiene acceso al módulo
-    """
-    from config.config import Config
-    user_role = (session.get('rol', '') or '').strip().lower()
-    allowed_modules = Config.ROLES.get(user_role, [])
-    
-    has_access = module_name in allowed_modules
-    logger.debug(f"Acceso a módulo '{module_name}' para rol '{user_role}': {has_access}")
-    return has_access
+
+def can_access_module(module_name: str) -> bool:
+    """Chequeo simple de acceso a módulo (si la app usa listas en sesión)."""
+    module_norm = (module_name or '').strip().lower()
+    permissions = session.get('permisos_modulos') or session.get('permissions') or []
+    try:
+        allowed = module_norm in [str(x).strip().lower() for x in permissions]
+    except Exception:
+        allowed = False
+
+    logger.debug(
+        "Acceso a módulo '%s' para rol '%s': %s",
+        sanitizar_log_text(module_norm),
+        sanitizar_log_text((session.get('rol') or '')),
+        sanitizar_log_text(allowed),
+    )
+    return bool(allowed)

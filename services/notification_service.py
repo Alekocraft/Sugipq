@@ -23,6 +23,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict
 
+from utils.helpers import sanitizar_log_text
+
 from email.mime.base import MIMEBase
 from email import encoders
 from email.mime.image import MIMEImage  # <-- Para PNG/JPG (Outlook)
@@ -49,7 +51,7 @@ class NotificationService:
 
     # Configuración SMTP (se conserva tal como la tienes)
     SMTP_CONFIG = {
-        "server": os.getenv("SMTP_SERVER", "10.60.0.31"),
+        "server": os.getenv("SMTP_SERVER"),
         "port": int(os.getenv("SMTP_PORT", 25)),
         "use_tls": os.getenv("SMTP_USE_TLS", "False").lower() == "true",
         "from_email": os.getenv("SMTP_FROM_EMAIL", "gestiondeInventarios@qualitascolombia.com.co"),
@@ -287,7 +289,7 @@ class NotificationService:
                 )
                 return True
 
-            logger.warning("Extensión de logo no soportada: %s. Use PNG/JPG/JPEG.", ext)
+            logger.warning("Extensión de logo no soportada: %s. Use PNG/JPG/JPEG.", sanitizar_log_text(ext))
             return False
 
         except Exception:
@@ -464,7 +466,7 @@ class NotificationService:
             port = NotificationService.SMTP_CONFIG["port"]
             use_tls = NotificationService.SMTP_CONFIG["use_tls"]
 
-            logger.info("Conectando SMTP: %s:%s", server, port)
+            logger.info("Conectando SMTP: %s:%s", sanitizar_log_text(server), sanitizar_log_text(port))
             smtp = smtplib.SMTP(server, port, timeout=10)
             smtp.ehlo()
 
@@ -492,7 +494,7 @@ class NotificationService:
                 return False
 
             smtp.send_message(msg)
-            logger.info("Email enviado exitosamente a %s", NotificationService._mask_email(msg.get("To") or ""))
+            logger.info("Email enviado exitosamente a %s", sanitizar_log_text(NotificationService._mask_email(msg.get("To") or "")))
             return True
 
         except Exception:
@@ -853,7 +855,7 @@ Mensaje automático. No responder.
         except Exception as e:
             return {
                 "success": False,
-                "message": "Error: %s" % str(e),
+                "message": "Error: %s" % 'Error interno',
                 "config": NotificationService.SMTP_CONFIG,
             }
 

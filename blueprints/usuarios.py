@@ -4,6 +4,8 @@ from functools import wraps
 from models.usuarios_model import UsuarioModel
 from database import get_database_connection
 import logging
+import uuid
+from utils.helpers import sanitizar_log_text, sanitizar_username, sanitizar_email, sanitizar_ip
 from config.config import Config  
 from utils.helpers import sanitizar_email, sanitizar_username, sanitizar_ip, sanitizar_identificacion
 
@@ -64,38 +66,15 @@ def admin_required(f):
 # ======================
 
 def sanitizar_log_text(text):
-    """
-    Sanitiza texto para logs, eliminando caracteres peligrosos como nuevas líneas
-    y retornos de carro que podrían usarse para inyección de logs.
-    
-    Args:
-        text: Texto a sanitizar
-        
-    Returns:
-        str: Texto sanitizado
-    """
+    """Sanitiza texto para logs (evita CR/LF y controla longitud)."""
     if text is None:
-        return "[NO_PROVIDIDO]"
-    
+        return ""
     try:
-        # Convertir a string si no lo es
-        text_str = str(text)
-        
-        # Eliminar caracteres de nueva línea y retorno de carro
-        text_str = text_str.replace('\r', ' ')
-        text_str = text_str.replace('\n', ' ')
-        text_str = text_str.replace('\r\n', ' ')
-        text_str = text_str.replace('\t', ' ')
-        
-        # Limitar longitud para evitar logs excesivamente largos
-        if len(text_str) > 500:
-            text_str = text_str[:500] + "..."
-            
-        return text_str.strip()
-    except Exception as e:
-        logger.warning(f"Error sanitizando texto para log: {sanitizar_log_text(str(e))}")
-        return "[ERROR_SANITIZACION]"
-
+        s = str(text)
+    except Exception:
+        return "[invalid]"
+    s = s.replace("\r", "\\r").replace("\n", "\\n")
+    return s[:250]
 
 def _is_ajax_request() -> bool:
     """Detecta si la petición espera JSON (AJAX)."""
@@ -215,8 +194,8 @@ def listar_usuarios():
         
     except Exception as e:
         # ✅ CORRECCIÓN: Error sanitizado
-        error_sanitizado = sanitizar_log_text(str(e))
-        logger.error(f"Error en listado de usuarios: {error_sanitizado}")
+        error_sanitizado = sanitizar_log_text('detalle omitido')
+        logger.error("%s", sanitizar_log_text(f"Error en listado de usuarios: {error_sanitizado}"))
         flash('Error al listar usuarios. Por favor, intente nuevamente.', 'danger')
     finally:
         if cursor:
@@ -298,7 +277,7 @@ def crear_usuario():
                 cursor.execute("SELECT COUNT(*) FROM Usuarios WHERE NombreUsuario = ?", 
                               (usuario_data['usuario'],))
                 if cursor.fetchone()[0] > 0:
-                    logger.warning(f"Intento de crear usuario existente: {sanitizar_log_text(usuario_sanitizado)}")
+                    logger.warning("%s", sanitizar_log_text(f"Intento de crear usuario existente: {sanitizar_log_text(usuario_sanitizado)}"))
                     flash('El nombre de usuario ya existe', 'danger')
                     return redirect('/usuarios/crear')
                 
@@ -329,11 +308,11 @@ def crear_usuario():
                         ))
                         conn.commit()
                     
-                    logger.info(f"Usuario local creado exitosamente: {sanitizar_log_text(usuario_sanitizado)}")
+                    logger.info("%s", sanitizar_log_text(f"Usuario local creado exitosamente: {sanitizar_log_text(usuario_sanitizado)}"))
                     flash('Usuario local creado exitosamente', 'success')
                     return redirect('/usuarios')
                 else:
-                    logger.error(f"Error al crear usuario local: {sanitizar_log_text(usuario_sanitizado)}")
+                    logger.error("%s", sanitizar_log_text(f"Error al crear usuario local: {sanitizar_log_text(usuario_sanitizado)}"))
                     flash('Error al crear el usuario local', 'danger')
                     return redirect('/usuarios/crear')
             
@@ -354,7 +333,7 @@ def crear_usuario():
                 # Verificar si ya existe
                 cursor.execute("SELECT COUNT(*) FROM Usuarios WHERE NombreUsuario = ?", (usuario_ldap,))
                 if cursor.fetchone()[0] > 0:
-                    logger.warning(f"Usuario LDAP ya existe en el sistema: {sanitizar_log_text(usuario_ldap_sanitizado)}")
+                    logger.warning("%s", sanitizar_log_text(f"Usuario LDAP ya existe en el sistema: {sanitizar_log_text(usuario_ldap_sanitizado)}"))
                     flash('El usuario LDAP ya existe en el sistema', 'warning')
                     return redirect('/usuarios/crear')
                 
@@ -367,11 +346,11 @@ def crear_usuario():
                 })
                 
                 if usuario_creado:
-                    logger.info(f"Usuario LDAP creado exitosamente: {sanitizar_log_text(usuario_ldap_sanitizado)}")
+                    logger.info("%s", sanitizar_log_text(f"Usuario LDAP creado exitosamente: {sanitizar_log_text(usuario_ldap_sanitizado)}"))
                     flash(f'Usuario LDAP "{usuario_ldap}" creado exitosamente. Debe autenticarse primero con sus credenciales de dominio para activarse.', 'success')
                     return redirect('/usuarios')
                 else:
-                    logger.error(f"Error al crear usuario LDAP: {sanitizar_log_text(usuario_ldap_sanitizado)}")
+                    logger.error("%s", sanitizar_log_text(f"Error al crear usuario LDAP: {sanitizar_log_text(usuario_ldap_sanitizado)}"))
                     flash('Error al crear el usuario LDAP', 'danger')
                     return redirect('/usuarios/crear')
             
@@ -381,8 +360,8 @@ def crear_usuario():
                 
     except Exception as e:
  
-        error_sanitizado = sanitizar_log_text(str(e))
-        logger.error(f"Error en creación de usuario: {error_sanitizado}")
+        error_sanitizado = sanitizar_log_text('detalle omitido')
+        logger.error("%s", sanitizar_log_text(f"Error en creación de usuario: {error_sanitizado}"))
         flash('Error al crear usuario. Por favor, intente nuevamente.', 'danger')
         return redirect('/usuarios')
     finally:
@@ -490,7 +469,7 @@ def editar_usuario(usuario_id):
                 
                 if cursor.fetchone()[0] == 0:
                     
-                    logger.warning(f"Intento de desactivar último administrador: {sanitizar_log_text(username_sanitizado)}")
+                    logger.warning("%s", sanitizar_log_text(f"Intento de desactivar último administrador: {sanitizar_log_text(username_sanitizado)}"))
                     flash('No se puede desactivar el último administrador activo', 'danger')
                     return redirect(f'/usuarios/editar/{usuario_id}')
             
@@ -515,14 +494,14 @@ def editar_usuario(usuario_id):
             conn.commit()
             
             
-            logger.info(f"Usuario actualizado exitosamente: {sanitizar_log_text(username_sanitizado)} -> Rol:{sanitizar_log_text(nuevo_rol)}")
+            logger.info("%s", sanitizar_log_text(f"Usuario actualizado exitosamente: {sanitizar_log_text(username_sanitizado)} -> Rol:{sanitizar_log_text(nuevo_rol)}"))
             flash('Usuario actualizado exitosamente', 'success')
             return redirect('/usuarios')
             
     except Exception as e:
        
-        error_sanitizado = sanitizar_log_text(str(e))
-        logger.error(f"Error en edición de usuario ID:{usuario_id}: {error_sanitizado}")
+        error_sanitizado = sanitizar_log_text('detalle omitido')
+        logger.error("%s", sanitizar_log_text(f"Error en edición de usuario ID:{usuario_id}: {error_sanitizado}"))
         flash('Error al editar usuario. Por favor, intente nuevamente.', 'danger')
         return redirect('/usuarios')
     finally:
@@ -587,8 +566,8 @@ def obtener_usuario(usuario_id):
 
         return jsonify({'success': True, 'usuario': usuario})
     except Exception as e:
-        error_sanitizado = sanitizar_log_text(str(e))
-        logger.error(f"Error obteniendo usuario ID:{usuario_id}: {error_sanitizado}")
+        error_sanitizado = sanitizar_log_text('detalle omitido')
+        logger.error("%s", sanitizar_log_text(f"Error obteniendo usuario ID:{usuario_id}: {error_sanitizado}"))
         return jsonify({'success': False, 'message': 'Error al obtener usuario'}), 500
     finally:
         if cursor:
@@ -645,7 +624,7 @@ def actualizar_usuario_ajax(usuario_id):
                 WHERE Rol IN ('administrador', 'admin') AND Activo = 1 AND UsuarioId != ?
             """, (usuario_id,))
             if cursor.fetchone()[0] == 0:
-                logger.warning(f"Intento de desactivar último administrador (AJAX): {sanitizar_log_text(username_sanitizado)}")
+                logger.warning("%s", sanitizar_log_text(f"Intento de desactivar último administrador (AJAX): {sanitizar_log_text(username_sanitizado)}"))
                 return jsonify({'success': False, 'message': 'No se puede desactivar el último administrador activo'}), 400
 
         cursor.execute("""
@@ -666,11 +645,11 @@ def actualizar_usuario_ajax(usuario_id):
         ))
         conn.commit()
 
-        logger.info(f"Usuario actualizado (AJAX): {sanitizar_log_text(username_sanitizado)} -> Rol:{sanitizar_log_text(nuevo_rol)}")
+        logger.info("%s", sanitizar_log_text(f"Usuario actualizado (AJAX): {sanitizar_log_text(username_sanitizado)} -> Rol:{sanitizar_log_text(nuevo_rol)}"))
         return jsonify({'success': True})
     except Exception as e:
-        error_sanitizado = sanitizar_log_text(str(e))
-        logger.error(f"Error actualizando usuario (AJAX) ID:{usuario_id}: {error_sanitizado}")
+        error_sanitizado = sanitizar_log_text('detalle omitido')
+        logger.error("%s", sanitizar_log_text(f"Error actualizando usuario (AJAX) ID:{usuario_id}: {error_sanitizado}"))
         return jsonify({'success': False, 'message': 'Error al actualizar usuario'}), 500
     finally:
         if cursor:
@@ -742,14 +721,14 @@ def cambiar_contrasena(usuario_id):
         conn.commit()
         
         
-        logger.info(f"Contraseña actualizada para usuario: {sanitizar_log_text(username_sanitizado)}")
+        logger.info("%s", sanitizar_log_text(f"Contraseña actualizada para usuario: {sanitizar_log_text(username_sanitizado)}"))
         flash('Contraseña actualizada exitosamente', 'success')
         return redirect('/usuarios')
         
     except Exception as e:
         
-        error_sanitizado = sanitizar_log_text(str(e))
-        logger.error(f"Error cambiando contraseña para usuario ID:{usuario_id}: {error_sanitizado}")
+        error_sanitizado = sanitizar_log_text('detalle omitido')
+        logger.error("%s", sanitizar_log_text(f"Error cambiando contraseña para usuario ID:{usuario_id}: {error_sanitizado}"))
         flash('Error al cambiar contraseña. Por favor, intente nuevamente.', 'danger')
         return redirect(f'/usuarios/editar/{usuario_id}')
     finally:
@@ -796,7 +775,7 @@ def desactivar_usuario(usuario_id):
             
             if cursor.fetchone()[0] == 0:
               
-                logger.warning(f"Intento de desactivar último administrador activo: {sanitizar_log_text(username_sanitizado)}")
+                logger.warning("%s", sanitizar_log_text(f"Intento de desactivar último administrador activo: {sanitizar_log_text(username_sanitizado)}"))
                 flash('No se puede desactivar el último administrador activo', 'danger')
                 if _is_ajax_request():
                     return jsonify({'success': False, 'message': 'No se puede desactivar el último administrador activo'})
@@ -812,7 +791,7 @@ def desactivar_usuario(usuario_id):
         conn.commit()
         
          
-        logger.info(f"Usuario desactivado: {sanitizar_log_text(username_sanitizado)}")
+        logger.info("%s", sanitizar_log_text(f"Usuario desactivado: {sanitizar_log_text(username_sanitizado)}"))
         if _is_ajax_request():
             return jsonify({'success': True})
         flash('Usuario desactivado exitosamente', 'success')
@@ -820,8 +799,8 @@ def desactivar_usuario(usuario_id):
         
     except Exception as e:
         
-        error_sanitizado = sanitizar_log_text(str(e))
-        logger.error(f"Error desactivando usuario ID:{usuario_id}: {error_sanitizado}")
+        error_sanitizado = sanitizar_log_text('detalle omitido')
+        logger.error("%s", sanitizar_log_text(f"Error desactivando usuario ID:{usuario_id}: {error_sanitizado}"))
         flash('Error al desactivar usuario. Por favor, intente nuevamente.', 'danger')
         if _is_ajax_request():
             return jsonify({'success': False, 'message': 'Error al desactivar usuario'}), 500
@@ -871,7 +850,7 @@ def reactivar_usuario(usuario_id):
         conn.commit()
         
          
-        logger.info(f"Usuario reactivado: {sanitizar_log_text(username_sanitizado)}")
+        logger.info("%s", sanitizar_log_text(f"Usuario reactivado: {sanitizar_log_text(username_sanitizado)}"))
         if _is_ajax_request():
             return jsonify({'success': True})
         flash('Usuario reactivado exitosamente', 'success')
@@ -879,8 +858,8 @@ def reactivar_usuario(usuario_id):
         
     except Exception as e:
         
-        error_sanitizado = sanitizar_log_text(str(e))
-        logger.error(f"Error reactivando usuario ID:{usuario_id}: {error_sanitizado}")
+        error_sanitizado = sanitizar_log_text('detalle omitido')
+        logger.error("%s", sanitizar_log_text(f"Error reactivando usuario ID:{usuario_id}: {error_sanitizado}"))
         flash('Error al reactivar usuario. Por favor, intente nuevamente.', 'danger')
         if _is_ajax_request():
             return jsonify({'success': False, 'message': 'Error al reactivar usuario'})
@@ -945,7 +924,7 @@ def eliminar_usuario(usuario_id):
             
             if cursor.fetchone()[0] == 0:
                  
-                logger.warning(f"Intento de eliminar único administrador: {sanitizar_log_text(username_sanitizado)}")
+                logger.warning("%s", sanitizar_log_text(f"Intento de eliminar único administrador: {sanitizar_log_text(username_sanitizado)}"))
                 flash('No se puede eliminar el único administrador del sistema', 'danger')
                 if _is_ajax_request():
                     return jsonify({'success': False, 'message': 'No se puede eliminar el único administrador del sistema'})
@@ -957,7 +936,7 @@ def eliminar_usuario(usuario_id):
         conn.commit()
         
        
-        logger.info(f"Usuario eliminado permanentemente: {sanitizar_log_text(username_sanitizado)}")
+        logger.info("%s", sanitizar_log_text(f"Usuario eliminado permanentemente: {sanitizar_log_text(username_sanitizado)}"))
         if _is_ajax_request():
             return jsonify({'success': True})
         flash('Usuario eliminado permanentemente', 'success')
@@ -965,8 +944,8 @@ def eliminar_usuario(usuario_id):
         
     except Exception as e:
          
-        error_sanitizado = sanitizar_log_text(str(e))
-        logger.error(f"Error eliminando usuario ID:{usuario_id}: {error_sanitizado}")
+        error_sanitizado = sanitizar_log_text('detalle omitido')
+        logger.error("%s", sanitizar_log_text(f"Error eliminando usuario ID:{usuario_id}: {error_sanitizado}"))
         flash('Error al eliminar usuario. Por favor, intente nuevamente.', 'danger')
         if _is_ajax_request():
             return jsonify({'success': False, 'message': 'Error al eliminar usuario'})
@@ -1014,8 +993,8 @@ def buscar_usuario_ad_ajax():
 
         return jsonify({'success': True, 'usuarios': resultados})
     except Exception as e:
-        error_sanitizado = sanitizar_log_text(str(e))
-        logger.error(f"Error en búsqueda AD (AJAX): {error_sanitizado}")
+        error_sanitizado = sanitizar_log_text('detalle omitido')
+        logger.error("%s", sanitizar_log_text(f"Error en búsqueda AD (AJAX): {error_sanitizado}"))
         return jsonify({'success': False, 'message': 'Error en la búsqueda de usuarios', 'usuarios': []}), 500
 
 
@@ -1036,8 +1015,8 @@ def sincronizar_usuario_ad_ajax():
         # Si quieres automatizar, aquí es donde se implementaría la creación desde AD.
         return jsonify({'success': False, 'message': 'Función en desarrollo. Cree el usuario LDAP desde el formulario o permita el primer inicio de sesión.'}), 501
     except Exception as e:
-        error_sanitizado = sanitizar_log_text(str(e))
-        logger.error(f"Error en sincronización AD (AJAX): {error_sanitizado}")
+        error_sanitizado = sanitizar_log_text('detalle omitido')
+        logger.error("%s", sanitizar_log_text(f"Error en sincronización AD (AJAX): {error_sanitizado}"))
         return jsonify({'success': False, 'message': 'Error sincronizando usuario'}), 500
 
 
@@ -1080,8 +1059,8 @@ def buscar_usuario_ldap():
         
     except Exception as e:
         
-        error_sanitizado = sanitizar_log_text(str(e))
-        logger.error(f"Error en búsqueda LDAP: {error_sanitizado}")
+        error_sanitizado = sanitizar_log_text('detalle omitido')
+        logger.error("%s", sanitizar_log_text(f"Error en búsqueda LDAP: {error_sanitizado}"))
         return jsonify({'success': False, 'message': 'Error en la búsqueda de usuarios'})
 
 @usuarios_bp.route('/sync-ldap/<string:username>', methods=['POST'])
@@ -1098,8 +1077,8 @@ def sincronizar_usuario_ldap(username):
     except Exception as e:
          
         username_sanitizado = sanitizar_username(username)
-        error_sanitizado = sanitizar_log_text(str(e))
-        logger.error(f"Error sincronizando usuario LDAP: {sanitizar_log_text(username_sanitizado)}: {error_sanitizado}")
+        error_sanitizado = sanitizar_log_text('detalle omitido')
+        logger.error("%s", sanitizar_log_text(f"Error sincronizando usuario LDAP: {sanitizar_log_text(username_sanitizado)}: {error_sanitizado}"))
         flash('Error sincronizando usuario', 'danger')
         return redirect('/usuarios')
 
@@ -1162,8 +1141,8 @@ def api_estadisticas():
         
     except Exception as e:
         
-        error_sanitizado = sanitizar_log_text(str(e))
-        logger.error(f"Error obteniendo estadísticas de usuarios: {error_sanitizado}")
+        error_sanitizado = sanitizar_log_text('detalle omitido')
+        logger.error("%s", sanitizar_log_text(f"Error obteniendo estadísticas de usuarios: {error_sanitizado}"))
         return jsonify({'success': False, 'message': 'Error al obtener estadísticas'})
     finally:
         if cursor:

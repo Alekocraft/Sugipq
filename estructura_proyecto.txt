@@ -1,6 +1,6 @@
 ESTRUCTURA DEL PROYECTO FLASK 
 ============================= 
-Fecha: Thu 01/29/2026 18:06:10.80 
+Fecha: Wed 02/04/2026 10:47:54.37 
 Directorio actual: C:\Users\sinventarios\source\repos\sugipq 
  
 [ARCHIVOS PRINCIPALES .PY] 
@@ -13,8 +13,8 @@ blueprints\api.py
 blueprints\aprobacion.py 
 blueprints\aprobadores.py 
 blueprints\auth.py 
-blueprints\certificado_route.py 
 blueprints\confirmacion_asignaciones.py 
+blueprints\helpers.py 
 blueprints\inventario_corporativo.py 
 blueprints\materiales.py 
 blueprints\novedades_model.py 
@@ -23,12 +23,12 @@ blueprints\prestamos.py
 blueprints\reportes.py 
 blueprints\solicitudes.py 
 blueprints\usuarios.py 
+blueprints\__init__.py 
 config\config.py 
 config\ldap_config.py 
 config\permissions.py 
-config\__init__.py  
+config\__init__.py 
 models\confirmacion_asignaciones_model.py 
-models\generar_hash.py 
 models\inventario_corporativo_model.py 
 models\inventario_corporativo_model_extended.py 
 models\materiales_model.py 
@@ -80,11 +80,13 @@ templates\inventario_corporativo\traspasar.html
 templates\materials\crear.html 
 templates\materials\editar.html 
 templates\materials\elemento_crear.html 
+templates\materials\historial_material.html 
 templates\materials\listar.html 
 templates\oficinas\listar.html 
 templates\prestamos\crear.html 
 templates\prestamos\elemento_crear.html 
 templates\prestamos\listar.html 
+templates\prestamos\prestamos.html 
 templates\reportes\historial_material.html 
 templates\reportes\index.html 
 templates\reportes\inventario_corporativo.html 
@@ -139,7 +141,7 @@ logs\ldap.log
 [.vs] 
 [blueprints] 
 [config] 
-[envt2] 
+[env13] 
 [logs] 
 [models] 
 [services] 
@@ -150,8 +152,8 @@ logs\ldap.log
  
 Resumen: 
 --------- 
-Archivos .py: 4184 
-Archivos HTML: 45 
+Archivos .py: 3975 
+Archivos HTML: 47 
 Archivos CSS: 5 
 Archivos JS: 0 
 Archivos de entorno: 2 

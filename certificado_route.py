@@ -22,6 +22,7 @@ import os
 from database import get_database_connection
 from utils.auth import login_required
 
+from utils.helpers import sanitizar_log_text, sanitizar_username, sanitizar_identificacion
 # Crear el Blueprint
 certificado_bp = Blueprint('certificado', __name__, url_prefix='/reportes')
 
@@ -53,10 +54,10 @@ def add_header_footer(canvas, doc):
                             width=logo_width, height=logo_height, 
                             preserveAspectRatio=True, mask='auto')
             
-            logger.info(f"✅ Logo dibujado: {logo_width:.2f} x {logo_height:.2f} pulgadas")
-            logger.info(f"✅ Posición: ({logo_x:.2f}, {logo_y:.2f})")
+            logger.info("✅ Logo dibujado: %.2f x %.2f pulgadas", logo_width, logo_height)
+            logger.info("✅ Posición: (%.2f, %.2f)", logo_x, logo_y)
         except Exception as e:
-            logger.info("❌ No se pudo cargar el logo: [error](%s)", type(e).__name__)
+            logger.info("❌ No se pudo cargar el logo: [error]")
             # Dibujar rectángulo como fallback
             canvas.setFillColor(QUALITAS_PURPLE)
             canvas.rect(0.75*inch, letter[1] - 1.3*inch, letter[0] - 1.5*inch, 1.0*inch, fill=1)
@@ -90,7 +91,7 @@ def generar_certificado(asignacion_id):
     # 🔍 PRINT DE DIAGNÓSTICO
     logger.info("=" * 80)
     logger.info("🎨 CÓDIGO NUEVO QUÁLITAS EJECUTÁNDOSE")
-    logger.info(f"📋 Generando certificado para asignación ID: {asignacion_id}")
+    logger.info("📋 Generando certificado para asignación ID: %s", sanitizar_log_text(asignacion_id))
     logger.info("=" * 80)
     try:
         conn = get_database_connection()
@@ -159,8 +160,10 @@ def generar_certificado(asignacion_id):
         
         conn.close()
         
-        logger.info(f"✅ Datos obtenidos para: {asignacion.get('UsuarioADNombre', 'N/A')}")
-        logger.info(f"✅ Número de Identificación: {asignacion.get('NumeroIdentificacion', 'N/A')}")
+        logger.info("✅ Datos obtenidos para: %s", sanitizar_username(asignacion.get('UsuarioADNombre', 'N/A')))
+
+        logger.info("✅ Número de Identificación: %s", sanitizar_identificacion(asignacion.get('NumeroIdentificacion', 'N/A')))
+
         # Generar el PDF
         buffer = BytesIO()
         doc = SimpleDocTemplate(
@@ -452,7 +455,7 @@ def generar_certificado(asignacion_id):
         nombre_usuario = asignacion.get('UsuarioADNombre', 'Usuario').replace(' ', '_')
         nombre_archivo = f"Certificado_Asignacion_{asignacion['AsignacionId']:06d}_{nombre_usuario}.pdf"
         
-        logger.info(f"✅ Certificado generado exitosamente: {nombre_archivo}")
+        logger.info("✅ Certificado generado exitosamente: %s", sanitizar_log_text(nombre_archivo))
         logger.info("=" * 80)
         return send_file(
             buffer,
@@ -462,7 +465,9 @@ def generar_certificado(asignacion_id):
         )
         
     except Exception as e:
-        logger.info("❌ ERROR al generar certificado: [error](%s)", type(e).__name__)
+        logger.info("❌ ERROR al generar certificado: [error]")
         logger.info("=" * 80)
         logger.exception("Excepción en certificado_route")
-        return f"Error al generar el certificado: {str(e)}", 500
+        error_id = datetime.now().strftime("%Y%m%d%H%M%S")
+        logger.info("Código de error (certificado): %s", sanitizar_log_text(error_id))
+        return f"Error al generar el certificado (código: {error_id})", 500

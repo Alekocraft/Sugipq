@@ -25,6 +25,8 @@
       <div class="card shadow-sm">
         <div class="card-body">
           <form id="prestamoForm" method="POST">
+            {% if csrf_token is defined %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endif %}
+
             <div class="mb-3">
               <label for="elemento_id" class="form-label">Elemento</label>
               <select class="form-select" id="elemento_id" name="elemento_id" required>
@@ -110,7 +112,26 @@
 
 {% block scripts %}
 <script>
-  // Navegación segura (misma-origen)
+  
+function getCsrfToken() {
+  const meta = document.querySelector('meta[name="csrf-token"]');
+  if (meta && meta.getAttribute('content')) return meta.getAttribute('content');
+  const inp = document.querySelector('input[name="csrf_token"]');
+  if (inp && inp.value) return inp.value;
+  return '';
+}
+
+function isSafeImageUrl(url) {
+  if (!url) return false;
+  const s = String(url).trim();
+  if (!s) return false;
+  if (/[
+	]/.test(s)) return false;
+  if (s.startsWith('javascript:') || s.startsWith('data:')) return false;
+  return s.startsWith('/') || s.startsWith('http://') || s.startsWith('https://');
+}
+
+// Navegación segura (misma-origen)
   function safeNavigate(path) {
     try {
       if (typeof path !== 'string') return;
@@ -170,7 +191,7 @@
 
     const imgEl = document.getElementById('resumenImagen');
     const noImgEl = document.getElementById('resumenSinImagen');
-    if (imagen) {
+    if (imagen && isSafeImageUrl(imagen)) {
       imgEl.src = imagen;
       imgEl.style.display = '';
       noImgEl.style.display = 'none';
@@ -202,7 +223,7 @@
           method: 'POST',
           body: formData,
           credentials: 'same-origin',
-          headers: { 'X-Requested-With': 'XMLHttpRequest' }
+          headers: (function(){ const h = { 'X-Requested-With': 'XMLHttpRequest' }; const tkn = getCsrfToken(); if (tkn) h['X-CSRFToken'] = tkn; return h; })()
         });
 
         let data = null;
